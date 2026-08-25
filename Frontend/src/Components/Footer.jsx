@@ -16,6 +16,7 @@ export default function Footer() {
           <h4 className="text-white font-semibold mb-3">Explore</h4>
           <ul className="space-y-2 text-sm">
             <li><Link to="/bible-studies" className="hover:text-white">Bible Studies</Link></li>
+            <li><Link to="/series" className="hover:text-white">Series</Link></li>
             <li><Link to="/devotions" className="hover:text-white">Devotions</Link></li>
             <li><Link to="/news" className="hover:text-white">News</Link></li>
             <li><Link to="/gallery" className="hover:text-white">Gallery</Link></li>

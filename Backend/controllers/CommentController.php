@@ -56,8 +56,9 @@ class CommentController
     public function moderationQueue(): void
     {
         require_permission('comments.moderate');
-        $status = in_array($_GET['status'] ?? 'pending', ['pending', 'spam', 'approved'], true)
-            ? $_GET['status']
+        $requestedStatus = $_GET['status'] ?? 'pending';
+        $status = in_array($requestedStatus, ['pending', 'spam', 'approved'], true)
+            ? $requestedStatus
             : 'pending';
         $page  = max(1, (int) ($_GET['page'] ?? 1));
         $limit = min(50, (int) ($_GET['limit'] ?? 25));

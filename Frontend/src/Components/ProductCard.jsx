@@ -1,8 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Check } from 'lucide-react';
+import { useCart } from '../context/CartContext.jsx';
 
 export default function ProductCard({ product }) {
+  const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
   const price = product.sale_price ?? product.price;
   const onSale = product.sale_price && product.sale_price < product.price;
+
+  function handleAddToCart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    addItem(product, 1);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
+  }
 
   return (
     <article className="glass-card overflow-hidden group cursor-pointer hover:-translate-y-1 transition-transform">
@@ -23,8 +35,13 @@ export default function ProductCard({ product }) {
             <span className="text-sm text-ink/40 line-through">${Number(product.price).toFixed(2)}</span>
           )}
         </div>
-        <button className="mt-4 w-full py-2 rounded-full bg-brand-gradient text-white text-sm font-semibold hover:opacity-90 transition">
-          Add to Cart
+        <button
+          onClick={handleAddToCart}
+          className={`mt-4 w-full py-2 rounded-full text-sm font-semibold transition flex items-center justify-center gap-1.5 ${
+            added ? 'bg-emerald-500 text-white' : 'bg-brand-gradient text-white hover:opacity-90'
+          }`}
+        >
+          {added ? (<><Check className="w-4 h-4" /> Added</>) : 'Add to Cart'}
         </button>
       </div>
     </article>

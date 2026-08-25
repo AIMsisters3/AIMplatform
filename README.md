@@ -15,6 +15,11 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
    3. `Backend/database/migrations/002_soft_deletes_and_indexes.sql` — adds soft deletes + query indexes.
    4. `Backend/database/migrations/003_newsletter_subscribers.sql` — adds the newsletter table (this one
       isn't optional — without it, newsletter signup throws a fatal SQL error; see §5).
+   5. `Backend/database/migrations/004_bible_studies.sql` — Bible Study as its own entity: format,
+      study guide, per-user progress, and private notes (see §4c below).
+   6. `Backend/database/migrations/005_series_episodes.sql` — Series → Season → Episode structure.
+   7. `Backend/database/migrations/006_bookmarks_watch_history.sql` — centralized bookmarks +
+      per-item watch progress ("Continue Watching" / "Continue Studying").
 
    Each migration file's header comment explains what it does and why. They're safe to run once each;
    re-running is a no-op error on the `ADD COLUMN`/`ADD INDEX` lines (that just means it already applied).
@@ -81,20 +86,25 @@ AIMTech/
 
 ## 4. What's implemented vs. scaffolded
 
-**Fully wired:** authentication (register/login/JWT) with role-based permissions enforced
-server-side, content CRUD (bible studies, videos, articles, devotions, news, gallery) with soft
-delete, categories, products with soft delete, checkout/orders with a swappable payment gateway,
-notifications, comments with a moderation queue, newsletter subscribe + confirm, file uploads
+**Fully wired, frontend included:** authentication (register/login/JWT) with role-based
+permissions enforced server-side, content CRUD (videos, articles, devotions, news, gallery) with
+soft delete, categories, products with soft delete, a full cart → checkout → order flow with a
+swappable payment gateway, a "My Orders" page, notifications (bell with unread badge + mark
+read/read-all), global search (content + products, with a results page), bookmarks ("My
+Bookmarks"), comments with a moderation queue, newsletter subscribe + confirm, file uploads
 (extension + MIME-sniffed), bulk actions (publish/archive/delete), content duplication, admin
-dashboard, media library.
+dashboard, media library, **Bible Study as its own section** (format filter, "Continue Studying",
+per-user progress, private notes, bookmarking — §4c), and **Series → Season → Episode** browsing
+(§4c). Admin now also has dedicated screens for Orders, Comments Moderation, Newsletter
+subscribers, Roles & Users, and Series/episode management.
 
 **UI scaffolded, backend not yet wired (marked disabled in the UI):** AI Assistant generation
 (needs an OpenAI API key + a small `/api/ai/*` controller — the button placeholders show exactly
 where to plug it in), a real payment processor (Stripe/PayPal — see §4b, checkout works today via
-the manual/pay-offline method), coupon **application in the storefront UI** (the backend already
-validates and prices coupons — see `Order::create`), product reviews, wishlists, analytics charts,
-calendar/scheduled posts, and a cart/checkout page in the Frontend (`OrderController`'s API is
-ready; `Pages/Shop.jsx` doesn't call it yet).
+the manual/pay-offline method), coupon **application in the storefront checkout UI** (the field is
+there and the backend already validates/prices coupons via `Order::create` — it's just not shown
+back to the shopper as a live discount preview before they submit), product reviews, wishlists
+(distinct from bookmarks), and analytics charts.
 
 ### 4a. Roles & permissions (RBAC)
 
@@ -119,6 +129,30 @@ screenshot) where the order is placed as `pending` and an admin confirms it via
 `POST /api/orders/{id}/status`. To add Stripe/PayPal later: implement the interface, add a `case`
 to `PaymentGatewayFactory::resolve()`, and add the new method's slug to `availableMethods()` — no
 change needed anywhere else (routes, `Order` model, schema).
+
+### 4c. Bible Study & Series architecture
+
+Both of these still live in the shared `content` table (title/slug/description/thumbnail/
+media_url/language/status/comments/soft-delete all keep working exactly as they do for every
+other content type) — nothing is duplicated. Each adds a thin, purpose-built layer on top:
+
+- **Bible Study** (`content_type = 'bible_study'`) gets a 1:1 `bible_studies` row (format —
+  Short Film / Video / Sermon / Panel / Audio / Animated / Documentary / PDF-Notes — plus an
+  optional study guide URL), a `bible_study_progress` row per user per study (status/percent/last
+  position — powers "Continue Studying"), and private `bible_study_notes` (only the author can
+  ever read their own notes — there is no admin or "public notes" read path for this table at
+  all). Creating or editing a Bible Study through the normal `POST/PUT /api/content` endpoint
+  automatically keeps the `bible_studies` extension row in sync — see
+  `ContentController::store()`/`update()`.
+- **Series → Season → Episode**: a `series` table (its own title/slug/description/cover/status/
+  soft-delete), and three nullable columns added directly to `content` — `series_id`,
+  `season_number`, `episode_number`. An episode is a completely ordinary `content` row (usually
+  `content_type = 'video'`); it reuses the same player, comments, bookmarks, and watch-history
+  machinery every other video already has. Attach an existing content item to a series from
+  **Admin → Manage Series**.
+- **Bookmarks & Watch History** are both centralized (`bookmarks`, `watch_history`) rather than
+  per-content-type, so "save for later" and "% watched" work identically across every content
+  type, including Bible Studies and Series episodes.
 
 ## 5. Fixes applied in this pass
 
@@ -175,19 +209,33 @@ each exercised against a real database with 30+ functional assertions (server-si
 spoofed by the client, over-stock orders roll back cleanly and leave stock untouched, revoking a
 permission from a role takes effect without re-issuing any token, etc.) before this pass was written up.
 
+### 5a. Fixes applied while building Bible Study / Series / cart+checkout / admin screens
+
+- **A partial content update could silently wipe a Bible Study's study guide URL** —
+  `ContentController::update()` fell back to `$existing['study_guide_url']` when only `format` was
+  sent, but `$existing` comes from `Content::find()`, which never has that column (it lives on the
+  `bible_studies` extension row). Sending `{format: "sermon"}` alone nulled out an already-saved
+  study guide URL. Fixed to read the current extension row (`BibleStudy::findByContentId()`) as the
+  fallback instead. Caught by an end-to-end test that created a study with a guide URL, sent a
+  format-only update, and checked the guide URL survived.
+- **`GET /api/comments/moderation` with no `?status=` threw a PHP warning** (`Undefined array key
+  "status"`) — the ternary's true-branch re-read `$_GET['status']` directly instead of the
+  already-defaulted value it had just checked with `in_array()`. Harmless when a status was passed,
+  but broke the moderation queue's default view (exactly what **Admin → Comments** loads first).
+  Fixed in `CommentController::moderationQueue()`.
+- Both of the above were found by running the real HTTP router end-to-end (`php -S` + `curl`)
+  against every new/changed route — including auth-gated ones with a real signed JWT, and
+  ownership checks (a non-owner correctly gets 403 deleting someone else's private Bible Study
+  note) — rather than only unit-testing the model layer.
+
 ## 6. Next steps
 
-- Wire `Pages/Shop.jsx` (Frontend) to a cart + `POST /api/orders` — the backend checkout flow is done
-  and tested (§4b); only the storefront cart UI is missing.
 - Wire the AI Assistant panel to the OpenAI API (or another provider) via a new `AIController.php`.
 - Add a real payment gateway (Stripe/PayPal) alongside the manual one — see §4b for exactly where it plugs in.
 - Consider swapping the hand-rolled JWT helper for `firebase/php-jwt` via Composer for production use.
-- Build the admin screens the new backend capabilities are ready for: roles/permissions editor
-  (`Role::allWithPermissions()`), comment moderation queue (`GET /api/comments/moderation`), order
-  management (`GET /api/orders?all=1`, `POST /api/orders/{id}/status`), newsletter subscriber list
-  (`GET /api/newsletter/subscribers`).
-- The content library is still one generic `content` table with a `content_type` column rather than the
-  fully separate Bible Study / Series-Episodes architecture the long-term spec describes (dedicated
-  progress tracking, notes, quizzes, series/season/episode structure). That's a bigger, deliberate
-  architectural project of its own — not attempted in this pass, which focused on hardening what already
-  existed.
+- Show the coupon discount as a live preview in the checkout UI before the shopper submits (the
+  backend already computes and applies it correctly — see §4).
+- Product reviews and a wishlist system distinct from bookmarks (spec calls out both separately).
+- Analytics/reporting charts for the admin dashboard.
+- Quizzes / knowledge checks at the end of a Bible Study (the `bible_studies`/`bible_study_progress`
+  tables have room to grow into this; not attempted in this pass).

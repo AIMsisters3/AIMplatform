@@ -5,9 +5,14 @@ const items = [
   { to: '/admin', label: 'Dashboard', icon: '🏠', end: true },
   { to: '/admin/upload', label: 'Upload Content', icon: '⬆️' },
   { to: '/admin/content', label: 'Manage Content', icon: '📋' },
+  { to: '/admin/series', label: 'Manage Series', icon: '🎬' },
   { to: '/admin/products', label: 'Manage Products', icon: '🛍️' },
+  { to: '/admin/orders', label: 'Orders', icon: '📦' },
+  { to: '/admin/comments', label: 'Comments', icon: '💬' },
+  { to: '/admin/newsletter', label: 'Newsletter', icon: '✉️' },
+  { to: '/admin/roles', label: 'Roles & Users', icon: '👥' },
   { to: '/admin/media', label: 'Media Library', icon: '🗂️' },
-  { to: '/admin/testimonials', label: 'Testimonials', icon: '💬' },
+  { to: '/admin/testimonials', label: 'Testimonials', icon: '⭐' },
   { to: '/admin/ai-assistant', label: 'AI Assistant', icon: '✨' },
 ];
 

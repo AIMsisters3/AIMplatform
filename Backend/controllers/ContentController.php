@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../models/Content.php';
+require_once __DIR__ . '/../models/BibleStudy.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -82,6 +83,18 @@ class ContentController
         $body['author_id'] = $payload['sub'];
 
         $id = $this->model->create($body);
+
+        // Bible Study is a "content + extension table" type (spec §7): the
+        // base row lives in content like everything else, and the
+        // format/study-guide fields live in bible_studies keyed to it.
+        if ($body['content_type'] === 'bible_study') {
+            (new BibleStudy())->createExtension(
+                (int) $id,
+                $body['format'] ?? 'video',
+                $body['study_guide_url'] ?? null
+            );
+        }
+
         json_created(['id' => $id], 'Content created successfully.');
     }
 
@@ -111,6 +124,25 @@ class ContentController
         }
 
         $this->model->update($id, $body);
+
+        // Keep the bible_studies extension row in sync whenever this item
+        // is (or is becoming) a Bible Study and either extension field was
+        // sent; createExtension() upserts so this is always safe to call.
+        // format/study_guide_url live on the bible_studies extension row,
+        // NOT on $existing (a plain content row), so a partial update (e.g.
+        // just {format: ...}) has to fall back to the current extension
+        // row rather than $existing, or it would silently null out the
+        // field that wasn't sent.
+        $contentType = $body['content_type'] ?? $existing['content_type'];
+        if ($contentType === 'bible_study' && (array_key_exists('format', $body) || array_key_exists('study_guide_url', $body))) {
+            $currentExtension = (new BibleStudy())->findByContentId($id);
+            (new BibleStudy())->createExtension(
+                $id,
+                $body['format'] ?? ($currentExtension['format'] ?? 'video'),
+                array_key_exists('study_guide_url', $body) ? $body['study_guide_url'] : ($currentExtension['study_guide_url'] ?? null)
+            );
+        }
+
         json_ok(null, 'Content updated successfully.');
     }
 

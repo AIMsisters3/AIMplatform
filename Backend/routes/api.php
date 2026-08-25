@@ -14,6 +14,13 @@ require_once __DIR__ . '/../controllers/NewsletterController.php';
 require_once __DIR__ . '/../controllers/TestimonialController.php';
 require_once __DIR__ . '/../controllers/OrderController.php';
 require_once __DIR__ . '/../controllers/NotificationController.php';
+require_once __DIR__ . '/../controllers/BibleStudyController.php';
+require_once __DIR__ . '/../controllers/NoteController.php';
+require_once __DIR__ . '/../controllers/SeriesController.php';
+require_once __DIR__ . '/../controllers/BookmarkController.php';
+require_once __DIR__ . '/../controllers/WatchHistoryController.php';
+require_once __DIR__ . '/../controllers/SearchController.php';
+require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
@@ -148,9 +155,89 @@ function route(string $method, string $path)
         json_error('Notification route not found.', 404);
     }
 
+    // ---------- BIBLE STUDIES ----------
+    // (its own dedicated controller — spec §7 — not a generic content alias,
+    // since it needs the format filter and per-user progress/notes)
+    if ($resource === 'bible-studies') {
+        $ctrl = new BibleStudyController();
+
+        if ($id === 'continue' && $method === 'GET') return $ctrl->continueStudying();
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $action === 'progress' && $method === 'GET') return $ctrl->getProgress((int) $id);
+        if ($id !== null && $action === 'progress' && $method === 'POST') return $ctrl->updateProgress((int) $id);
+        if ($id !== null && $action === 'notes' && $method === 'GET') return $ctrl->listNotes((int) $id);
+        if ($id !== null && $action === 'notes' && $method === 'POST') return $ctrl->createNote((int) $id);
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+
+        json_error('Bible study route not found.', 404);
+    }
+
+    // ---------- NOTES (single-note edit/delete, owner-only) ----------
+    if ($resource === 'notes') {
+        $ctrl = new NoteController();
+
+        if ($id !== null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Note route not found.', 404);
+    }
+
+    // ---------- SERIES & EPISODES ----------
+    if ($resource === 'series') {
+        $ctrl = new SeriesController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === null && $method === 'POST') return $ctrl->store();
+        if ($id !== null && $action === 'episodes' && $method === 'POST') return $ctrl->attachEpisode((int) $id);
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+        if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Series route not found.', 404);
+    }
+
+    // ---------- BOOKMARKS ----------
+    if ($resource === 'bookmarks') {
+        $ctrl = new BookmarkController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $method === 'POST') return $ctrl->toggle((int) $id);
+
+        json_error('Bookmark route not found.', 404);
+    }
+
+    // ---------- WATCH HISTORY ----------
+    if ($resource === 'watch-history') {
+        $ctrl = new WatchHistoryController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $method === 'POST') return $ctrl->record((int) $id);
+
+        json_error('Watch history route not found.', 404);
+    }
+
+    // ---------- SEARCH ----------
+    if ($resource === 'search') {
+        if ($method === 'GET') return (new SearchController())->index();
+        json_error('Search route not found.', 404);
+    }
+
+    // ---------- USERS (admin "Manage Roles" screen) ----------
+    if ($resource === 'users') {
+        $ctrl = new UserController();
+
+        if ($id === 'roles' && $method === 'GET') return $ctrl->roles();
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $action === 'role' && $method === 'POST') return $ctrl->updateRole((int) $id);
+        if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
+
+        json_error('User route not found.', 404);
+    }
+
      // ---------- Convenience aliases matching the spec ----------
-    // GET /api/news, /api/devotions, /api/bible-studies -> content filtered by type
-    $typeAliases = ['news' => 'news', 'devotions' => 'devotion', 'videos' => 'video', 'articles' => 'article', 'gallery' => 'gallery', 'bible-studies' => 'bible_study'];
+    // GET /api/news, /api/devotions -> content filtered by type
+    // (bible-studies has its own dedicated controller/routes above)
+    $typeAliases = ['news' => 'news', 'devotions' => 'devotion', 'videos' => 'video', 'articles' => 'article', 'gallery' => 'gallery'];
     if (array_key_exists($resource, $typeAliases) && $method === 'GET') {
         $_GET['type'] = $typeAliases[$resource];
         return (new ContentController())->index();

@@ -10,12 +10,24 @@ const CONTENT_TYPES = [
   { value: 'gallery', label: 'Gallery' },
 ];
 
+const BIBLE_STUDY_FORMATS = [
+  { value: 'short_film', label: 'Short Film' },
+  { value: 'video', label: 'Video' },
+  { value: 'sermon', label: 'Sermon' },
+  { value: 'panel', label: 'Panel Discussion' },
+  { value: 'audio', label: 'Audio' },
+  { value: 'animated', label: 'Animated' },
+  { value: 'documentary', label: 'Documentary' },
+  { value: 'pdf_notes', label: 'PDF / Notes' },
+];
+
 export default function UploadContent() {
   const [form, setForm] = useState({
     title: '', description: '', category_id: '', content_type: 'bible_study',
     speaker: '', bible_references: '', tags: '', language: 'English',
     visibility: 'public', status: 'draft', publish_date: '', seo_keywords: '',
     is_featured: false, allow_comments: true, body: '',
+    format: 'video', study_guide_url: '',
   });
   const [categories, setCategories] = useState([]);
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -97,6 +109,24 @@ export default function UploadContent() {
                 ))}
               </select>
             </label>
+
+            {form.content_type === 'bible_study' && (
+              <>
+                <label className="block">
+                  <span className="text-xs font-semibold text-ink/50">Study Format</span>
+                  <select value={form.format} onChange={(e) => update('format', e.target.value)}
+                    className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
+                    {BIBLE_STUDY_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-ink/50">Study Guide URL (PDF, optional)</span>
+                  <input value={form.study_guide_url} onChange={(e) => update('study_guide_url', e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+                </label>
+              </>
+            )}
 
             <label className="block">
               <span className="text-xs font-semibold text-ink/50">Speaker / Author</span>
