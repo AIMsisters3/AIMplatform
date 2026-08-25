@@ -1,0 +1,12 @@
+uploads/general/*
+uploads/thumbnails/*
+uploads/videos/*
+!uploads/general/.gitkeep
+!uploads/thumbnails/.gitkeep
+!uploads/videos/.gitkeep
+.DS_Store
+
+# Secrets — see .env.example for the template. Never commit the real one.
+.env
+.env.local
+vendor/

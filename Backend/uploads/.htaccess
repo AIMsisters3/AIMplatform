@@ -1,0 +1,19 @@
+# Defense in depth: this directory only ever holds media/document files
+# saved by UploadController (which enforces an extension + MIME-type
+# whitelist and always renames to a server-generated filename). Even so,
+# never execute anything here as a script.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_authz_core.c>
+    <FilesMatch "\.(php|phtml|php\d|phar|cgi|pl)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.(php|phtml|php\d|phar|cgi|pl)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+Options -ExecCGI -Indexes

@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-surface text-ink font-body antialiased;
+}
+
+h1, h2, h3, h4 {
+  @apply font-display;
+}
+
+/* Glassmorphism card used across the Admin CMS */
+.glass-card {
+  @apply bg-white/70 backdrop-blur-xl border border-white/60 shadow-glass rounded-xl3;
+}
+
+.brand-gradient-text {
+  @apply bg-brand-gradient bg-clip-text text-transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-secondary/30 rounded-full;
+}
+
+/* Used on horizontally-scrolling pill rows (e.g. Content page type filters) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
