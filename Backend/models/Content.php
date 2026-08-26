@@ -20,6 +20,14 @@ class Content
             $where[] = 'c.content_type = :content_type';
             $params['content_type'] = $filters['content_type'];
         }
+        if (!empty($filters['section'])) {
+            $where[] = 'c.section = :section';
+            $params['section'] = $filters['section'];
+        }
+        if (!empty($filters['media_type'])) {
+            $where[] = 'c.media_type = :media_type';
+            $params['media_type'] = $filters['media_type'];
+        }
         if (!empty($filters['category_id'])) {
             $where[] = 'c.category_id = :category_id';
             $params['category_id'] = $filters['category_id'];
@@ -78,11 +86,11 @@ class Content
     public function create(array $data): int
     {
         $sql = 'INSERT INTO content
-                (title, slug, description, body, content_type, category_id, author_id, speaker,
+                (title, slug, description, body, transcript, content_type, section, media_type, category_id, author_id, speaker,
                  bible_references, tags, language, thumbnail, media_url, visibility, status,
                  is_featured, allow_comments, seo_keywords, publish_date)
                 VALUES
-                (:title, :slug, :description, :body, :content_type, :category_id, :author_id, :speaker,
+                (:title, :slug, :description, :body, :transcript, :content_type, :section, :media_type, :category_id, :author_id, :speaker,
                  :bible_references, :tags, :language, :thumbnail, :media_url, :visibility, :status,
                  :is_featured, :allow_comments, :seo_keywords, :publish_date)';
 
@@ -92,13 +100,16 @@ class Content
             'slug'             => $data['slug'],
             'description'      => $data['description'] ?? null,
             'body'             => $data['body'] ?? null,
+            'transcript'       => $data['transcript'] ?? null,
             'content_type'     => $data['content_type'],
+            'section'          => $data['section'] ?? 'media_library',
+            'media_type'       => $data['media_type'] ?? 'video',
             'category_id'      => $data['category_id'] ?? null,
             'author_id'        => $data['author_id'] ?? null,
             'speaker'          => $data['speaker'] ?? null,
             'bible_references' => $data['bible_references'] ?? null,
             'tags'             => $data['tags'] ?? null,
-            'language'         => $data['language'] ?? 'English',
+            'language'         => $data['language'] ?? 'en',
             'thumbnail'        => $data['thumbnail'] ?? null,
             'media_url'        => $data['media_url'] ?? null,
             'visibility'       => $data['visibility'] ?? 'public',
@@ -118,7 +129,7 @@ class Content
         $params = ['id' => $id];
 
         $allowed = [
-            'title', 'slug', 'description', 'body', 'content_type', 'category_id', 'speaker',
+            'title', 'slug', 'description', 'body', 'transcript', 'content_type', 'section', 'media_type', 'category_id', 'speaker',
             'bible_references', 'tags', 'language', 'thumbnail', 'media_url', 'visibility',
             'status', 'is_featured', 'allow_comments', 'seo_keywords', 'publish_date',
         ];

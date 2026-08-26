@@ -20,6 +20,10 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
    6. `Backend/database/migrations/005_series_episodes.sql` — Series → Season → Episode structure.
    7. `Backend/database/migrations/006_bookmarks_watch_history.sql` — centralized bookmarks +
       per-item watch progress ("Continue Watching" / "Continue Studying").
+   8. `Backend/database/migrations/007_section_media_language.sql` — splits `content_type` into
+      independent `section` (where it appears), `media_type` (what kind of media it is), and a
+      `transcript` column, plus a `languages` lookup table so Language is a real dropdown instead of
+      free text (see §4d below).
 
    Each migration file's header comment explains what it does and why. They're safe to run once each;
    re-running is a no-op error on the `ADD COLUMN`/`ADD INDEX` lines (that just means it already applied).
@@ -154,6 +158,47 @@ other content type) — nothing is duplicated. Each adds a thin, purpose-built l
   per-content-type, so "save for later" and "% watched" work identically across every content
   type, including Bible Studies and Series episodes.
 
+### 4d. Section / Media Type / Category / Language are four separate fields
+
+These four are independent concepts and are never conflated in the admin form or the data model:
+
+- **Section** (`content.section`) — WHERE the item appears on the website: `media_library`
+  (Content / Media Library), `news`, `gallery`, `bible_study`, or `devotions`.
+- **Media Type** (`content.media_type`) — WHAT KIND of media it is (Video, Movie, Short Film,
+  Cartoon, Animation, Sermon, Panel, Interview, Documentary, Audio, Music, Podcast, PDF, Image,
+  Article, News Article, Devotional, Photo Gallery, or — for Bible Study specifically — its study
+  format). The set of valid Media Types depends on the selected Section (e.g. Gallery only offers
+  "Photo Gallery"); `ContentController::SECTION_MEDIA_TYPES` is the server-side source of truth
+  and re-validates the pairing on every create/update, so the admin can never save a nonsensical
+  combination even if the frontend were bypassed.
+- **Category** (`content.category_id`) — the ministry/topic area (Prophecy, Youth Ministry, Health
+  Reform, ...), completely independent of Section: the same category can be attached to items in
+  different Sections (a Prophecy short film in the Media Library and a separate Prophecy Bible
+  Study are both just "Prophecy", in different Sections).
+- **Language** (`content.language`) — a controlled dropdown backed by the new `languages` lookup
+  table (`code`, `name`), not free text. Seeded with `en` (English) and `ng` (Oshiwambo); adding a
+  language later (Afrikaans, Portuguese, ...) is a single `INSERT INTO languages` — no schema
+  change, no redeploy beyond the admin form re-fetching `GET /api/languages`. Gallery items don't
+  have a language at all (the field is hidden and sent as `null` — "Not applicable" per spec).
+
+The admin's **Upload Content** form (`Frontend/src/Admin/Pages/UploadContent.jsx`) only ever asks
+for Section and Media Type — never the legacy `content_type` directly. `content_type` still exists
+and keeps its original 6-value enum, because every public route/alias (`/news`, `/devotions`,
+`/gallery`, `/videos`, `/articles`), `Content::all()`'s `type` filter, and the Bible Study
+extension-table sync all key off it; `ContentController::deriveContentType()` derives it
+automatically from (Section, Media Type) on every save so those existing consumers keep working
+unchanged while Section/Media Type are the source of truth going forward.
+
+**Body vs. Description vs. Transcript** — the form only shows the Body field for Media Types whose
+primary content *is* substantial written text: Article, News Article, and Devotional
+(`ContentController::BODY_REQUIRED_MEDIA_TYPES`). Every other Media Type (Video, Movie, Sermon,
+Audio, Podcast, Photo Gallery, ...) is media-first: Body is hidden, and the server nulls out any
+stray `body` value sent for it (e.g. leftover from switching Media Type mid-edit), so it can never
+end up half-populated behind a hidden field. Those items instead get an optional
+**Transcript / Notes** field (`content.transcript`) — for a written transcript or study notes,
+distinct from the short-summary **Description** field, which stays available for every content
+type as the text used on cards, search results, and previews.
+
 ## 5. Fixes applied in this pass
 
 The scaffold had bugs that would have stopped it from actually running, and one that made a whole
@@ -239,3 +284,11 @@ permission from a role takes effect without re-issuing any token, etc.) before t
 - Analytics/reporting charts for the admin dashboard.
 - Quizzes / knowledge checks at the end of a Bible Study (the `bible_studies`/`bible_study_progress`
   tables have room to grow into this; not attempted in this pass).
+- A proper Album → Images structure for Gallery (spec §9): today a Gallery item is still one
+  `content` row with a single thumbnail, same as every other content type. A real multi-image
+  album needs its own `gallery_images` extension table (content_id, image_url, caption,
+  sort_order), a small controller for uploading/reordering/removing images within an album, and a
+  `Gallery.jsx` rewrite to render a photo grid instead of one image per item — following the same
+  "content row + extension table" pattern §4c already established for Bible Study. Deliberately not
+  attempted in this pass, which focused on separating Section/Media Type/Category/Language and
+  making the admin form's Body/Transcript fields dynamic (§4d).

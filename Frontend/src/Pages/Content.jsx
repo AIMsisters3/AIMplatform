@@ -11,8 +11,6 @@ import { getItemKind } from '../utils/mediaKind.js';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
 
-const LANGUAGE_OPTIONS = ['English', 'Oshiwambo'];
-
 // Display order + icon/color per category. Bible Studies deliberately
 // excluded — it has its own dedicated page.
 const CATEGORY_META = {
@@ -124,6 +122,7 @@ export default function Content() {
 
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [languageOptions, setLanguageOptions] = useState([]);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [language, setLanguage] = useState('');
@@ -134,6 +133,9 @@ export default function Content() {
     api.get('/categories', { params: { type: 'content' } })
       .then((r) => setCategories(sortCategories(r.data?.data?.items || [])))
       .catch(() => setCategories([]));
+    api.get('/languages')
+      .then((r) => setLanguageOptions(r.data?.data?.items || []))
+      .catch(() => setLanguageOptions([]));
   }, []);
 
   useEffect(() => {
@@ -257,7 +259,7 @@ export default function Content() {
               className="appearance-none pl-8 pr-7 py-1.5 rounded-full border border-ink/10 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-secondary cursor-pointer"
             >
               <option value="">All Languages</option>
-              {LANGUAGE_OPTIONS.map((lang) => <option key={lang} value={lang}>{lang}</option>)}
+              {languageOptions.map((lang) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
             </select>
           </div>
         </motion.div>

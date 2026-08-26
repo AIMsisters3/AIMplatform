@@ -1,35 +1,79 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios.js';
 
-const CONTENT_TYPES = [
-  { value: 'bible_study', label: 'Bible Study' },
-  { value: 'video', label: 'Video' },
-  { value: 'article', label: 'Article' },
-  { value: 'devotion', label: 'Devotion' },
+// Section = WHERE the item appears on the website. Independent of Media
+// Type (what kind of media it is), Category (ministry/topic), and
+// Language - see the Media Type list below, which is filtered per section.
+const SECTIONS = [
+  { value: 'media_library', label: 'Content / Media Library' },
   { value: 'news', label: 'News' },
   { value: 'gallery', label: 'Gallery' },
+  { value: 'bible_study', label: 'Bible Study' },
+  { value: 'devotions', label: 'Devotions' },
 ];
 
-const BIBLE_STUDY_FORMATS = [
-  { value: 'short_film', label: 'Short Film' },
-  { value: 'video', label: 'Video' },
-  { value: 'sermon', label: 'Sermon' },
-  { value: 'panel', label: 'Panel Discussion' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'animated', label: 'Animated' },
-  { value: 'documentary', label: 'Documentary' },
-  { value: 'pdf_notes', label: 'PDF / Notes' },
-];
+// Media Type = WHAT KIND of media it is. The admin never sees the full
+// list at once - only the entries valid for the currently selected
+// Section (kept in lockstep with ContentController::SECTION_MEDIA_TYPES
+// on the backend, which re-validates this pairing server-side).
+const MEDIA_TYPES_BY_SECTION = {
+  media_library: [
+    { value: 'video', label: 'Video' },
+    { value: 'movie', label: 'Movie' },
+    { value: 'short_film', label: 'Short Film' },
+    { value: 'cartoon', label: 'Cartoon' },
+    { value: 'animation', label: 'Animation' },
+    { value: 'sermon', label: 'Sermon' },
+    { value: 'panel', label: 'Panel Discussion' },
+    { value: 'interview', label: 'Interview' },
+    { value: 'documentary', label: 'Documentary' },
+    { value: 'audio', label: 'Audio' },
+    { value: 'music', label: 'Music' },
+    { value: 'podcast', label: 'Podcast' },
+    { value: 'pdf', label: 'PDF' },
+    { value: 'image', label: 'Image' },
+    { value: 'article', label: 'Article' },
+  ],
+  news: [
+    { value: 'news_article', label: 'News Article' },
+  ],
+  gallery: [
+    { value: 'photo_gallery', label: 'Photo Gallery' },
+  ],
+  bible_study: [
+    { value: 'short_film', label: 'Short Film' },
+    { value: 'video', label: 'Video' },
+    { value: 'sermon', label: 'Sermon' },
+    { value: 'panel', label: 'Panel Discussion' },
+    { value: 'audio', label: 'Audio' },
+    { value: 'animated', label: 'Animated' },
+    { value: 'documentary', label: 'Documentary' },
+    { value: 'pdf_notes', label: 'PDF / Notes' },
+  ],
+  devotions: [
+    { value: 'devotional', label: 'Devotional' },
+  ],
+};
+
+// Only these media types are primarily written content - only they show
+// the Body field by default. Everything else is media-first and gets an
+// optional Transcript/Notes field instead (kept in sync with
+// ContentController::BODY_REQUIRED_MEDIA_TYPES).
+const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+
+const DEFAULT_FORM = {
+  title: '', description: '', category_id: '',
+  section: 'media_library', media_type: 'video',
+  speaker: '', bible_references: '', tags: '', language: 'en',
+  visibility: 'public', status: 'draft', publish_date: '', seo_keywords: '',
+  is_featured: false, allow_comments: true, body: '', transcript: '',
+  study_guide_url: '',
+};
 
 export default function UploadContent() {
-  const [form, setForm] = useState({
-    title: '', description: '', category_id: '', content_type: 'bible_study',
-    speaker: '', bible_references: '', tags: '', language: 'English',
-    visibility: 'public', status: 'draft', publish_date: '', seo_keywords: '',
-    is_featured: false, allow_comments: true, body: '',
-    format: 'video', study_guide_url: '',
-  });
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [categories, setCategories] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -39,10 +83,26 @@ export default function UploadContent() {
     api.get('/categories', { params: { type: 'content' } })
       .then((r) => setCategories(r.data?.data?.items || []))
       .catch(() => setCategories([]));
+    api.get('/languages')
+      .then((r) => setLanguages(r.data?.data?.items || []))
+      .catch(() => setLanguages([]));
   }, []);
+
+  const mediaTypeOptions = useMemo(() => MEDIA_TYPES_BY_SECTION[form.section] || [], [form.section]);
+  const requiresBody = BODY_REQUIRED_MEDIA_TYPES.includes(form.media_type);
+  const isGallery = form.section === 'gallery';
+  const isBibleStudy = form.section === 'bible_study';
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  // Section drives which Media Types are valid, so switching Section
+  // resets Media Type to the first valid option for it - the admin never
+  // has to reconcile the two fields by hand.
+  function updateSection(section) {
+    const firstOption = (MEDIA_TYPES_BY_SECTION[section] || [])[0]?.value || '';
+    setForm((f) => ({ ...f, section, media_type: firstOption }));
   }
 
   async function uploadFile(file, folder) {
@@ -57,7 +117,13 @@ export default function UploadContent() {
     setSaving(true);
     setMessage('');
     try {
-      const payload = { ...form, status, category_id: form.category_id || null };
+      const payload = {
+        ...form,
+        status,
+        category_id: form.category_id || null,
+        language: isGallery ? null : (form.language || null),
+        body: requiresBody ? form.body : null,
+      };
 
       if (thumbnailFile) payload.thumbnail = await uploadFile(thumbnailFile, 'thumbnails');
       if (videoFile) payload.media_url = await uploadFile(videoFile, 'videos');
@@ -76,7 +142,8 @@ export default function UploadContent() {
       {/* Main form */}
       <div className="xl:col-span-2 space-y-6">
         <div className="glass-card p-6">
-          <h2 className="font-display font-semibold text-lg mb-6">Upload Content</h2>
+          <h2 className="font-display font-semibold text-lg mb-1">Basic Information</h2>
+          <p className="text-xs text-ink/40 mb-6">Title, a short summary, and (only when relevant) the full written content.</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block md:col-span-2">
@@ -87,15 +154,49 @@ export default function UploadContent() {
 
             <label className="block md:col-span-2">
               <span className="text-xs font-semibold text-ink/50">Description</span>
+              <span className="block text-[11px] text-ink/40 -mt-0.5 mb-1">Short summary used on cards, search results, and previews.</span>
               <textarea rows={3} value={form.description} onChange={(e) => update('description', e.target.value)}
-                className="mt-1 w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+                className="w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+            </label>
+
+            {requiresBody && (
+              <label className="block md:col-span-2">
+                <span className="text-xs font-semibold text-ink/50">Body</span>
+                <span className="block text-[11px] text-ink/40 -mt-0.5 mb-1">The full written content (paragraphs, headings, verses, links...).</span>
+                <textarea rows={8} value={form.body} onChange={(e) => update('body', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+              </label>
+            )}
+
+            {!requiresBody && (
+              <label className="block md:col-span-2">
+                <span className="text-xs font-semibold text-ink/50">Transcript / Notes (optional)</span>
+                <span className="block text-[11px] text-ink/40 -mt-0.5 mb-1">The media file above is the primary content - this is just an optional transcript or study notes.</span>
+                <textarea rows={4} value={form.transcript} onChange={(e) => update('transcript', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="glass-card p-6">
+          <h2 className="font-display font-semibold text-lg mb-1">Classification</h2>
+          <p className="text-xs text-ink/40 mb-6">Section decides where this appears; Media Type, Category, and Language are separate, independent choices.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-xs font-semibold text-ink/50">Website Section</span>
+              <select value={form.section} onChange={(e) => updateSection(e.target.value)}
+                className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
+                {SECTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
             </label>
 
             <label className="block">
-              <span className="text-xs font-semibold text-ink/50">Content Type</span>
-              <select value={form.content_type} onChange={(e) => update('content_type', e.target.value)}
+              <span className="text-xs font-semibold text-ink/50">{isBibleStudy ? 'Study Type' : 'Media Type'}</span>
+              <select value={form.media_type} onChange={(e) => update('media_type', e.target.value)}
                 className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
-                {CONTENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {mediaTypeOptions.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </label>
 
@@ -110,22 +211,29 @@ export default function UploadContent() {
               </select>
             </label>
 
-            {form.content_type === 'bible_study' && (
-              <>
-                <label className="block">
-                  <span className="text-xs font-semibold text-ink/50">Study Format</span>
-                  <select value={form.format} onChange={(e) => update('format', e.target.value)}
-                    className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
-                    {BIBLE_STUDY_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="text-xs font-semibold text-ink/50">Study Guide URL (PDF, optional)</span>
-                  <input value={form.study_guide_url} onChange={(e) => update('study_guide_url', e.target.value)}
-                    placeholder="https://..."
-                    className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
-                </label>
-              </>
+            {isGallery ? (
+              <label className="block">
+                <span className="text-xs font-semibold text-ink/50">Language</span>
+                <input disabled value="Not applicable" readOnly
+                  className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 bg-ink/5 text-ink/40" />
+              </label>
+            ) : (
+              <label className="block">
+                <span className="text-xs font-semibold text-ink/50">Language</span>
+                <select value={form.language} onChange={(e) => update('language', e.target.value)}
+                  className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
+                  {languages.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
+                </select>
+              </label>
+            )}
+
+            {isBibleStudy && (
+              <label className="block md:col-span-2">
+                <span className="text-xs font-semibold text-ink/50">Study Guide URL (PDF, optional)</span>
+                <input value={form.study_guide_url} onChange={(e) => update('study_guide_url', e.target.value)}
+                  placeholder="https://..."
+                  className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+              </label>
             )}
 
             <label className="block">
@@ -149,12 +257,6 @@ export default function UploadContent() {
             </label>
 
             <label className="block">
-              <span className="text-xs font-semibold text-ink/50">Language</span>
-              <input value={form.language} onChange={(e) => update('language', e.target.value)}
-                className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
-            </label>
-
-            <label className="block">
               <span className="text-xs font-semibold text-ink/50">Visibility</span>
               <select value={form.visibility} onChange={(e) => update('visibility', e.target.value)}
                 className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
@@ -174,12 +276,6 @@ export default function UploadContent() {
               <span className="text-xs font-semibold text-ink/50">SEO Keywords</span>
               <input value={form.seo_keywords} onChange={(e) => update('seo_keywords', e.target.value)}
                 className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
-            </label>
-
-            <label className="block md:col-span-2">
-              <span className="text-xs font-semibold text-ink/50">Body / Script</span>
-              <textarea rows={6} value={form.body} onChange={(e) => update('body', e.target.value)}
-                className="mt-1 w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
             </label>
           </div>
 

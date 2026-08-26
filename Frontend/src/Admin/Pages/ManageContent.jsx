@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../api/axios.js';
 
-const CONTENT_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'bible_study', label: 'Bible Study' },
-  { value: 'video', label: 'Video' },
-  { value: 'article', label: 'Article' },
-  { value: 'devotion', label: 'Devotion' },
+const SECTIONS = [
+  { value: '', label: 'All Sections' },
+  { value: 'media_library', label: 'Content / Media Library' },
   { value: 'news', label: 'News' },
   { value: 'gallery', label: 'Gallery' },
+  { value: 'bible_study', label: 'Bible Study' },
+  { value: 'devotions', label: 'Devotions' },
 ];
 
 const STATUS_BADGE = {
@@ -18,12 +17,16 @@ const STATUS_BADGE = {
   archived: 'bg-ink/10 text-ink/50',
 };
 
+function sectionLabel(value) {
+  return SECTIONS.find((s) => s.value === value)?.label || value;
+}
+
 export default function ManageContent() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('table'); // table | grid
   const [search, setSearch] = useState('');
-  const [type, setType] = useState('');
+  const [section, setSection] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
@@ -31,11 +34,11 @@ export default function ManageContent() {
   const load = useCallback(() => {
     setLoading(true);
     api
-      .get('/content', { params: { search: search || undefined, type: type || undefined, status: 'all', page, limit: 12 } })
+      .get('/content', { params: { search: search || undefined, section: section || undefined, status: 'all', page, limit: 12 } })
       .then((r) => setItems(r.data.data.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [search, type, page]);
+  }, [search, section, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -79,9 +82,9 @@ export default function ManageContent() {
       <div className="glass-card p-4 flex flex-col md:flex-row gap-3">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search content..."
           className="flex-1 px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
-        <select value={type} onChange={(e) => setType(e.target.value)}
+        <select value={section} onChange={(e) => setSection(e.target.value)}
           className="px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
-          {CONTENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {SECTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
       </div>
 
@@ -107,7 +110,8 @@ export default function ManageContent() {
               <tr className="text-left text-ink/50 border-b border-ink/10">
                 <th className="p-4"><input type="checkbox" onChange={(e) => setSelected(e.target.checked ? items.map((i) => i.id) : [])} /></th>
                 <th className="p-4">Title</th>
-                <th className="p-4">Type</th>
+                <th className="p-4">Section</th>
+                <th className="p-4">Media Type</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Views</th>
                 <th className="p-4">Updated</th>
@@ -119,7 +123,8 @@ export default function ManageContent() {
                 <tr key={item.id} className="border-b border-ink/5 hover:bg-white/50">
                   <td className="p-4"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} /></td>
                   <td className="p-4 font-medium">{item.title}</td>
-                  <td className="p-4 capitalize text-ink/60">{item.content_type?.replace('_', ' ')}</td>
+                  <td className="p-4 capitalize text-ink/60">{sectionLabel(item.section)}</td>
+                  <td className="p-4 capitalize text-ink/60">{item.media_type?.replace('_', ' ')}</td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE[item.status] || 'bg-ink/10'}`}>
                       {item.status}
@@ -147,7 +152,7 @@ export default function ManageContent() {
                 <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} />
               </div>
               <h4 className="font-semibold mb-1">{item.title}</h4>
-              <p className="text-xs text-ink/50 capitalize mb-3">{item.content_type?.replace('_', ' ')}</p>
+              <p className="text-xs text-ink/50 capitalize mb-3">{sectionLabel(item.section)} &middot; {item.media_type?.replace('_', ' ')}</p>
               <div className="flex gap-3 text-xs font-semibold">
                 <button onClick={() => handleDuplicate(item.id)} className="text-secondary">Duplicate</button>
                 <button onClick={() => handleDelete(item.id)} className="text-red-500">Delete</button>

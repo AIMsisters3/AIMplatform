@@ -21,6 +21,7 @@ require_once __DIR__ . '/../controllers/BookmarkController.php';
 require_once __DIR__ . '/../controllers/WatchHistoryController.php';
 require_once __DIR__ . '/../controllers/SearchController.php';
 require_once __DIR__ . '/../controllers/UserController.php';
+require_once __DIR__ . '/../controllers/LanguageController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
@@ -232,6 +233,12 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
 
         json_error('User route not found.', 404);
+    }
+
+    // ---------- LANGUAGES ----------
+    if ($resource === 'languages') {
+        if ($method === 'GET') return (new LanguageController())->index();
+        json_error('Language route not found.', 404);
     }
 
      // ---------- Convenience aliases matching the spec ----------

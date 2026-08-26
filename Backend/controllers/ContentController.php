@@ -2,17 +2,105 @@
 
 require_once __DIR__ . '/../models/Content.php';
 require_once __DIR__ . '/../models/BibleStudy.php';
+require_once __DIR__ . '/../models/Language.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
 class ContentController
 {
+    /**
+     * Section = where an item appears on the site. Media Type = what kind
+     * of media it is. The two are independent (spec: "do not treat
+     * Section, Category, Media Type, and Language as the same thing"),
+     * but the *set* of valid media types depends on which section is
+     * selected, so it's validated here rather than as a single shared
+     * DB enum.
+     */
+    private const SECTION_MEDIA_TYPES = [
+        'media_library' => [
+            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon', 'panel',
+            'interview', 'documentary', 'audio', 'music', 'podcast', 'pdf', 'image', 'article',
+        ],
+        'news'        => ['news_article'],
+        'gallery'     => ['photo_gallery'],
+        'devotions'   => ['devotional'],
+        // Bible Study's media_type doubles as the bible_studies.format enum
+        // value (migration 004) - keep these in sync with that column.
+        'bible_study' => [
+            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated', 'documentary', 'pdf_notes',
+        ],
+    ];
+
+    /**
+     * Media types whose primary content IS substantial written text
+     * (news articles, devotions, written articles) - only these show the
+     * Body field by default. Everything else is media-first (video,
+     * audio, gallery, ...) and gets an optional Transcript/Notes field
+     * instead.
+     */
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+
+    /**
+     * content_type keeps its original 6-value ENUM and is still what
+     * every public route/alias, Content::all()'s `type` filter, and the
+     * bible_studies extension sync key off (routes/api.php, Content.php).
+     * Rather than migrate every consumer at once, it's derived here from
+     * (section, media_type) so the admin only ever picks Section + Media
+     * Type - never content_type directly - and nothing downstream breaks.
+     */
+    private static function deriveContentType(string $section, string $mediaType): string
+    {
+        return match ($section) {
+            'news'        => 'news',
+            'gallery'     => 'gallery',
+            'devotions'   => 'devotion',
+            'bible_study' => 'bible_study',
+            default       => $mediaType === 'article' ? 'article' : 'video',
+        };
+    }
+
     private Content $model;
 
     public function __construct()
     {
         $this->model = new Content();
+    }
+
+    /**
+     * Validates section/media_type/language, fills in content_type, and
+     * strips the Body field back to null for media-first content so a
+     * stray value from an older client (or a section switch) doesn't
+     * leave written-content text sitting behind a hidden field.
+     * Returns the (possibly adjusted) body, or calls json_error() itself.
+     */
+    private function normalizeClassification(array $body): array
+    {
+        $section = $body['section'] ?? null;
+        if (!$section || !array_key_exists($section, self::SECTION_MEDIA_TYPES)) {
+            json_error('A valid section is required.', 422);
+        }
+
+        $mediaType = $body['media_type'] ?? null;
+        if (!$mediaType || !in_array($mediaType, self::SECTION_MEDIA_TYPES[$section], true)) {
+            json_error("'$mediaType' is not a valid media type for the '$section' section.", 422);
+        }
+
+        if (array_key_exists('language', $body) && $body['language'] !== null && $body['language'] !== '') {
+            if (!(new Language())->isValidCode($body['language'])) {
+                json_error('Unknown language.', 422);
+            }
+        }
+
+        $body['section'] = $section;
+        $body['media_type'] = $mediaType;
+        $body['content_type'] = self::deriveContentType($section, $mediaType);
+
+        if (!in_array($mediaType, self::BODY_REQUIRED_MEDIA_TYPES, true)) {
+            $body['body'] = null;
+        }
+
+        return $body;
     }
 
     /** GET /api/content?type=&category_id=&search=&featured=&page=&status= */
@@ -23,6 +111,8 @@ class ContentController
 
         $filters = [
             'content_type' => $_GET['type'] ?? null,
+            'section'      => $_GET['section'] ?? null,
+            'media_type'   => $_GET['media_type'] ?? null,
             'category_id'  => $_GET['category_id'] ?? null,
             'search'       => $_GET['search'] ?? null,
             'is_featured'  => $_GET['featured'] ?? null,
@@ -75,9 +165,11 @@ class ContentController
             json_error('You can save this as a draft, but you do not have permission to publish content.', 403);
         }
 
-        if (empty($body['title']) || empty($body['content_type'])) {
-            json_error('Title and content_type are required.', 422);
+        if (empty($body['title'])) {
+            json_error('Title is required.', 422);
         }
+
+        $body = $this->normalizeClassification($body);
 
         $body['slug'] = $body['slug'] ?? $this->slugify($body['title']);
         $body['author_id'] = $payload['sub'];
@@ -87,10 +179,12 @@ class ContentController
         // Bible Study is a "content + extension table" type (spec §7): the
         // base row lives in content like everything else, and the
         // format/study-guide fields live in bible_studies keyed to it.
-        if ($body['content_type'] === 'bible_study') {
+        // media_type IS the study format for this section (see
+        // SECTION_MEDIA_TYPES above), kept in sync with bible_studies.format.
+        if ($body['section'] === 'bible_study') {
             (new BibleStudy())->createExtension(
                 (int) $id,
-                $body['format'] ?? 'video',
+                $body['media_type'],
                 $body['study_guide_url'] ?? null
             );
         }
@@ -123,22 +217,34 @@ class ContentController
             json_error('You do not have permission to feature content.', 403);
         }
 
+        // A partial update might only send one of section/media_type (or
+        // neither) - re-validate the pair using whichever value wasn't
+        // sent from the existing row, so a lone {media_type: ...} can't
+        // drift out of sync with its section's allowed vocabulary.
+        if (array_key_exists('section', $body) || array_key_exists('media_type', $body) || array_key_exists('language', $body)) {
+            $body = $this->normalizeClassification([
+                ...$body,
+                'section'    => $body['section'] ?? $existing['section'],
+                'media_type' => $body['media_type'] ?? $existing['media_type'],
+            ]);
+        }
+
         $this->model->update($id, $body);
 
         // Keep the bible_studies extension row in sync whenever this item
         // is (or is becoming) a Bible Study and either extension field was
         // sent; createExtension() upserts so this is always safe to call.
-        // format/study_guide_url live on the bible_studies extension row,
-        // NOT on $existing (a plain content row), so a partial update (e.g.
-        // just {format: ...}) has to fall back to the current extension
-        // row rather than $existing, or it would silently null out the
-        // field that wasn't sent.
-        $contentType = $body['content_type'] ?? $existing['content_type'];
-        if ($contentType === 'bible_study' && (array_key_exists('format', $body) || array_key_exists('study_guide_url', $body))) {
+        // media_type/study_guide_url live on the bible_studies extension
+        // row, NOT on $existing (a plain content row), so a partial update
+        // (e.g. just {study_guide_url: ...}) has to fall back to the
+        // current extension row rather than $existing, or it would
+        // silently null out the field that wasn't sent.
+        $section = $body['section'] ?? $existing['section'];
+        if ($section === 'bible_study' && (array_key_exists('media_type', $body) || array_key_exists('study_guide_url', $body))) {
             $currentExtension = (new BibleStudy())->findByContentId($id);
             (new BibleStudy())->createExtension(
                 $id,
-                $body['format'] ?? ($currentExtension['format'] ?? 'video'),
+                $body['media_type'] ?? ($currentExtension['format'] ?? 'video'),
                 array_key_exists('study_guide_url', $body) ? $body['study_guide_url'] : ($currentExtension['study_guide_url'] ?? null)
             );
         }
