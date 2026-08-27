@@ -109,7 +109,10 @@ class Content
             'speaker'          => $data['speaker'] ?? null,
             'bible_references' => $data['bible_references'] ?? null,
             'tags'             => $data['tags'] ?? null,
-            'language'         => $data['language'] ?? 'en',
+            // Explicit null (Gallery: language is "not applicable") must
+            // store NULL, not fall back to 'en' — ?? treats null and an
+            // absent key the same, so array_key_exists is needed here.
+            'language'         => array_key_exists('language', $data) ? $data['language'] : 'en',
             'thumbnail'        => $data['thumbnail'] ?? null,
             'media_url'        => $data['media_url'] ?? null,
             'visibility'       => $data['visibility'] ?? 'public',
