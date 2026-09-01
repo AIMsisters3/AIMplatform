@@ -70,18 +70,26 @@ function mediaKindFor(mediaType) {
   return 'video';
 }
 
-// Mirrors Backend/config/config.php's ALLOWED_*_TYPES / MAX_UPLOAD_SIZE_MB.
-// This is only a friendly early check — the server re-validates extension,
-// real file content (MIME sniffing), and size regardless of what the
-// client claims, and that's the check that actually matters.
+// Extensions/folders mirror Backend/config/config.php's ALLOWED_*_TYPES —
+// these lists don't change at runtime so they stay static. The actual size
+// ceiling does NOT: it's fetched from GET /api/upload/limits (see the
+// `limits` state below) so this can never drift out of sync with the
+// server's real MAX_UPLOAD_SIZE_MB, which is what actually gets enforced.
+// This is only ever a friendly early check either way — the server
+// re-validates extension, real file content (MIME sniffing), and size
+// regardless of what the client claims.
 const MEDIA_RULES = {
-  video: { accept: '.mp4,.mov,.webm', hint: 'MP4, MOV, WEBM · up to 100MB', folder: 'videos', extensions: ['mp4', 'mov', 'webm'] },
-  audio: { accept: '.mp3,.wav,.ogg', hint: 'MP3, WAV, OGG · up to 100MB', folder: 'audio', extensions: ['mp3', 'wav', 'ogg'] },
-  document: { accept: '.pdf', hint: 'PDF only · up to 100MB', folder: 'documents', extensions: ['pdf'] },
-  image: { accept: '.jpg,.jpeg,.png,.gif,.webp', hint: 'JPG, PNG, GIF, WEBP · up to 100MB', folder: 'general', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
+  video: { accept: '.mp4,.mov,.webm', label: 'MP4, MOV, WEBM', folder: 'videos', extensions: ['mp4', 'mov', 'webm'] },
+  audio: { accept: '.mp3,.wav,.ogg', label: 'MP3, WAV, OGG', folder: 'audio', extensions: ['mp3', 'wav', 'ogg'] },
+  document: { accept: '.pdf', label: 'PDF only', folder: 'documents', extensions: ['pdf'] },
+  image: { accept: '.jpg,.jpeg,.png,.gif,.webp', label: 'JPG, PNG, GIF, WEBP', folder: 'general', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
 };
-const THUMBNAIL_RULE = { accept: '.jpg,.jpeg,.png,.gif,.webp', hint: 'JPG, PNG, WEBP', folder: 'thumbnails', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] };
-const MAX_UPLOAD_MB = 100;
+const THUMBNAIL_RULE = { accept: '.jpg,.jpeg,.png,.gif,.webp', label: 'JPG, PNG, WEBP', folder: 'thumbnails', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] };
+
+function formatSizeLimit(mb) {
+  if (!mb) return '';
+  return mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)}GB` : `${mb}MB`;
+}
 
 const MEDIA_KIND_ICON = { video: Video, audio: Headphones, document: FileType, image: ImageIcon };
 
@@ -158,6 +166,8 @@ export default function UploadContent() {
   const [categories, setCategories] = useState([]);
   const [languages, setLanguages] = useState([]);
   const [seriesList, setSeriesList] = useState([]);
+  const [limits, setLimits] = useState(null);
+  const maxSizeMb = limits?.max_size_mb || 100; // conservative fallback only until the real limit loads
 
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -183,6 +193,9 @@ export default function UploadContent() {
     api.get('/series', { params: { status: 'all', limit: 100 } })
       .then((r) => setSeriesList(r.data?.data?.items || []))
       .catch(() => setSeriesList([]));
+    api.get('/upload/limits')
+      .then((r) => setLimits(r.data?.data || null))
+      .catch(() => setLimits(null));
   }, []);
 
   // Switching what's being uploaded changes which main-media control (if
@@ -226,11 +239,11 @@ export default function UploadContent() {
   function validateAndPick(file, rule, setState) {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!rule.extensions.includes(ext)) {
-      setState((s) => ({ ...s, error: `That file type isn't supported. Use: ${rule.hint.split('·')[0].trim()}` }));
+      setState((s) => ({ ...s, error: `That file type isn't supported. Use: ${rule.label}` }));
       return;
     }
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      setState((s) => ({ ...s, error: `File exceeds the ${MAX_UPLOAD_MB}MB limit.` }));
+    if (file.size > maxSizeMb * 1024 * 1024) {
+      setState((s) => ({ ...s, error: `File exceeds the ${formatSizeLimit(maxSizeMb)} limit.` }));
       return;
     }
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
@@ -539,7 +552,7 @@ export default function UploadContent() {
               <Dropzone
                 icon={ImageIcon}
                 title="image"
-                acceptHint={THUMBNAIL_RULE.hint}
+                acceptHint={`${THUMBNAIL_RULE.label} · up to ${formatSizeLimit(maxSizeMb)}`}
                 accept={THUMBNAIL_RULE.accept}
                 kind="image"
                 file={thumbnail.file}
@@ -563,7 +576,7 @@ export default function UploadContent() {
                 <Dropzone
                   icon={MEDIA_KIND_ICON[mediaKind]}
                   title={mediaKind === 'video' ? 'video' : mediaKind === 'audio' ? 'audio' : mediaKind === 'document' ? 'PDF' : 'image'}
-                  acceptHint={MEDIA_RULES[mediaKind].hint}
+                  acceptHint={`${MEDIA_RULES[mediaKind].label} · up to ${formatSizeLimit(maxSizeMb)}`}
                   accept={MEDIA_RULES[mediaKind].accept}
                   kind={mediaKind}
                   file={media.file}
@@ -575,6 +588,11 @@ export default function UploadContent() {
                   onSelect={(f) => validateAndPick(f, MEDIA_RULES[mediaKind], setMedia)}
                   onRemove={() => removeUpload(setMedia)}
                 />
+                {mediaKind === 'video' && (
+                  <p className="text-[11px] text-ink/35 mt-2">
+                    A full-length video (an hour or more) can take a while to upload depending on your connection — keep this tab open until it reaches 100%.
+                  </p>
+                )}
               </Field>
             )}
           </div>

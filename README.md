@@ -199,6 +199,36 @@ end up half-populated behind a hidden field. Those items instead get an optional
 distinct from the short-summary **Description** field, which stays available for every content
 type as the text used on cards, search results, and previews.
 
+### 4e. Large media uploads (e.g. a full-length ~2 hour video)
+
+An upload can be rejected at three independent layers, and all three have to allow it or the
+smallest one wins silently:
+
+1. **PHP's own `upload_max_filesize`/`post_max_size`** — stock PHP defaults (2M/8M) reject
+   anything over a few MB before the application ever sees the request. `Backend/.user.ini` sets
+   these to 8192M/8200M (honored by mod_php and CGI/FastCGI); `Backend/.htaccess` carries a
+   redundant `<IfModule mod_php.c>`-guarded copy of the same values as a safety net (a no-op,
+   not a 500, if this server runs PHP via CGI/FastCGI instead of mod_php). XAMPP on Windows uses
+   mod_php by default, so both apply. Apache/PHP-FPM re-read `.user.ini` periodically
+   (`user_ini.cache_ttl`, default 300s) rather than instantly — restart Apache after editing it if
+   a change doesn't seem to take effect. If neither takes effect on your setup, edit your real
+   `php.ini` directly (same two directives) and restart Apache — that always works.
+2. **The application's own `MAX_UPLOAD_SIZE_MB`** (`Backend/config/config.php`, default 8000 =
+   ~8GB) — `UploadController` checks this after PHP's own limits, and now reports which of the two
+   layers actually blocked an oversized file (previously both just produced the same generic "No
+   file uploaded or upload error occurred." error, which didn't help anyone tell them apart).
+   Override it via `MAX_UPLOAD_SIZE_MB` in `Backend/.env`.
+3. **The frontend's size hint/early check** — `GET /api/upload/limits` (new) now exposes the real
+   server-configured ceiling and allowed extensions, and `UploadContent.jsx` fetches it instead of
+   hardcoding a number, so the dropzone hint text and the friendly early size check can never drift
+   out of sync with what the server will actually accept.
+
+Not covered by any of the above: Apache's own `Timeout` directive (`httpd.conf`, default 300s) can
+still drop a very slow upload before PHP sees it. Not usually a problem testing locally over
+loopback, but worth knowing if this is ever deployed somewhere with a slow real network path to the
+server — raise `Timeout` there too if large uploads start failing partway through on a slow
+connection.
+
 ## 5. Fixes applied in this pass
 
 The scaffold had bugs that would have stopped it from actually running, and one that made a whole

@@ -6,16 +6,53 @@ require_once __DIR__ . '/../middleware/auth.php';
 
 class UploadController
 {
+    /** GET /api/upload/limits - lets the frontend read the real server-configured
+     *  upload ceiling/allowed types instead of hardcoding them, so they can never drift out of sync. */
+    public function limits(): void
+    {
+        json_ok([
+            'max_size_mb'         => MAX_UPLOAD_SIZE_MB,
+            'allowed_image_types' => ALLOWED_IMAGE_TYPES,
+            'allowed_video_types' => ALLOWED_VIDEO_TYPES,
+            'allowed_audio_types' => ALLOWED_AUDIO_TYPES,
+            'allowed_doc_types'   => ALLOWED_DOC_TYPES,
+        ]);
+    }
+
     /** POST /api/upload (admin only) multipart/form-data field: "file", "folder" optional */
     public function store(): void
     {
         require_role(['admin', 'superadmin']);
 
-        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-            json_error('No file uploaded or upload error occurred.', 422);
+        if (!isset($_FILES['file'])) {
+            // If the whole request body exceeded PHP's post_max_size, PHP
+            // silently drops $_FILES (and $_POST) entirely instead of
+            // reporting an error code on it - Content-Length is still
+            // present on the request, so that's the only way to tell this
+            // apart from "no file was actually selected".
+            if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+                json_error(
+                    'That file is larger than this server currently allows (post_max_size in php.ini / Backend/.user.ini). '
+                    . 'Ask whoever manages the server to raise it.',
+                    413
+                );
+            }
+            json_error('No file uploaded.', 422);
         }
 
         $file = $_FILES['file'];
+
+        if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+            json_error(
+                'That file is larger than this server currently allows (upload_max_filesize in php.ini / Backend/.user.ini). '
+                . 'Ask whoever manages the server to raise it.',
+                413
+            );
+        }
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            json_error('No file uploaded or upload error occurred.', 422);
+        }
+
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
         $allExtensions = array_merge(ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, ALLOWED_AUDIO_TYPES, ALLOWED_DOC_TYPES);

@@ -61,7 +61,12 @@ define('ALLOWED_ORIGINS', array_merge([
 ], $extraOrigins));
 
 // --- Uploads ---
-define('MAX_UPLOAD_SIZE_MB', (int) env('MAX_UPLOAD_SIZE_MB', 100));
+// Default is generous enough for a full-length (~2 hour) HD video. This is
+// the application-level cap; PHP's own upload_max_filesize/post_max_size
+// (see Backend/.user.ini) must also allow it, or the file never reaches
+// this check at all - UploadController distinguishes the two failure
+// modes so an admin sees which limit actually blocked them.
+define('MAX_UPLOAD_SIZE_MB', (int) env('MAX_UPLOAD_SIZE_MB', 8000));
 define('ALLOWED_IMAGE_TYPES', ['jpg','jpeg','png','gif','webp']);
 define('ALLOWED_VIDEO_TYPES', ['mp4','mov','webm']);
 define('ALLOWED_AUDIO_TYPES', ['mp3','wav','ogg']);

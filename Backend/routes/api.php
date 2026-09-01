@@ -106,6 +106,7 @@ function route(string $method, string $path)
     // ---- UPLOAD ----------
     if ($resource === 'upload') {
         $ctrl = new UploadController();
+        if ($id === 'limits' && $method === 'GET') return $ctrl->limits();
         if ($method === 'POST') return $ctrl->store();
         json_error('Upload route not found.', 404);
     }
