@@ -201,33 +201,67 @@ type as the text used on cards, search results, and previews.
 
 ### 4e. Large media uploads (e.g. a full-length ~2 hour video)
 
-An upload can be rejected at three independent layers, and all three have to allow it or the
-smallest one wins silently:
+**A single-shot upload of a multi-GB file is the wrong architecture, not just a config value to
+raise.** An earlier pass here just raised `upload_max_filesize`/`post_max_size` to 8GB, but that
+doesn't hold up in practice: most real hosting won't let you configure `post_max_size` in the
+gigabytes at all, one dropped connection loses the entire transfer with no way to resume, and
+Apache's own `Timeout` directive (default 300s) can kill a slow single-request transfer regardless
+of what PHP allows. Large media now uploads in **small chunks** instead
+(`ChunkUploadController.php` + `Frontend/src/Admin/utils/chunkedUpload.js`), which removes those
+problems rather than working around them:
 
-1. **PHP's own `upload_max_filesize`/`post_max_size`** — stock PHP defaults (2M/8M) reject
-   anything over a few MB before the application ever sees the request. `Backend/.user.ini` sets
-   these to 8192M/8200M (honored by mod_php and CGI/FastCGI); `Backend/.htaccess` carries a
-   redundant `<IfModule mod_php.c>`-guarded copy of the same values as a safety net (a no-op,
-   not a 500, if this server runs PHP via CGI/FastCGI instead of mod_php). XAMPP on Windows uses
-   mod_php by default, so both apply. Apache/PHP-FPM re-read `.user.ini` periodically
-   (`user_ini.cache_ttl`, default 300s) rather than instantly — restart Apache after editing it if
-   a change doesn't seem to take effect. If neither takes effect on your setup, edit your real
-   `php.ini` directly (same two directives) and restart Apache — that always works.
-2. **The application's own `MAX_UPLOAD_SIZE_MB`** (`Backend/config/config.php`, default 8000 =
-   ~8GB) — `UploadController` checks this after PHP's own limits, and now reports which of the two
-   layers actually blocked an oversized file (previously both just produced the same generic "No
-   file uploaded or upload error occurred." error, which didn't help anyone tell them apart).
-   Override it via `MAX_UPLOAD_SIZE_MB` in `Backend/.env`.
-3. **The frontend's size hint/early check** — `GET /api/upload/limits` (new) now exposes the real
-   server-configured ceiling and allowed extensions, and `UploadContent.jsx` fetches it instead of
-   hardcoding a number, so the dropzone hint text and the friendly early size check can never drift
-   out of sync with what the server will actually accept.
+- The browser splits the file into `CHUNK_SIZE_MB` pieces (default 8MB) and uploads each as its
+  own small, fast HTTP request (`POST /api/upload/chunk`), then calls `POST /api/upload/finalize`
+  once every chunk has arrived. The server assembles them with a small fixed-size read/write
+  buffer (`ChunkUploadController::assembleChunks()`), so memory use stays flat (a few MB) no matter
+  how large the file is — the video is never held in memory as a whole, on either end.
+- **Because each request only ever carries one small chunk, PHP's `upload_max_filesize`/
+  `post_max_size` no longer need to be anywhere near the file's actual size.** `Backend/.user.ini`
+  (+ a redundant `<IfModule mod_php.c>`-guarded copy in `Backend/.htaccess`, harmless no-op under
+  CGI/FastCGI) now sets these to a modest 20M/24M — enough for one chunk plus multipart overhead —
+  instead of the multi-gigabyte values a single-shot approach would need. Apache/PHP-FPM re-read
+  `.user.ini` periodically (`user_ini.cache_ttl`, default 300s) — restart Apache after editing it
+  if a change doesn't seem to take effect; if neither file takes effect on your setup, edit your
+  real `php.ini` directly (same directives) and restart Apache, which always works.
+- **Resumable, not just chunked**: if an upload is interrupted (closed tab, crashed browser, lost
+  connection), `chunkedUpload.js` keeps a small note in `localStorage` (which file → which
+  `upload_id`) and asks the server which chunks it actually has
+  (`GET /api/upload/chunk?upload_id=...`) before sending anything — picking the *same* file again
+  later resumes from the first missing chunk instead of restarting at 0%. Each individual chunk
+  also retries a few times with backoff before giving up, so an isolated blip doesn't fail the
+  whole upload either. Verified end-to-end against a real backend: uploaded a 300MB file, killed
+  the browser page mid-transfer (a page reload, not just a failed request), re-selected the same
+  file, and confirmed — via request logging — that already-uploaded chunks were *not* re-sent, and
+  that the assembled file was byte-for-byte identical (SHA-256) to the original afterward.
+- **`MAX_UPLOAD_SIZE_MB`** (`Backend/config/config.php`, default 20000 = ~20GB, override via
+  `Backend/.env`) is now purely a disk-usage safety ceiling on the *assembled* result, checked
+  while streaming chunks together in `finalize()` — not a technical wall imposed by any single
+  request, so it's fine to raise it further for even larger files.
+- **`GET /api/upload/limits`** exposes the real server-configured ceiling, chunk size, and allowed
+  extensions; the frontend fetches this instead of hardcoding any of it, so the UI can't drift out
+  of sync with what the server will actually accept.
+- The plain single-shot `POST /api/upload` endpoint still exists and is unchanged — it's used only
+  for thumbnails and other small files (Media Library), where chunking would be needless overhead.
+  Both endpoints share the same extension whitelist + real MIME-sniffing validation
+  (`Backend/helpers/upload_validation.php`), applied to the *assembled* file in the chunked case —
+  chunks are staged outside the public `uploads/` tree
+  (`Backend/storage/chunk_uploads/{user_id}/{upload_id}/`, itself blocked from all direct web
+  access by its own `.htaccess`) until that validation passes, so nothing partially-uploaded or
+  not-yet-validated is ever reachable by URL. A crafted `upload_id` is rejected outright (strict
+  format check — it becomes part of a filesystem path) and abandoned sessions older than 24h are
+  swept automatically, no cron needed.
 
-Not covered by any of the above: Apache's own `Timeout` directive (`httpd.conf`, default 300s) can
-still drop a very slow upload before PHP sees it. Not usually a problem testing locally over
-loopback, but worth knowing if this is ever deployed somewhere with a slow real network path to the
-server — raise `Timeout` there too if large uploads start failing partway through on a slow
-connection.
+**Production hosting, beyond XAMPP**: if this sits behind a reverse proxy (nginx, etc.), its own
+body-size limit (nginx: `client_max_body_size`) needs to comfortably exceed one chunk (e.g. `25m`)
+— because of chunking, it does **not** need to be raised to gigabytes either. PHP-FPM setups should
+check `request_terminate_timeout` is comfortably above `max_execution_time`. None of this touches
+the database: `content.media_url` only ever stores a short URL string (`VARCHAR(255)`), never the
+file itself, so there's no database-level size constraint to raise — the real production
+consideration is available disk space on whatever volume `Backend/uploads/` lives on, which is
+worth monitoring as media accumulates. There is currently no server-side video transcoding or
+automatic thumbnail generation in this codebase, so there's no additional media-processing limit
+to worry about either — if that's ever added, it would need its own memory/time budget for
+handling a multi-GB source file.
 
 ## 5. Fixes applied in this pass
 

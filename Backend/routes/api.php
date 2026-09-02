@@ -10,6 +10,7 @@ require_once __DIR__ . '/../controllers/CommentController.php';
 require_once __DIR__ . '/../controllers/ProductController.php';
 require_once __DIR__ . '/../controllers/CategoryController.php';
 require_once __DIR__ . '/../controllers/UploadController.php';
+require_once __DIR__ . '/../controllers/ChunkUploadController.php';
 require_once __DIR__ . '/../controllers/NewsletterController.php';
 require_once __DIR__ . '/../controllers/TestimonialController.php';
 require_once __DIR__ . '/../controllers/OrderController.php';
@@ -104,9 +105,17 @@ function route(string $method, string $path)
 
     // ------
     // ---- UPLOAD ----------
+    // Small/single files (thumbnails, Media Library) use the plain
+    // single-shot endpoint. Large media (video/audio/PDF from the Upload
+    // Content page) uses the chunked endpoints below instead, so a single
+    // HTTP request never has to carry more than one small chunk.
     if ($resource === 'upload') {
         $ctrl = new UploadController();
         if ($id === 'limits' && $method === 'GET') return $ctrl->limits();
+        if ($id === 'chunk' && $method === 'POST') return (new ChunkUploadController())->receiveChunk();
+        if ($id === 'chunk' && $method === 'GET') return (new ChunkUploadController())->status();
+        if ($id === 'chunk' && $method === 'DELETE') return (new ChunkUploadController())->cancel();
+        if ($id === 'finalize' && $method === 'POST') return (new ChunkUploadController())->finalize();
         if ($method === 'POST') return $ctrl->store();
         json_error('Upload route not found.', 404);
     }

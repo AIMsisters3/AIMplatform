@@ -5,16 +5,18 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/(.*)$ index.php [QSA,L]
 
-# Large media uploads (e.g. a ~2 hour video): a second, redundant copy of
-# Backend/.user.ini's limits. .user.ini is the primary mechanism (it also
-# works under CGI/FastCGI), but php_value here only works under mod_php -
-# guarded behind <IfModule mod_php.c> so it's a harmless no-op rather than
-# a 500 error if this server runs PHP via CGI/FastCGI instead. XAMPP on
-# Windows uses mod_php by default, so this is the common case in practice.
+# Upload limits: a second, redundant copy of Backend/.user.ini's values
+# (see that file for why these are modest — uploads are chunked, so each
+# request only ever carries one small piece, not a whole multi-GB video).
+# .user.ini is the primary mechanism (it also works under CGI/FastCGI),
+# but php_value here only works under mod_php - guarded behind
+# <IfModule mod_php.c> so it's a harmless no-op rather than a 500 error if
+# this server runs PHP via CGI/FastCGI instead. XAMPP on Windows uses
+# mod_php by default, so this is the common case in practice.
 <IfModule mod_php.c>
-  php_value upload_max_filesize 8192M
-  php_value post_max_size 8200M
-  php_value max_execution_time 3600
-  php_value max_input_time 3600
-  php_value memory_limit 512M
+  php_value upload_max_filesize 20M
+  php_value post_max_size 24M
+  php_value max_execution_time 60
+  php_value max_input_time 60
+  php_value memory_limit 256M
 </IfModule>

@@ -1,0 +1,12 @@
+# Deny ALL direct web access to everything under storage/ (unlike
+# uploads/, which serves validated, renamed public files, this holds raw
+# in-progress upload chunks that have not been content-validated yet — they
+# must never be reachable by URL, not even as static files).
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
+Options -ExecCGI -Indexes

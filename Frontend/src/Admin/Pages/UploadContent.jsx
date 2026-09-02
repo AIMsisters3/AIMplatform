@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/axios.js';
 import Dropzone from '../Components/upload/Dropzone.jsx';
 import RichTextEditor from '../Components/upload/RichTextEditor.jsx';
 import TagInput from '../Components/upload/TagInput.jsx';
+import { uploadFileChunked, cancelChunkedUpload } from '../utils/chunkedUpload.js';
 import {
   Video, Film, Mic, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
   Clapperboard, Palette, Wand2, Users, MessageSquare, Camera, Music2, Podcast,
@@ -174,6 +175,11 @@ export default function UploadContent() {
   const [submitError, setSubmitError] = useState('');
   const [result, setResult] = useState(null); // { slug, viewHref, published }
 
+  // Tracks the in-flight chunked upload (if any) for the main media file,
+  // so Replace/Remove/switching content type can cancel it instead of
+  // letting an abandoned upload keep running in the background.
+  const mediaAbortRef = useRef(null);
+
   const selectedType = CONTENT_TYPES.find((t) => t.key === selectedKey) || CONTENT_TYPES[0];
   const section = selectedType.section;
   const isBibleStudy = section === 'bible_study';
@@ -200,9 +206,15 @@ export default function UploadContent() {
 
   // Switching what's being uploaded changes which main-media control (if
   // any) applies — drop a file picked for a now-irrelevant kind rather
-  // than silently carrying it into the new submission.
+  // than silently carrying it into the new submission, cancelling any
+  // upload still in flight for the old kind first.
   useEffect(() => {
+    if (mediaAbortRef.current) {
+      mediaAbortRef.current.abort();
+      mediaAbortRef.current = null;
+    }
     setMedia(emptyUpload);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaKind]);
 
   function update(field, value) {
@@ -214,7 +226,9 @@ export default function UploadContent() {
     setErrors((e) => ({ ...e, type: undefined }));
   }
 
-  async function uploadWithProgress(file, folder, setState) {
+  // Small, single-request upload — used only for the thumbnail (always a
+  // small image). The main media file below uses chunked upload instead.
+  async function uploadSimple(file, folder, setState) {
     setState((s) => ({ ...s, uploading: true, progress: 0, error: null }));
     const data = new FormData();
     data.append('file', file);
@@ -236,7 +250,34 @@ export default function UploadContent() {
     }
   }
 
-  function validateAndPick(file, rule, setState) {
+  // Large-file upload — splits the file into small chunks so a dropped
+  // connection only loses the current chunk, not the whole transfer, and
+  // (via chunkedUpload.js's localStorage note) picking the same file again
+  // later resumes instead of restarting at 0%. mediaAbortRef lets
+  // Replace/Remove/switching content type cancel an in-flight upload.
+  async function uploadChunked(file, folder, setState) {
+    setState((s) => ({ ...s, uploading: true, progress: 0, error: null }));
+    const controller = new AbortController();
+    mediaAbortRef.current = controller;
+    try {
+      const result = await uploadFileChunked(file, folder, limits?.chunk_size_mb || 8, {
+        onProgress: (pct) => setState((s) => ({ ...s, progress: pct })),
+        signal: controller.signal,
+      });
+      setState((s) => ({ ...s, uploading: false, progress: 100, uploadedUrl: result.url }));
+      return result.url;
+    } catch (err) {
+      if (err.name === 'AbortError' || err.name === 'CanceledError') {
+        return null; // cancelled by Replace/Remove/type switch — caller already reset state
+      }
+      setState((s) => ({ ...s, uploading: false, error: err.response?.data?.message || 'The file could not be uploaded.' }));
+      return null;
+    } finally {
+      if (mediaAbortRef.current === controller) mediaAbortRef.current = null;
+    }
+  }
+
+  function validateAndPick(file, rule, setState, chunked) {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!rule.extensions.includes(ext)) {
       setState((s) => ({ ...s, error: `That file type isn't supported. Use: ${rule.label}` }));
@@ -246,13 +287,27 @@ export default function UploadContent() {
       setState((s) => ({ ...s, error: `File exceeds the ${formatSizeLimit(maxSizeMb)} limit.` }));
       return;
     }
+    if (chunked && mediaAbortRef.current) {
+      mediaAbortRef.current.abort(); // Replace clicked mid-upload — stop the old attempt first
+      mediaAbortRef.current = null;
+    }
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
     setState({ ...emptyUpload, file, previewUrl });
-    uploadWithProgress(file, rule.folder, setState);
+    if (chunked) uploadChunked(file, rule.folder, setState);
+    else uploadSimple(file, rule.folder, setState);
   }
 
   function removeUpload(setState) {
     setState(emptyUpload);
+  }
+
+  function removeMedia() {
+    if (mediaAbortRef.current) {
+      mediaAbortRef.current.abort();
+      mediaAbortRef.current = null;
+    }
+    if (media.file) cancelChunkedUpload(media.file);
+    setMedia(emptyUpload);
   }
 
   function validate({ forPublish }) {
@@ -561,7 +616,7 @@ export default function UploadContent() {
                 uploading={thumbnail.uploading}
                 progress={thumbnail.progress}
                 error={thumbnail.error}
-                onSelect={(f) => validateAndPick(f, THUMBNAIL_RULE, setThumbnail)}
+                onSelect={(f) => validateAndPick(f, THUMBNAIL_RULE, setThumbnail, false)}
                 onRemove={() => removeUpload(setThumbnail)}
                 compact
               />
@@ -585,12 +640,12 @@ export default function UploadContent() {
                   uploading={media.uploading}
                   progress={media.progress}
                   error={media.error}
-                  onSelect={(f) => validateAndPick(f, MEDIA_RULES[mediaKind], setMedia)}
-                  onRemove={() => removeUpload(setMedia)}
+                  onSelect={(f) => validateAndPick(f, MEDIA_RULES[mediaKind], setMedia, true)}
+                  onRemove={removeMedia}
                 />
                 {mediaKind === 'video' && (
                   <p className="text-[11px] text-ink/35 mt-2">
-                    A full-length video (an hour or more) can take a while to upload depending on your connection — keep this tab open until it reaches 100%.
+                    A full-length video (an hour or more) can take a while to upload depending on your connection. It uploads in small pieces, so if it's interrupted, picking the same file again will resume instead of starting over.
                   </p>
                 )}
               </Field>

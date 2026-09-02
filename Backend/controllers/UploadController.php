@@ -2,16 +2,18 @@
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../helpers/response.php';
+require_once __DIR__ . '/../helpers/upload_validation.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 class UploadController
 {
     /** GET /api/upload/limits - lets the frontend read the real server-configured
-     *  upload ceiling/allowed types instead of hardcoding them, so they can never drift out of sync. */
+     *  upload ceiling/chunk size/allowed types instead of hardcoding them, so they can never drift out of sync. */
     public function limits(): void
     {
         json_ok([
             'max_size_mb'         => MAX_UPLOAD_SIZE_MB,
+            'chunk_size_mb'       => CHUNK_SIZE_MB,
             'allowed_image_types' => ALLOWED_IMAGE_TYPES,
             'allowed_video_types' => ALLOWED_VIDEO_TYPES,
             'allowed_audio_types' => ALLOWED_AUDIO_TYPES,
@@ -55,14 +57,17 @@ class UploadController
 
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
-        $allExtensions = array_merge(ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, ALLOWED_AUDIO_TYPES, ALLOWED_DOC_TYPES);
-        if (!in_array($ext, $allExtensions, true)) {
+        if (!upload_extension_allowed($ext)) {
             json_error('File type not allowed.', 422);
         }
 
         $maxBytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
         if ($file['size'] > $maxBytes) {
-            json_error('File exceeds maximum size of ' . MAX_UPLOAD_SIZE_MB . 'MB.', 422);
+            json_error(
+                'File exceeds the maximum allowed size of ' . MAX_UPLOAD_SIZE_MB . 'MB. '
+                . 'For very large video/audio files, use the chunked upload (this happens automatically from the Upload Content page).',
+                422
+            );
         }
 
         // Sniff the actual file content, not just the claimed extension —
@@ -70,7 +75,7 @@ class UploadController
         // be rejected. Uploads are also renamed below and uploads/.htaccess
         // refuses to execute scripts in that directory, so this is a second
         // independent layer rather than the only one.
-        if (!$this->contentMatchesExtension($file['tmp_name'], $ext)) {
+        if (!upload_content_matches_extension($file['tmp_name'], $ext)) {
             json_error('File content does not match its extension.', 422);
         }
 
@@ -88,57 +93,11 @@ class UploadController
             json_error('Failed to save uploaded file.', 500);
         }
 
-        $type = in_array($ext, ALLOWED_IMAGE_TYPES, true) ? 'image'
-            : (in_array($ext, ALLOWED_VIDEO_TYPES, true) ? 'video'
-            : (in_array($ext, ALLOWED_AUDIO_TYPES, true) ? 'audio' : 'document'));
-
         json_created([
             'url'      => UPLOAD_URL . $folder . '/' . $filename,
             'filename' => $filename,
-            'type'     => $type,
+            'type'     => upload_type_for_extension($ext),
             'folder'   => $folder,
         ], 'File uploaded successfully.');
-    }
-
-    /**
-     * Confirms the uploaded file's real MIME type (via fileinfo, which
-     * reads magic bytes rather than trusting the client) is plausible for
-     * its extension. Intentionally permissive within each family — media
-     * containers report many different MIME strings across browsers/OSes —
-     * the goal is only to catch a script/executable masquerading as media,
-     * not to build a strict codec whitelist.
-     */
-    private function contentMatchesExtension(string $tmpPath, string $ext): bool
-    {
-        if (!function_exists('finfo_open')) {
-            return true; // fileinfo not available on this PHP build — skip rather than block all uploads
-        }
-
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = finfo_file($finfo, $tmpPath);
-        finfo_close($finfo);
-
-        if (!$mime) {
-            return false;
-        }
-
-        $imageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        $videoMimes = ['video/mp4', 'video/quicktime', 'video/webm', 'application/octet-stream'];
-        $audioMimes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'application/ogg', 'video/ogg'];
-        $docMimes   = ['application/pdf'];
-
-        // Anything that sniffs as a script, executable, or HTML is never
-        // acceptable regardless of claimed extension.
-        $dangerous = ['text/x-php', 'application/x-httpd-php', 'application/x-sh', 'application/x-executable', 'text/html', 'application/x-msdownload'];
-        if (in_array($mime, $dangerous, true)) {
-            return false;
-        }
-
-        if (in_array($ext, ALLOWED_IMAGE_TYPES, true)) return in_array($mime, $imageMimes, true);
-        if (in_array($ext, ALLOWED_VIDEO_TYPES, true)) return in_array($mime, $videoMimes, true);
-        if (in_array($ext, ALLOWED_AUDIO_TYPES, true)) return in_array($mime, $audioMimes, true);
-        if (in_array($ext, ALLOWED_DOC_TYPES, true))   return in_array($mime, $docMimes, true);
-
-        return false;
     }
 }

@@ -51,6 +51,11 @@ define('APP_URL', env('APP_URL', 'http://localhost/AIMTech/Backend'));
 define('FRONTEND_URL', env('FRONTEND_URL', 'http://localhost:5173'));
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');
 define('UPLOAD_URL', APP_URL . '/uploads/');
+// Chunk staging area for large uploads (ChunkUploadController) - deliberately
+// OUTSIDE the public uploads/ tree so an in-progress or not-yet-validated
+// chunk is never web-accessible even by guessing a path. Blocked further by
+// its own .htaccess (Backend/storage/chunk_uploads/.htaccess).
+define('CHUNK_UPLOAD_DIR', __DIR__ . '/../storage/chunk_uploads/');
 
 // Allowed frontend origins (Vite dev server + production domain).
 // Add production domains via ALLOWED_ORIGINS_EXTRA="https://aimsisters.org,https://www.aimsisters.org"
@@ -61,12 +66,18 @@ define('ALLOWED_ORIGINS', array_merge([
 ], $extraOrigins));
 
 // --- Uploads ---
-// Default is generous enough for a full-length (~2 hour) HD video. This is
-// the application-level cap; PHP's own upload_max_filesize/post_max_size
-// (see Backend/.user.ini) must also allow it, or the file never reaches
-// this check at all - UploadController distinguishes the two failure
-// modes so an admin sees which limit actually blocked them.
-define('MAX_UPLOAD_SIZE_MB', (int) env('MAX_UPLOAD_SIZE_MB', 8000));
+// Large media (video/audio/PDF) uploads through the admin Upload Content
+// page go through ChunkUploadController, split into CHUNK_SIZE_MB pieces -
+// each HTTP request only ever carries one small chunk, so this is a disk-
+// usage safety ceiling on the ASSEMBLED file, not a technical wall imposed
+// by any single request's size. Raise it freely; it no longer requires
+// raising PHP's own upload_max_filesize/post_max_size to match (those only
+// need to comfortably fit one chunk - see Backend/.user.ini). The single-
+// shot /api/upload endpoint (thumbnails, small files, Media Library) still
+// checks this same ceiling directly against $_FILES, since those uploads
+// are never chunked.
+define('MAX_UPLOAD_SIZE_MB', (int) env('MAX_UPLOAD_SIZE_MB', 20000));
+define('CHUNK_SIZE_MB', (int) env('CHUNK_SIZE_MB', 8));
 define('ALLOWED_IMAGE_TYPES', ['jpg','jpeg','png','gif','webp']);
 define('ALLOWED_VIDEO_TYPES', ['mp4','mov','webm']);
 define('ALLOWED_AUDIO_TYPES', ['mp3','wav','ogg']);
