@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
+import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 
 export default function News() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeItem, setActiveItem] = useState(null);
 
   useEffect(() => {
     api.get('/news', { params: { limit: 24 } })
@@ -24,9 +26,11 @@ export default function News() {
         <p className="text-ink/50">No news published yet. Check back soon.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {items.map((item) => <ContentCard key={item.id} item={item} />)}
+          {items.map((item) => <ContentCard key={item.id} item={item} onClick={() => setActiveItem(item)} />)}
         </div>
       )}
+
+      <ContentViewerModal item={activeItem} onClose={() => setActiveItem(null)} />
     </div>
   );
 }

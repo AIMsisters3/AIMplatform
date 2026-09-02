@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle } from 'lucide-react';
 import api from '../api/axios.js';
@@ -178,9 +179,15 @@ export default function CommentsSection({ contentId, allowComments }) {
           </button>
         </form>
       ) : (
-        <p className="text-sm text-ink/50 mb-6">
-          <a href="/login" className="text-secondary font-semibold">Sign in</a> to join the conversation.
-        </p>
+        <div className="flex items-center justify-between gap-4 mb-6 px-4 py-3 rounded-2xl bg-surface">
+          <p className="text-sm text-ink/60">Sign in to leave a comment.</p>
+          <Link
+            to="/login"
+            className="shrink-0 px-4 py-1.5 rounded-full bg-brand-gradient text-white text-xs font-semibold shadow-glass"
+          >
+            Sign In
+          </Link>
+        </div>
       )}
 
       {loading ? (

@@ -63,6 +63,12 @@ export default function ContentViewerModal({ item, onClose }) {
             </div>
           )}
 
+          {kind === 'image' && (item.media_url || item.thumbnail) && (
+            <div className="w-full h-72 md:h-96 overflow-hidden bg-ink flex items-center justify-center">
+              <img src={item.media_url || item.thumbnail} alt={item.title} className="max-w-full max-h-full object-contain" />
+            </div>
+          )}
+
           <div className="p-8">
             {item.category_name && (
               <span className="inline-block text-xs font-semibold text-secondary uppercase tracking-wide mb-2">

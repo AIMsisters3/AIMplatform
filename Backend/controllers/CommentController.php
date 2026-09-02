@@ -48,6 +48,13 @@ class CommentController
         }
 
         $parentId = isset($body['parent_id']) ? (int) $body['parent_id'] : null;
+        if ($parentId) {
+            $parent = $this->model->find($parentId);
+            if (!$parent || (int) $parent['content_id'] !== $contentId) {
+                json_error('Invalid parent comment.', 422);
+            }
+        }
+
         $id = $this->model->create($contentId, (int) $payload['sub'], $text, $parentId);
         json_created(['id' => $id], 'Comment posted.');
     }

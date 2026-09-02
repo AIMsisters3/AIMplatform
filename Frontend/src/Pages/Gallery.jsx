@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios.js';
+import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 
 export default function Gallery() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeItem, setActiveItem] = useState(null);
 
   useEffect(() => {
     api.get('/gallery', { params: { limit: 40 } })
@@ -28,12 +30,18 @@ export default function Gallery() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {items.map((item) => (
-            <div key={item.id} className="aspect-square rounded-xl2 overflow-hidden bg-brand-gradient-soft">
+            <button
+              key={item.id}
+              onClick={() => setActiveItem(item)}
+              className="aspect-square rounded-xl2 overflow-hidden bg-brand-gradient-soft cursor-pointer hover:opacity-90 transition"
+            >
               {item.thumbnail && <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />}
-            </div>
+            </button>
           ))}
         </div>
       )}
+
+      <ContentViewerModal item={activeItem} onClose={() => setActiveItem(null)} />
     </div>
   );
 }

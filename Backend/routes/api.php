@@ -58,10 +58,15 @@ function route(string $method, string $path)
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $action === 'duplicate' && $method === 'POST') return $ctrl->duplicate((int) $id);
-        if ($id !== null && $method === 'GET') return $ctrl->show($id);
-        if ($id !== null && $method === 'PUT') return $ctrl->update((int) $id);
-        if ($id !== null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+        // Every content item's own comments live at this same path (GET to
+        // read, POST to create) — checked before the generic show()/update()/
+        // destroy() rules below, which only apply when there's no action
+        // segment at all (a bare /content/{id}).
+        if ($id !== null && $action === 'comments' && $method === 'GET') return (new CommentController())->index((int) $id);
         if ($id !== null && $action === 'comments' && $method === 'POST') return (new CommentController())->store((int) $id);
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+        if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
         json_error('Content route not found.', 404);
     }
 
