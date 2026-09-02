@@ -97,3 +97,11 @@ define('SMTP_PASS', env('SMTP_PASS', ''));
 define('SMTP_PORT', (int) env('SMTP_PORT', 587));
 define('SMTP_FROM_EMAIL', env('SMTP_FROM_EMAIL', 'no-reply@aimsisters.org'));
 define('SMTP_FROM_NAME', env('SMTP_FROM_NAME', 'AIMsisters'));
+
+// Logo shown in branded transactional emails (welcome/notification templates
+// - see Backend/emails/). Defaults to this same backend serving its own
+// Backend/assets/logo.png, same pattern as UPLOAD_URL above. Email clients
+// can't load a localhost image, so in production either set APP_URL to the
+// real public backend URL or point MAIL_LOGO_URL at any publicly reachable
+// HTTPS image directly (e.g. a CDN copy of the logo) — no code change needed.
+define('MAIL_LOGO_URL', env('MAIL_LOGO_URL', APP_URL . '/assets/logo.png'));

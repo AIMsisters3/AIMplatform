@@ -1,61 +1,35 @@
 <?php
 
+require_once __DIR__ . '/layout.php';
+
+/** Sent immediately when someone subscribes — see NewsletterController::subscribe(). */
 function welcome_email_html(string $unsubscribeUrl): string
 {
-    return <<<HTML
-    <div style="margin:0; padding:0; background-color:#f8f7fd; font-family:Arial, Helvetica, sans-serif; color:#2d2a4a;">
-        <div style="max-width:650px; margin:40px auto; background:#ffffff; border-radius:18px; overflow:hidden; box-shadow:0 8px 30px rgba(45,42,74,0.08);">
+    $siteUrl = htmlspecialchars(rtrim(FRONTEND_URL, '/'), ENT_QUOTES);
+    $button  = email_cta_button('Visit AIMsisters', $siteUrl);
 
-            <div style="padding:40px 30px; text-align:center; background:linear-gradient(135deg,#7a2cf3,#2da8ff,#e548b9); color:#ffffff;">
-                <h1 style="margin:0 0 10px; font-size:32px;">Welcome to AIMsisters</h1>
-                <p style="margin:0; font-size:16px; opacity:0.95;">A place to grow, discover, and walk closer with God.</p>
-            </div>
+    $body = <<<HTML
+    <h1 class="email-heading" style="margin:0 0 6px; font-size:26px; line-height:1.3; color:#2D2A4A;">Welcome to AIMsisters</h1>
+    <p style="margin:0 0 26px; font-size:16px; font-weight:600; color:#7A2CF3;">Thank you for subscribing!</p>
 
-            <div style="padding:40px 35px;">
-                <p style="font-size:17px; line-height:1.7; margin-top:0;">Dear Friend,</p>
+    <p style="margin:0 0 14px; font-size:16px; line-height:1.7; color:#4A4664;">You are now subscribed to receive new:</p>
 
-                <p style="font-size:16px; line-height:1.8;">
-                    Thank you for joining the <strong>AIMsisters community</strong>.
-                    We are truly happy to have you with us.
-                </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+      <tr><td style="padding:5px 0; font-size:16px; line-height:1.6; color:#2D2A4A;"><span style="color:#7A2CF3; font-weight:700;">&bull;</span>&nbsp; Devotions</td></tr>
+      <tr><td style="padding:5px 0; font-size:16px; line-height:1.6; color:#2D2A4A;"><span style="color:#7A2CF3; font-weight:700;">&bull;</span>&nbsp; Bible Studies</td></tr>
+      <tr><td style="padding:5px 0; font-size:16px; line-height:1.6; color:#2D2A4A;"><span style="color:#7A2CF3; font-weight:700;">&bull;</span>&nbsp; Ministry News</td></tr>
+    </table>
 
-                <p style="font-size:16px; line-height:1.8;">
-                    AIMsisters exists to share the love of Christ through
-                    <strong>Bible studies, devotions, encouragement, and ministry resources</strong>.
-                    Our prayer is that every message you receive will point you
-                    closer to Jesus and strengthen your walk with Him.
-                </p>
+    <p style="margin:0 0 6px; font-size:16px; line-height:1.7; color:#4A4664;">directly in your inbox.</p>
+    <p style="margin:0 0 30px; font-size:16px; line-height:1.7; color:#4A4664;">We are grateful to have you with us.</p>
 
-                <div style="margin:30px 0; padding:25px; background:#f8f7fd; border-left:4px solid #7a2cf3; border-radius:10px;">
-                    <p style="margin:0; font-size:16px; line-height:1.7; font-style:italic;">
-                        "Draw near to God, and He will draw near to you."
-                    </p>
-                    <p style="margin:10px 0 0; font-size:14px; color:#777;">James 4:8</p>
-                </div>
-
-                <p style="font-size:16px; line-height:1.8;">
-                    From time to time, we'll share new Bible studies, devotions,
-                    ministry news, and other resources designed to encourage you
-                    in your journey of faith.
-                </p>
-
-                <p style="font-size:16px; line-height:1.8;">
-                    We're grateful that you've chosen to be part of this community.
-                    May your time with AIMsisters be a blessing, and may every step
-                    lead you closer to Christ.
-                </p>
-
-                <p style="font-size:16px; line-height:1.8; margin-bottom:5px;">With love and prayers,</p>
-                <p style="font-size:18px; font-weight:bold; margin-top:0; color:#7a2cf3;">The AIMsisters Team</p>
-            </div>
-
-            <div style="padding:25px 30px; text-align:center; background:#f8f7fd; color:#777; font-size:13px;">
-                <p style="margin:0 0 8px;">AIMsisters — Growing Together in Faith</p>
-                <p style="margin:0 0 10px;">You are receiving this because you subscribed to AIMsisters email updates.</p>
-                <p style="margin:0;"><a href="{$unsubscribeUrl}" style="color:#7a2cf3;">Unsubscribe</a></p>
-            </div>
-
-        </div>
-    </div>
+    {$button}
     HTML;
+
+    return email_layout(
+        "Welcome to AIMsisters — you're subscribed!",
+        $body,
+        $unsubscribeUrl,
+        'AIMsisters — Growing Together in Faith'
+    );
 }

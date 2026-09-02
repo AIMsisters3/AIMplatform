@@ -18,9 +18,9 @@ require_once __DIR__ . '/../models/Subscriber.php';
 require_once __DIR__ . '/../emails/content_notification_template.php';
 
 const NEWSLETTER_NOTIFY_SECTIONS = [
-    'devotions'   => ['label' => 'New Devotion Available', 'button' => 'Read the Full Devotion'],
-    'bible_study' => ['label' => 'New Bible Study Available', 'button' => 'Read the Full Study'],
-    'news'        => ['label' => 'Ministry News', 'button' => 'Read the Full Article'],
+    'devotions'   => ['eyebrow' => 'New Devotion', 'button' => 'Read the Devotion'],
+    'bible_study' => ['eyebrow' => 'New Bible Study', 'button' => 'Start the Bible Study'],
+    'news'        => ['eyebrow' => 'Ministry News', 'button' => 'Read the Full Story'],
 ];
 
 function maybe_notify_subscribers_of_new_content(Content $contentModel, int $contentId): void
@@ -47,10 +47,12 @@ function maybe_notify_subscribers_of_new_content(Content $contentModel, int $con
 
     $recipients = (new Subscriber())->allSubscribedForNotification();
 
+    $subject = $meta['eyebrow'] . ': ' . $item['title'];
+
     foreach ($recipients as $recipient) {
         $unsubscribeUrl = APP_URL . '/newsletter_unsubscribe.php?token=' . urlencode($recipient['token']);
         $html = content_notification_email_html(
-            $meta['label'],
+            $meta['eyebrow'],
             $meta['button'],
             $item['title'],
             $item['description'] ?? '',
@@ -60,7 +62,7 @@ function maybe_notify_subscribers_of_new_content(Content $contentModel, int $con
         // One failed send (bad address, transient SMTP error) must not
         // stop the rest of the batch — send_email() already returns
         // false rather than throwing, so nothing extra is needed here.
-        send_email($recipient['email'], $meta['label'] . ': ' . $item['title'], $html);
+        send_email($recipient['email'], $subject, $html);
     }
 
     $contentModel->markNewsletterNotified($contentId);
