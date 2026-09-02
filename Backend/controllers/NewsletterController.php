@@ -53,16 +53,22 @@ class NewsletterController
         } else {
             $this->model->create($email, $token, $language);
         }
+        error_log("Newsletter: subscribed {$email} (db row saved, status=subscribed)");
 
         // A failed send here (e.g. SMTP not configured locally) never
-        // blocks the subscription itself — send_email() already fails
-        // gracefully (logs, returns false) and the row is subscribed
-        // either way, matching how every other mailer call in this app
-        // behaves (see NewsletterController's own history, register, etc.).
+        // blocks the subscription itself — the row above is already
+        // committed either way. $emailSent tells the caller (and, via
+        // the response below, the frontend) whether the welcome email
+        // was actually handed to the mail server, distinct from whether
+        // the subscription itself succeeded — see send_email()'s own
+        // logging in helpers/mailer.php for exactly why it did or didn't.
         $unsubscribeUrl = APP_URL . '/newsletter_unsubscribe.php?token=' . urlencode($token);
-        send_email($email, "You're subscribed to AIMsisters!", welcome_email_html($unsubscribeUrl));
+        $emailSent = send_email($email, "You're subscribed to AIMsisters!", welcome_email_html($unsubscribeUrl));
 
-        json_created(null, "You're subscribed! You'll receive new AIMsisters devotions, studies, and ministry news in your inbox.");
+        json_created(
+            ['email_sent' => $emailSent],
+            "You're subscribed! You'll receive new AIMsisters devotions, studies, and ministry news in your inbox."
+        );
     }
 
     /** GET /api/newsletter/subscribers?status=&search= (requires newsletter.manage) */

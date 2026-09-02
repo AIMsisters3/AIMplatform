@@ -48,6 +48,7 @@ function maybe_notify_subscribers_of_new_content(Content $contentModel, int $con
     $recipients = (new Subscriber())->allSubscribedForNotification();
 
     $subject = $meta['eyebrow'] . ': ' . $item['title'];
+    $sent = 0;
 
     foreach ($recipients as $recipient) {
         $unsubscribeUrl = APP_URL . '/newsletter_unsubscribe.php?token=' . urlencode($recipient['token']);
@@ -62,8 +63,12 @@ function maybe_notify_subscribers_of_new_content(Content $contentModel, int $con
         // One failed send (bad address, transient SMTP error) must not
         // stop the rest of the batch — send_email() already returns
         // false rather than throwing, so nothing extra is needed here.
-        send_email($recipient['email'], $subject, $html);
+        if (send_email($recipient['email'], $subject, $html)) {
+            $sent++;
+        }
     }
+
+    error_log("Newsletter: content #{$contentId} ('{$item['title']}') notified {$sent}/" . count($recipients) . ' subscribers');
 
     $contentModel->markNewsletterNotified($contentId);
 }

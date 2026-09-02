@@ -159,7 +159,14 @@ export default function Home() {
     try {
       const r = await api.post('/newsletter/subscribe', { email });
       setSubStatus('success');
-      setSubMessage(r.data.message || "You're subscribed! You'll receive new AIMsisters devotions, studies, and ministry news in your inbox.");
+      let message = r.data.message || "You're subscribed! You'll receive new AIMsisters devotions, studies, and ministry news in your inbox.";
+      // The subscription itself always succeeds here (this branch only runs
+      // on 2xx) — email_sent tells us separately whether the welcome email
+      // actually went out, so we never claim an email was sent when it wasn't.
+      if (r.data.data?.email_sent === false) {
+        message += ' (We could not send a confirmation email right now, but you are on the list.)';
+      }
+      setSubMessage(message);
       setEmail('');
     } catch (err) {
       setSubStatus('error');
