@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../models/Content.php';
 require_once __DIR__ . '/../models/BibleStudy.php';
 require_once __DIR__ . '/../models/Language.php';
+require_once __DIR__ . '/../helpers/publish_notify.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -189,6 +190,16 @@ class ContentController
             );
         }
 
+        // Never let a bug in the notification path break content
+        // creation itself — a devotion/study/news item that fails to
+        // notify subscribers is a much smaller problem than one that
+        // fails to save at all.
+        try {
+            maybe_notify_subscribers_of_new_content($this->model, (int) $id);
+        } catch (Throwable $e) {
+            error_log('Newsletter notify failed for content ' . $id . ': ' . $e->getMessage());
+        }
+
         json_created(['id' => $id], 'Content created successfully.');
     }
 
@@ -247,6 +258,12 @@ class ContentController
                 $body['media_type'] ?? ($currentExtension['format'] ?? 'video'),
                 array_key_exists('study_guide_url', $body) ? $body['study_guide_url'] : ($currentExtension['study_guide_url'] ?? null)
             );
+        }
+
+        try {
+            maybe_notify_subscribers_of_new_content($this->model, $id);
+        } catch (Throwable $e) {
+            error_log('Newsletter notify failed for content ' . $id . ': ' . $e->getMessage());
         }
 
         json_ok(null, 'Content updated successfully.');

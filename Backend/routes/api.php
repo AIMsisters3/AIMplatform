@@ -130,6 +130,7 @@ function route(string $method, string $path)
         $ctrl = new NewsletterController();
         if ($id === 'subscribe' && $method === 'POST') return $ctrl->subscribe();
         if ($id === 'subscribers' && $method === 'GET') return $ctrl->adminList();
+        if ($id !== null && ctype_digit($id) && $action === 'deactivate' && $method === 'POST') return $ctrl->adminDeactivate((int) $id);
         json_error('Newsletter route not found.', 404);
     }
  

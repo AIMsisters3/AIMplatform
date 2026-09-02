@@ -159,7 +159,7 @@ export default function Home() {
     try {
       const r = await api.post('/newsletter/subscribe', { email });
       setSubStatus('success');
-      setSubMessage(r.data.message || 'Subscribed! Check your inbox.');
+      setSubMessage(r.data.message || "You're subscribed! You'll receive new AIMsisters devotions, studies, and ministry news in your inbox.");
       setEmail('');
     } catch (err) {
       setSubStatus('error');

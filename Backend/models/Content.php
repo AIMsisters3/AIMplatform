@@ -208,6 +208,13 @@ class Content
         $stmt->execute(['id' => $id]);
     }
 
+    /** Marks a devotion/Bible study/news item as having already triggered its one newsletter notification — see helpers/publish_notify.php. */
+    public function markNewsletterNotified(int $id): void
+    {
+        $stmt = $this->db->prepare('UPDATE content SET newsletter_notified_at = NOW() WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+
     public function countByType(string $type): int
     {
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM content WHERE content_type = :type AND deleted_at IS NULL");

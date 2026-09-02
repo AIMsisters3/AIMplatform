@@ -1,6 +1,6 @@
 <?php
 
-function welcome_email_html(): string
+function welcome_email_html(string $unsubscribeUrl): string
 {
     return <<<HTML
     <div style="margin:0; padding:0; background-color:#f8f7fd; font-family:Arial, Helvetica, sans-serif; color:#2d2a4a;">
@@ -51,7 +51,8 @@ function welcome_email_html(): string
 
             <div style="padding:25px 30px; text-align:center; background:#f8f7fd; color:#777; font-size:13px;">
                 <p style="margin:0 0 8px;">AIMsisters — Growing Together in Faith</p>
-                <p style="margin:0;">Thank you for being part of our community.</p>
+                <p style="margin:0 0 10px;">You are receiving this because you subscribed to AIMsisters email updates.</p>
+                <p style="margin:0;"><a href="{$unsubscribeUrl}" style="color:#7a2cf3;">Unsubscribe</a></p>
             </div>
 
         </div>

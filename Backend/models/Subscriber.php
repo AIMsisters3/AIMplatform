@@ -3,10 +3,13 @@
 require_once __DIR__ . '/../config/database.php';
 
 /**
- * Backs the `newsletter_subscribers` table (see
- * database/migrations/003_newsletter_subscribers.sql for why this table
- * had to be added — it didn't exist before, despite this model already
- * expecting it).
+ * Backs the `newsletter_subscribers` table (migration 003, extended by
+ * 009 with `unsubscribed_at`). Subscribing is single-step and free — no
+ * account required, no email confirmation loop: a new row is created
+ * (or a previously-unsubscribed one reactivated) with status
+ * 'subscribed' immediately. `token` is a standing, unguessable value
+ * used only to build that subscriber's unsubscribe link — it is never
+ * exposed anywhere except that one URL.
  */
 class Subscriber
 {
@@ -33,41 +36,66 @@ class Subscriber
         return $row ?: null;
     }
 
+    public function find(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM newsletter_subscribers WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    /** New subscriber, subscribed immediately (free, single-step - no confirmation email loop). */
     public function create(string $email, string $token, string $language = 'English'): int
     {
         $stmt = $this->db->prepare(
-            "INSERT INTO newsletter_subscribers (email, token, status, language) VALUES (:email, :token, 'pending', :language)"
+            "INSERT INTO newsletter_subscribers (email, token, status, language, confirmed_at)
+             VALUES (:email, :token, 'subscribed', :language, NOW())"
         );
         $stmt->execute(['email' => $email, 'token' => $token, 'language' => $language]);
         return (int) $this->db->lastInsertId();
     }
 
-    public function updateToken(int $id, string $token): void
+    /** A previously-unsubscribed (or legacy 'pending') row subscribing again. */
+    public function reactivate(int $id, string $token): void
     {
         $stmt = $this->db->prepare(
-            "UPDATE newsletter_subscribers SET token = :token, status = 'pending' WHERE id = :id"
+            "UPDATE newsletter_subscribers
+             SET status = 'subscribed', token = :token, confirmed_at = NOW(), unsubscribed_at = NULL
+             WHERE id = :id"
         );
         $stmt->execute(['token' => $token, 'id' => $id]);
     }
 
-    public function confirm(int $id): void
+    public function unsubscribe(int $id): void
     {
         $stmt = $this->db->prepare(
-            "UPDATE newsletter_subscribers SET status = 'subscribed', confirmed_at = NOW(), token = NULL WHERE id = :id"
+            "UPDATE newsletter_subscribers SET status = 'unsubscribed', unsubscribed_at = NOW() WHERE id = :id"
         );
         $stmt->execute(['id' => $id]);
     }
 
-    /** For a future admin subscriber list / export. */
-    public function all(?string $status = null, int $limit = 50, int $offset = 0): array
+    /** Admin subscriber list: optional status filter + email search. */
+    public function all(?string $status = null, ?string $search = null, int $limit = 50, int $offset = 0): array
     {
-        $where = $status ? 'WHERE status = :status' : '';
-        $stmt = $this->db->prepare(
-            "SELECT id, email, status, language, subscribed_at, confirmed_at FROM newsletter_subscribers
-             $where ORDER BY subscribed_at DESC LIMIT :limit OFFSET :offset"
-        );
+        $where = [];
+        $params = [];
         if ($status) {
-            $stmt->bindValue('status', $status);
+            $where[] = 'status = :status';
+            $params['status'] = $status;
+        }
+        if ($search) {
+            $where[] = 'email LIKE :search';
+            $params['search'] = '%' . $search . '%';
+        }
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->db->prepare(
+            "SELECT id, email, status, language, subscribed_at, confirmed_at, unsubscribed_at
+             FROM newsletter_subscribers
+             $whereSql ORDER BY subscribed_at DESC LIMIT :limit OFFSET :offset"
+        );
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
         }
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
@@ -78,5 +106,12 @@ class Subscriber
     public function count(): int
     {
         return (int) $this->db->query("SELECT COUNT(*) FROM newsletter_subscribers WHERE status = 'subscribed'")->fetchColumn();
+    }
+
+    /** Every active subscriber + the token needed to build their unsubscribe link — used only when emailing a new-content notification. */
+    public function allSubscribedForNotification(): array
+    {
+        $stmt = $this->db->query("SELECT email, token FROM newsletter_subscribers WHERE status = 'subscribed'");
+        return $stmt->fetchAll();
     }
 }
