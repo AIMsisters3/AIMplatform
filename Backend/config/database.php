@@ -12,7 +12,7 @@ class Database
     public static function getConnection(): PDO
     {
         if (self::$instance === null) {
-            $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+            $dsn = 'mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
 
             try {
                 self::$instance = new PDO($dsn, DB_USER, DB_PASS, [

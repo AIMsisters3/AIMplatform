@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 
-const BACKEND_SHARE_BASE = 'http://localhost/AIMTech/Backend/share.php';
+// Same VITE_BACKEND_URL as src/api/axios.js — falls back to the local
+// XAMPP path so this keeps working unchanged in local dev.
+const BACKEND_SHARE_BASE = `${(import.meta.env.VITE_BACKEND_URL || 'http://localhost/AIMTech/Backend').replace(/\/$/, '')}/share.php`;
 
 export default function ShareButton({ item }) {
   const [copied, setCopied] = useState(false);

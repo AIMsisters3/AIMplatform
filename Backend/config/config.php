@@ -18,6 +18,7 @@ define('APP_ENV', env('APP_ENV', 'local')); // local | production
 
 // --- Database ---
 define('DB_HOST', env('DB_HOST', 'localhost'));
+define('DB_PORT', (int) env('DB_PORT', 3306));
 define('DB_NAME', env('DB_NAME', 'aimsisters_db'));
 define('DB_USER', env('DB_USER', 'root'));
 define('DB_PASS', env('DB_PASS', ''));

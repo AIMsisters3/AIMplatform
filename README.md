@@ -356,3 +356,180 @@ permission from a role takes effect without re-issuing any token, etc.) before t
   "content row + extension table" pattern §4c already established for Bible Study. Deliberately not
   attempted in this pass, which focused on separating Section/Media Type/Category/Language and
   making the admin form's Body/Transcript fields dynamic (§4d).
+
+## 7. Deploying to InfinityFree (staging/testing)
+
+This deploys the *same* app you run locally with XAMPP — nothing is redesigned, no
+functionality changes, no duplicate tables. It just points the production build at the
+online backend/database instead of localhost.
+
+**Why a subfolder, not the htdocs root, for the backend:** the built frontend is a static
+`index.html` + `assets/`, and the backend is `index.php` + its own folders — you cannot
+merge them into one directory (both would fight over being the default document). Backend
+goes in an `htdocs/backend/` subfolder; frontend's build output goes at `htdocs/` root.
+`Backend/index.php` already strips any URL prefix before `/api/` (see its own
+`preg_replace('#^.*?(/api/.*)#', ...)`), so it works correctly at any subfolder path/name
+without any code change — `backend` is simply the recommended, predictable choice.
+
+### Step 1 — Configure the frontend's API URL (you run this)
+
+Create `Frontend/.env.production` (git-ignored, same pattern as `Backend/.env` — never
+commit it) with:
+
+```
+VITE_BACKEND_URL=https://aimsisters.ct.ws/backend
+```
+
+### Step 2 — Build the frontend (you run this)
+
+```bash
+cd Frontend
+npm install   # only if you haven't already
+npm run build
+```
+
+This generates `Frontend/dist/` — `index.html`, an `assets/` folder (hashed JS/CSS/images),
+and a `.htaccess` (client-side routing fallback, so a direct link like `/admin/login` or a
+page refresh doesn't 404 — React Router needs the server to hand every unknown path back to
+`index.html`). That `.htaccess` is generated automatically from `Frontend/public/.htaccess`
+on every build; you don't write or edit it by hand.
+
+### Step 3 — Upload structure
+
+```
+htdocs/                          <- InfinityFree's web root
+├── index.html                   <- from Frontend/dist/
+├── .htaccess                    <- from Frontend/dist/ (SPA routing fallback)
+├── assets/                      <- from Frontend/dist/
+└── backend/                     <- the ENTIRE Backend/ folder, uploaded as-is
+    ├── index.php
+    ├── .htaccess
+    ├── .env                     <- you CREATE this directly on the server (step 5) — never upload your local one, never commit it
+    ├── config/
+    ├── controllers/
+    ├── models/
+    ├── middleware/
+    ├── helpers/
+    ├── emails/
+    ├── assets/                  <- logo.png used in emails
+    ├── lib/
+    ├── routes/
+    ├── database/                <- schema.sql, migrations/, infinityfree_import.sql (harmless to leave, or delete after import)
+    ├── storage/                 <- create if missing; needs to be writable (chunk uploads, mailer.log)
+    ├── uploads/                 <- needs to be writable (this is where published media lands)
+    └── newsletter_unsubscribe.php, share.php
+```
+
+Everything under `Backend/` uploads unchanged — don't rename `Backend/` internals, only the
+top-level folder name (`backend`, lowercase, matching step 1's URL) is your choice.
+`storage/` and `uploads/` must be writable by PHP (InfinityFree's default permissions are
+usually fine; if uploads fail, set both to 755 via the File Manager's permissions dialog).
+
+### Step 4 — Import the database (you run this, via InfinityFree's phpMyAdmin)
+
+InfinityFree pre-creates your database (`if0_42811611_aimsisters`) and its MySQL user
+cannot run `CREATE DATABASE` — so `schema.sql` and the `migrations/*.sql` files **cannot be
+imported one-by-one as-is** the way the local XAMPP setup does (§1 step 3); each one's
+`CREATE DATABASE`/`USE aimsisters_db;` statements would fail or silently target the wrong
+database name.
+
+Use `Backend/database/infinityfree_import.sql` instead — the exact same schema (schema.sql
++ every migration 001–010, in order), just with those two statement types stripped so it
+runs cleanly against a database that already exists under a different, fixed name. It does
+not define anything schema.sql/the migrations don't already define — verified by importing
+it into a freshly created, differently-named database and confirming all 31 tables, every
+migrated column, and all seeded roles/permissions came out identical to a normal local
+install.
+
+1. Log into InfinityFree's control panel → phpMyAdmin.
+2. Click your database (`if0_42811611_aimsisters`) in the left sidebar **first**, so it's
+   the selected database.
+3. **Import** tab → choose `infinityfree_import.sql` → **Go**.
+4. Afterwards, set the seeded admin's role (schema.sql creates it before roles exist):
+   ```sql
+   UPDATE users u JOIN roles r ON r.slug = 'superadmin' SET u.role_id = r.id WHERE u.email = 'admin@aimsisters.org';
+   ```
+5. Set a real admin password — InfinityFree free accounts don't offer SSH/CLI PHP, so use
+   the browser method (§1 step 5): visit
+   `https://aimsisters.ct.ws/backend/database/seed_admin.php?email=you@example.com&password=SomeOtherPassword!&name=Your+Name`
+   once, then **immediately delete `database/seed_admin.php` from the server** (File
+   Manager/FTP) — it's a password-reset tool with no auth of its own, and must not stay
+   reachable on a public production URL.
+
+### Step 5 — Configure production credentials (you do this directly on the server)
+
+`config/env.php`'s auto-generate-a-.env-if-missing behavior only fires for a local-looking
+`SERVER_NAME` (`localhost`/`127.0.0.1`/CLI) — it correctly stays off for
+`aimsisters.ct.ws`, so you must create `Backend/.env` yourself via File Manager or FTP (a
+plain text file, not uploaded from your machine, never committed to Git):
+
+```
+APP_ENV=production
+APP_URL=https://aimsisters.ct.ws/backend
+FRONTEND_URL=https://aimsisters.ct.ws
+
+DB_HOST=sql300.infinityfree.com
+DB_PORT=3306
+DB_NAME=if0_42811611_aimsisters
+DB_USER=if0_42811611
+DB_PASS=<the real InfinityFree MySQL password>
+
+JWT_SECRET=<generate with: php -r "echo bin2hex(random_bytes(32));">
+```
+
+Leave `SMTP_*` and `MAIL_LOGO_URL` out for now (or blank) — email delivery is a separate,
+already-tracked issue and isn't required for the rest of the site to work; `send_email()`
+already no-ops safely when they're unset.
+
+**In InfinityFree's control panel**, also select **PHP 8.1 or newer** for this domain (this
+codebase uses PHP 8.0+ syntax like `match`; confirm the exact available versions in your own
+panel, since InfinityFree periodically changes what's offered).
+
+### Step 6 — Test the online site (you do this)
+
+- `https://aimsisters.ct.ws/backend/api/content` → should return JSON (`{"success":true,...}`),
+  not a PHP error page — confirms the backend, `.htaccess` rewrite, and DB connection all work.
+- `https://aimsisters.ct.ws/` → the public homepage loads with real content.
+- Refresh on a deep link (e.g. `/admin/login`) → should NOT 404 (confirms the frontend
+  `.htaccess` fallback is in place).
+- Log in at `/admin/login` with the admin account from Step 4.5, open browser DevTools →
+  Network tab, confirm API calls go to `https://aimsisters.ct.ws/backend/api/...`, not
+  `localhost`.
+- Try uploading a small media file from **Admin → Upload Content** to confirm the
+  `uploads/`/`storage/` folders are writable.
+
+### Step 7 — Updating the site later, after code changes
+
+- **Frontend changed:** `cd Frontend && npm run build`, then re-upload the contents of
+  `dist/` to `htdocs/`, overwriting the old `index.html`/`assets/`/`.htaccess`. Old hashed
+  asset filenames won't collide with new ones (Vite content-hashes them), but delete stale
+  files in `htdocs/assets/` occasionally so the folder doesn't grow unbounded.
+- **Backend changed:** re-upload only the changed PHP file(s) to `htdocs/backend/` (no build
+  step — PHP runs directly from source). Never re-upload `Backend/.env` from your machine —
+  the server's copy has the real production secrets and isn't tracked in Git at all.
+- **New migration added:** import just the new `migrations/0NN_*.sql` file via phpMyAdmin
+  (select the database first, same as Step 4) — you don't need to regenerate or re-run
+  `infinityfree_import.sql` for an incremental change; that combined file is only for a
+  fresh/first-time import.
+
+### Known InfinityFree limitations for this project (not changed, just flagged)
+
+InfinityFree's free tier is a genuinely shared, resource-limited environment — verify current
+numbers in your own control panel, since they can change:
+
+- **Large video hosting/streaming is a poor fit for the free tier long-term.** The chunked
+  upload system (§4e) already means each individual HTTP request only carries one small
+  piece (`CHUNK_SIZE_MB`, default 8MB) — well under typical free-tier per-request caps — so
+  *uploading* a large file should still work for testing. The real limits are disk quota
+  (commonly a few GB on free InfinityFree accounts) and free hosting's terms generally
+  discouraging heavy media/streaming traffic — fine for your sisters testing the app, not a
+  long-term home for a growing video library.
+- **No SSH or scheduled cron on the free tier** — `seed_admin.php` must be run via browser
+  (Step 4.5) and deleted afterward; there's no automated cleanup job for old chunked-upload
+  sessions (`ChunkUploadController`'s own 24h sweep already runs inline on normal requests,
+  so this isn't a blocker, just note there's no separate cron backing it here).
+- **Execution time limits** are typically shorter and less configurable than XAMPP's
+  defaults — `Backend/.htaccess`'s `max_execution_time 60` may be capped lower by the host
+  regardless; this shouldn't matter for normal API requests, only for an unusually large
+  single chunk assembly.
+

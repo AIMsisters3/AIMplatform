@@ -1,0 +1,13 @@
+# Vite copies everything in public/ verbatim into dist/ on build, so this
+# ships to the production web root alongside index.html and assets/.
+#
+# React Router (BrowserRouter, see src/main.jsx) needs real URLs like
+# /admin/login or /content?item=... to work on a hard refresh or a direct
+# link — without this, Apache 404s on any path that isn't a real file,
+# because there's no file at e.g. /admin/login on disk. This rewrites any
+# request that doesn't match a real file or directory back to index.html,
+# letting React Router take over client-side routing from there.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]

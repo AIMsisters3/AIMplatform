@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+// In local dev, VITE_BACKEND_URL is unset and requests stay relative
+// ('/api'), handled by vite.config.js's dev-server proxy exactly as
+// before. In a production build, set VITE_BACKEND_URL (see
+// .env.example) to the deployed backend's own base URL so the built
+// static site talks to the real backend instead of localhost.
+const backendUrl = import.meta.env.VITE_BACKEND_URL;
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: backendUrl ? `${backendUrl.replace(/\/$/, '')}/api` : '/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
