@@ -6,6 +6,8 @@ uploads/videos/*
 !uploads/videos/.gitkeep
 storage/chunk_uploads/*
 !storage/chunk_uploads/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
 .DS_Store
 
 # Secrets — see .env.example for the template. Never commit the real one.
