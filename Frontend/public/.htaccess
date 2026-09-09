@@ -9,17 +9,25 @@
 # letting React Router take over client-side routing from there.
 RewriteEngine On
 
-# Don't apply the SPA fallback below to a backend folder (e.g. server/ or
-# backend/) uploaded alongside this build — if the request's first path
-# segment is a real directory on disk, stop here and let Apache route
-# into it normally (that folder's own .htaccess/index.php takes over).
-# Without this, a request like /server/api/auth/login — which isn't a
-# literal file, since routing inside server/ is virtual — gets wrongly
-# swallowed here and served index.html instead of ever reaching PHP.
-RewriteCond %{REQUEST_URI} ^/([^/]+)/
-RewriteCond %{DOCUMENT_ROOT}/%1 -d
+# Route backend API requests straight to the backend's own index.php from
+# here, instead of relying on a second, nested .htaccess inside the
+# backend folder to rewrite api/* itself — some shared hosts silently
+# ignore rewrite rules in a nested .htaccess even though the root one
+# works fine, which otherwise lets this request fall through to the SPA
+# fallback below and get served index.html instead of ever reaching PHP.
+# CHANGE "server" HERE if your backend folder is named differently.
+RewriteRule ^server/api/(.*)$ server/index.php [QSA,L]
+
+# A real file or directory (backend PHP files, uploads/, assets/, etc.)
+# is served as-is — don't apply the SPA fallback below to it.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
+# React Router (BrowserRouter, see src/main.jsx) needs real URLs like
+# /admin/login or /content?item=... to work on a hard refresh or a direct
+# link — without this, Apache 404s on any path that isn't a real file.
+# Anything left at this point isn't a real file/directory and isn't a
+# backend API call, so hand it to index.html and let React Router take
+# over client-side routing from there.
 RewriteRule ^ index.html [L]
