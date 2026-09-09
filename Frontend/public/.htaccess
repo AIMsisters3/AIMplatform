@@ -8,6 +8,18 @@
 # request that doesn't match a real file or directory back to index.html,
 # letting React Router take over client-side routing from there.
 RewriteEngine On
+
+# Don't apply the SPA fallback below to a backend folder (e.g. server/ or
+# backend/) uploaded alongside this build — if the request's first path
+# segment is a real directory on disk, stop here and let Apache route
+# into it normally (that folder's own .htaccess/index.php takes over).
+# Without this, a request like /server/api/auth/login — which isn't a
+# literal file, since routing inside server/ is virtual — gets wrongly
+# swallowed here and served index.html instead of ever reaching PHP.
+RewriteCond %{REQUEST_URI} ^/([^/]+)/
+RewriteCond %{DOCUMENT_ROOT}/%1 -d
+RewriteRule ^ - [L]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [L]
