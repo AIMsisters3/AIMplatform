@@ -24,6 +24,13 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('aim_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    // Some shared/CGI-style hosts strip the Authorization header before it
+    // reaches PHP at all (a known quirk, normally patched via .htaccess -
+    // not an option here since this host ignores .htaccess entirely). Send
+    // the same token under a second, custom header name as a fallback the
+    // backend also accepts (see Backend/middleware/auth.php) - custom
+    // headers aren't subject to that stripping.
+    config.headers['X-Auth-Token'] = token;
   }
   return config;
 });
