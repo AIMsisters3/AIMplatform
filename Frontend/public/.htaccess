@@ -9,25 +9,15 @@
 # letting React Router take over client-side routing from there.
 RewriteEngine On
 
-# Route backend API requests straight to the backend's own index.php from
-# here, instead of relying on a second, nested .htaccess inside the
-# backend folder to rewrite api/* itself — some shared hosts silently
-# ignore rewrite rules in a nested .htaccess even though the root one
-# works fine, which otherwise lets this request fall through to the SPA
-# fallback below and get served index.html instead of ever reaching PHP.
-# CHANGE "server" HERE if your backend folder is named differently.
-RewriteRule ^server/api/(.*)$ server/index.php [QSA,L]
-
-# A real file or directory (backend PHP files, uploads/, assets/, etc.)
-# is served as-is — don't apply the SPA fallback below to it.
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
-# React Router (BrowserRouter, see src/main.jsx) needs real URLs like
-# /admin/login or /content?item=... to work on a hard refresh or a direct
-# link — without this, Apache 404s on any path that isn't a real file.
-# Anything left at this point isn't a real file/directory and isn't a
-# backend API call, so hand it to index.html and let React Router take
-# over client-side routing from there.
+# NOTE: some shared/free hosts restrict AllowOverride so that .htaccess
+# rewrite directives (this whole file) are silently ignored — no error,
+# they just never fire. On such a host, a direct link like /admin/login
+# will 404 on a hard refresh instead of falling back to index.html below;
+# there's no fix for that from inside .htaccess itself. Backend API calls
+# don't depend on this file at all — see Frontend/src/api/axios.js, which
+# routes every request through the backend's index.php directly (a
+# literal file, always served regardless of rewrite support) instead of
+# relying on any .htaccess to route a clean .../api/... URL to it.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [L]
