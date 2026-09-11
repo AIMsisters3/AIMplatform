@@ -18,6 +18,13 @@ const backendUrl = import.meta.env.VITE_BACKEND_URL;
 const api = axios.create({
   baseURL: backendUrl ? `${backendUrl.replace(/\/$/, '')}/index.php/api` : '/api',
   headers: { 'Content-Type': 'application/json' },
+  // Lets the backend's anonymous-visitor cookie (Backend/helpers/visitor.php,
+  // used for deduplicating content view counts from guests) round-trip even
+  // if frontend and backend end up on different domains — same-origin
+  // requests already send cookies regardless, this only matters cross-origin,
+  // and Backend/index.php already sends Access-Control-Allow-Credentials for
+  // exactly this.
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {

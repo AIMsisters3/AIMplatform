@@ -208,6 +208,33 @@ class Content
         $stmt->execute(['id' => $id]);
     }
 
+    /**
+     * Records a single visitor's view of a content item, deduplicated per
+     * (content, visitor, day) via content_views' unique key — a repeat
+     * view from the same visitor the same day is a silent no-op. Only
+     * increments the public views counter when this is a genuinely new
+     * row, so the count reflects reach (unique visitors/day) rather than
+     * raw page loads. $visitorKey identifies the viewer regardless of
+     * login status — see Backend/helpers/visitor.php for guests, or
+     * "user:<id>" for a signed-in one.
+     */
+    public function recordView(int $id, string $visitorKey, ?int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO content_views (content_id, visitor_key, user_id)
+             VALUES (:content_id, :visitor_key, :user_id)'
+        );
+        $stmt->execute([
+            'content_id'  => $id,
+            'visitor_key' => $visitorKey,
+            'user_id'     => $userId,
+        ]);
+
+        if ($stmt->rowCount() > 0) {
+            $this->incrementViews($id);
+        }
+    }
+
     /** Marks a devotion/Bible study/news item as having already triggered its one newsletter notification — see helpers/publish_notify.php. */
     public function markNewsletterNotified(int $id): void
     {

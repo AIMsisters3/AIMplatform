@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/publish_notify.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/visitor.php';
 
 class ContentController
 {
@@ -149,7 +150,11 @@ class ContentController
             json_error('Content not found.', 404);
         }
 
-        $this->model->incrementViews((int) $item['id']);
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+        $this->model->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
+
         json_ok(['item' => $item]);
     }
 
