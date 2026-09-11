@@ -9,37 +9,55 @@ import {
   Video, Film, Mic, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
   Clapperboard, Palette, Wand2, Users, MessageSquare, Camera, Music2, Podcast,
   Newspaper, BookHeart, Images, ChevronDown, ChevronUp, Loader2, CheckCircle2,
-  AlertCircle, Sparkles, ArrowLeft,
+  AlertCircle, Sparkles, ArrowLeft, Library,
 } from 'lucide-react';
 
+// Where the admin explicitly says this upload will appear — chosen first,
+// before any media-type detail. Matches ContentController::SECTION_MEDIA_TYPES
+// exactly; only "Content / Media Library" has more than one media_type to
+// choose from underneath it (see CONTENT_TYPES below) — Bible Study picks its
+// format via the "Study Type" field, and Devotion/Gallery/News are each a
+// single fixed media_type (SINGLETON_MEDIA_TYPE), so no further choice is
+// needed once the section itself is picked.
+const SECTIONS = [
+  { key: 'media_library', label: 'Content / Media Library', icon: Library },
+  { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
+  { key: 'devotions', label: 'Devotion', icon: BookHeart },
+  { key: 'gallery', label: 'Gallery', icon: Images },
+  { key: 'news', label: 'News', icon: Newspaper },
+];
+
+const SINGLETON_MEDIA_TYPE = {
+  devotions: 'devotional',
+  gallery: 'photo_gallery',
+  news: 'news_article',
+};
+
 // ---------------------------------------------------------------------
-// What are you uploading? Each card maps directly onto (section, media_type)
-// as validated server-side in ContentController::SECTION_MEDIA_TYPES — this
-// is a friendlier presentation of that same pairing, not a parallel system.
-// Bible Study gets one card here; its specific study format is chosen via a
-// secondary "Study Type" field once selected, same as the rest of the CMS.
+// Media types available WITHIN the "Content / Media Library" section only —
+// every other section (Bible Study, Devotion, Gallery, News) either has its
+// own dedicated field (Bible Study's "Study Type") or just one fixed
+// media_type (SINGLETON_MEDIA_TYPE above), so it doesn't need a card grid.
+// Each card maps directly onto a media_type as validated server-side in
+// ContentController::SECTION_MEDIA_TYPES['media_library'].
 // ---------------------------------------------------------------------
 const CONTENT_TYPES = [
-  { key: 'video', label: 'Video', icon: Video, section: 'media_library', media_type: 'video', group: 'primary' },
-  { key: 'short_film', label: 'Short Film', icon: Film, section: 'media_library', media_type: 'short_film', group: 'primary' },
-  { key: 'sermon', label: 'Sermon', icon: Mic, section: 'media_library', media_type: 'sermon', group: 'primary' },
-  { key: 'audio', label: 'Audio', icon: Headphones, section: 'media_library', media_type: 'audio', group: 'primary' },
-  { key: 'article', label: 'Article', icon: FileText, section: 'media_library', media_type: 'article', group: 'primary' },
-  { key: 'image', label: 'Image', icon: ImageIcon, section: 'media_library', media_type: 'image', group: 'primary' },
-  { key: 'pdf', label: 'PDF', icon: FileType, section: 'media_library', media_type: 'pdf', group: 'primary' },
-  { key: 'bible_study', label: 'Bible Study', icon: BookOpen, section: 'bible_study', media_type: 'video', group: 'primary' },
+  { key: 'video', label: 'Video', icon: Video, media_type: 'video', group: 'primary' },
+  { key: 'short_film', label: 'Short Film', icon: Film, media_type: 'short_film', group: 'primary' },
+  { key: 'sermon', label: 'Sermon', icon: Mic, media_type: 'sermon', group: 'primary' },
+  { key: 'audio', label: 'Audio', icon: Headphones, media_type: 'audio', group: 'primary' },
+  { key: 'article', label: 'Article', icon: FileText, media_type: 'article', group: 'primary' },
+  { key: 'image', label: 'Image', icon: ImageIcon, media_type: 'image', group: 'primary' },
+  { key: 'pdf', label: 'PDF', icon: FileType, media_type: 'pdf', group: 'primary' },
 
-  { key: 'movie', label: 'Movie', icon: Clapperboard, section: 'media_library', media_type: 'movie', group: 'more' },
-  { key: 'cartoon', label: 'Cartoon', icon: Palette, section: 'media_library', media_type: 'cartoon', group: 'more' },
-  { key: 'animation', label: 'Animation', icon: Wand2, section: 'media_library', media_type: 'animation', group: 'more' },
-  { key: 'panel', label: 'Panel Discussion', icon: Users, section: 'media_library', media_type: 'panel', group: 'more' },
-  { key: 'interview', label: 'Interview', icon: MessageSquare, section: 'media_library', media_type: 'interview', group: 'more' },
-  { key: 'documentary', label: 'Documentary', icon: Camera, section: 'media_library', media_type: 'documentary', group: 'more' },
-  { key: 'music', label: 'Music', icon: Music2, section: 'media_library', media_type: 'music', group: 'more' },
-  { key: 'podcast', label: 'Podcast', icon: Podcast, section: 'media_library', media_type: 'podcast', group: 'more' },
-  { key: 'news_article', label: 'News Article', icon: Newspaper, section: 'news', media_type: 'news_article', group: 'more' },
-  { key: 'devotional', label: 'Devotional', icon: BookHeart, section: 'devotions', media_type: 'devotional', group: 'more' },
-  { key: 'photo_gallery', label: 'Photo Gallery', icon: Images, section: 'gallery', media_type: 'photo_gallery', group: 'more' },
+  { key: 'movie', label: 'Movie', icon: Clapperboard, media_type: 'movie', group: 'more' },
+  { key: 'cartoon', label: 'Cartoon', icon: Palette, media_type: 'cartoon', group: 'more' },
+  { key: 'animation', label: 'Animation', icon: Wand2, media_type: 'animation', group: 'more' },
+  { key: 'panel', label: 'Panel Discussion', icon: Users, media_type: 'panel', group: 'more' },
+  { key: 'interview', label: 'Interview', icon: MessageSquare, media_type: 'interview', group: 'more' },
+  { key: 'documentary', label: 'Documentary', icon: Camera, media_type: 'documentary', group: 'more' },
+  { key: 'music', label: 'Music', icon: Music2, media_type: 'music', group: 'more' },
+  { key: 'podcast', label: 'Podcast', icon: Podcast, media_type: 'podcast', group: 'more' },
 ];
 
 const BIBLE_STUDY_TYPES = [
@@ -156,6 +174,7 @@ const inputClass = (hasError) =>
 export default function UploadContent() {
   const navigate = useNavigate();
 
+  const [selectedSection, setSelectedSection] = useState('media_library');
   const [selectedKey, setSelectedKey] = useState('video');
   const [showMoreTypes, setShowMoreTypes] = useState(false);
   const [showSeo, setShowSeo] = useState(false);
@@ -180,11 +199,13 @@ export default function UploadContent() {
   // letting an abandoned upload keep running in the background.
   const mediaAbortRef = useRef(null);
 
-  const selectedType = CONTENT_TYPES.find((t) => t.key === selectedKey) || CONTENT_TYPES[0];
-  const section = selectedType.section;
+  const section = selectedSection;
   const isBibleStudy = section === 'bible_study';
   const isGallery = section === 'gallery';
-  const mediaType = isBibleStudy ? form.media_type_bible_study || 'video' : selectedType.media_type;
+  const selectedType = CONTENT_TYPES.find((t) => t.key === selectedKey) || CONTENT_TYPES[0];
+  const mediaType = isBibleStudy
+    ? (form.media_type_bible_study || 'video')
+    : (SINGLETON_MEDIA_TYPE[section] || selectedType.media_type);
   const mediaKind = mediaKindFor(mediaType);
   const requiresBody = mediaKind === 'article';
   const showSeries = mediaKind === 'video' || mediaKind === 'audio';
@@ -219,6 +240,12 @@ export default function UploadContent() {
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function selectSection(key) {
+    setSelectedSection(key);
+    setSelectedKey('video');
+    setErrors((e) => ({ ...e, type: undefined }));
   }
 
   function selectType(key) {
@@ -419,6 +446,7 @@ export default function UploadContent() {
   }
 
   function resetForm() {
+    setSelectedSection('media_library');
     setSelectedKey('video');
     setShowMoreTypes(false);
     setShowSeo(false);
@@ -481,36 +509,51 @@ export default function UploadContent() {
         <p className="text-sm text-ink/50 mt-0.5">Add a new resource to the AIMsisters media library.</p>
       </div>
 
-      {/* What are you uploading? */}
+      {/* Where will this appear? — an explicit choice, not inferred from the media type */}
       <div className="glass-card p-6">
-        <h2 className="text-sm font-semibold text-ink mb-4">What are you uploading?</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {CONTENT_TYPES.filter((t) => t.group === 'primary').map((t) => (
-            <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
+        <h2 className="text-sm font-semibold text-ink mb-1">Where will this appear?</h2>
+        <p className="text-xs text-ink/40 mb-4">Choose the section first — the options below adjust to match.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {SECTIONS.map((s) => (
+            <SectionCard key={s.key} sectionOption={s} active={selectedSection === s.key} onClick={() => selectSection(s.key)} />
           ))}
         </div>
+      </div>
 
-        <button
-          type="button"
-          onClick={() => setShowMoreTypes((v) => !v)}
-          className="flex items-center gap-1 text-xs font-semibold text-secondary mt-4"
-        >
-          {showMoreTypes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          {showMoreTypes ? 'Fewer types' : 'More types'}
-        </button>
-
-        {showMoreTypes && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-            {CONTENT_TYPES.filter((t) => t.group === 'more').map((t) => (
+      {/* What are you uploading? — only Content / Media Library has more than
+          one media type; Bible Study picks its format via "Study Type" below,
+          and Devotion/Gallery/News are each a single fixed type already. */}
+      {section === 'media_library' && (
+        <div className="glass-card p-6">
+          <h2 className="text-sm font-semibold text-ink mb-4">What type of content is this?</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {CONTENT_TYPES.filter((t) => t.group === 'primary').map((t) => (
               <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
             ))}
           </div>
-        )}
 
-        <p className="text-[11px] text-ink/35 mt-4">
-          This will appear in <span className="font-semibold text-ink/50">{SECTION_DESTINATION[section]}</span>.
-        </p>
-      </div>
+          <button
+            type="button"
+            onClick={() => setShowMoreTypes((v) => !v)}
+            className="flex items-center gap-1 text-xs font-semibold text-secondary mt-4"
+          >
+            {showMoreTypes ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {showMoreTypes ? 'Fewer types' : 'More types'}
+          </button>
+
+          {showMoreTypes && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+              {CONTENT_TYPES.filter((t) => t.group === 'more').map((t) => (
+                <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-[11px] text-ink/35 -mt-3">
+        This will appear in <span className="font-semibold text-ink/50">{SECTION_DESTINATION[section]}</span>.
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Content Details */}
@@ -827,6 +870,25 @@ function TypeCard({ type, active, onClick }) {
     >
       <Icon className={`w-5 h-5 ${active ? 'text-secondary' : 'text-ink/50'}`} />
       <span className={`text-xs font-semibold ${active ? 'text-secondary' : 'text-ink/70'}`}>{type.label}</span>
+    </button>
+  );
+}
+
+function SectionCard({ sectionOption, active, onClick }) {
+  const Icon = sectionOption.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex flex-col items-center justify-center gap-2 py-5 px-3 rounded-2xl border transition-all ${
+        active
+          ? 'border-secondary bg-brand-gradient-soft shadow-glass'
+          : 'border-ink/10 bg-white hover:border-secondary/30 hover:bg-surface'
+      }`}
+    >
+      <Icon className={`w-5 h-5 ${active ? 'text-secondary' : 'text-ink/50'}`} />
+      <span className={`text-xs font-semibold text-center leading-tight ${active ? 'text-secondary' : 'text-ink/70'}`}>{sectionOption.label}</span>
     </button>
   );
 }
