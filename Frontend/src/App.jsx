@@ -1,11 +1,7 @@
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { CartProvider } from './context/CartContext.jsx';
-
-// Loaded lazily since it's a self-contained, unlinked experience
-// (its own fonts/animations shouldn't add weight to the main site).
-const BirthdayJourney = lazy(() => import('./Pages/Birthday/BirthdayJourney.jsx'));
 
 // Public layout + pages
 import Navbar from './Components/Navbar.jsx';
@@ -89,16 +85,6 @@ export default function App() {
           <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
           <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
           <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
-
-          {/* ---------- Birthday surprise (standalone, no navbar/footer) ---------- */}
-          <Route
-            path="/birthday-surprise"
-            element={
-              <Suspense fallback={<div className="min-h-screen bg-black" />}>
-                <BirthdayJourney />
-              </Suspense>
-            }
-          />
 
           {/* ---------- Admin CMS (separate shell, no public navbar/footer) ---------- */}
           <Route path="/admin/login" element={<AdminLogin />} />
