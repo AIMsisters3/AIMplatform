@@ -26,6 +26,26 @@ const CATEGORY_META = {
 const CATEGORY_ORDER = ['Children Ministry', 'Health Reform', 'Dress Reform', 'Sabbath School', 'Music', 'Prophecy', 'Youth Ministry'];
 const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies'];
 
+// Categories are admin-managed, so their exact names can't be relied on to
+// match CATEGORY_META above (an admin can rename "Children Ministry" to
+// "Children", or add a brand-new category CATEGORY_META has never heard
+// of). Any category without a curated entry still gets a real color from
+// this rotating palette, keyed by its id so a given category's color stays
+// stable across reloads — rather than the flat, colorless fallback that
+// made unmatched categories look broken/unstyled next to the curated ones.
+const FALLBACK_PALETTE = [
+  { bg: 'bg-amber-100', text: 'text-amber-600' },
+  { bg: 'bg-teal-100', text: 'text-teal-600' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  { bg: 'bg-fuchsia-100', text: 'text-fuchsia-600' },
+  { bg: 'bg-lime-100', text: 'text-lime-600' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-600' },
+];
+
+function fallbackMetaFor(cat) {
+  return { icon: ScrollText, tagline: '', ...FALLBACK_PALETTE[cat.id % FALLBACK_PALETTE.length] };
+}
+
 function sortCategories(categories) {
   return [...categories]
     .filter((c) => !EXCLUDED_CATEGORIES.includes(c.name.trim().toLowerCase()))
@@ -272,7 +292,7 @@ export default function Content() {
             initial="hidden" animate="visible" variants={staggerContainer}
           >
            {categories.map((cat) => {
-              const meta = CATEGORY_META[cat.name] || { icon: ScrollText, tagline: '', bg: 'bg-surface', text: 'text-secondary' };
+              const meta = CATEGORY_META[cat.name] || fallbackMetaFor(cat);
               const Icon = meta.icon;
               const active = categoryId === String(cat.id);
               return (
