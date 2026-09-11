@@ -1,0 +1,236 @@
+/* ============================================================
+   Birthday journey — scoped styles.
+   Everything here lives under .bday-root so it can never leak
+   into (or be affected by) the rest of the site.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,600&family=Dancing+Script:wght@500;700&family=Poppins:wght@400;500;600;700;800&display=swap');
+
+.bday-root {
+  --hot-pink: #ff2d78;
+  --neon-pink: #ff5ec4;
+  --soft-pink: #ffc2de;
+  --dark-pink: #7a0c3e;
+  --deep-black: #060104;
+  --panel-black: #0d0308;
+
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: hidden;
+  background: var(--deep-black);
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  isolation: isolate;
+}
+
+.bday-root * {
+  box-sizing: border-box;
+}
+
+.bday-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+.bday-script {
+  font-family: 'Dancing Script', cursive;
+}
+
+.bday-glow-text {
+  text-shadow: 0 0 12px rgba(255, 94, 196, 0.85), 0 0 32px rgba(255, 45, 120, 0.5);
+}
+
+.bday-glow-text-soft {
+  text-shadow: 0 0 10px rgba(255, 194, 222, 0.6);
+}
+
+/* ---------- backgrounds ---------- */
+
+.bday-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255, 45, 120, 0.25), transparent 45%),
+    radial-gradient(circle at 82% 78%, rgba(255, 94, 196, 0.2), transparent 50%),
+    radial-gradient(circle at 50% 100%, rgba(122, 12, 62, 0.35), transparent 60%),
+    var(--deep-black);
+  pointer-events: none;
+}
+
+/* ---------- particles ---------- */
+
+.bday-particle {
+  position: absolute;
+  bottom: -5%;
+  border-radius: 50%;
+  pointer-events: none;
+  animation-name: bday-float-up;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes bday-float-up {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.9);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-52vh) translateX(var(--drift, 20px)) scale(1);
+  }
+  90% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-105vh) translateX(calc(var(--drift, 20px) * -1)) scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes bday-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* ---------- buttons ---------- */
+
+.bday-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  border: 1px solid rgba(255, 194, 222, 0.55);
+  background: linear-gradient(135deg, #ff2d78 0%, #b3084c 100%);
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.95em 2em;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(255, 45, 120, 0.55), 0 0 40px rgba(255, 45, 120, 0.25), inset 0 0 0 rgba(255,255,255,0);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.bday-btn:hover {
+  transform: translateY(-2px) scale(1.035);
+  box-shadow: 0 0 24px rgba(255, 94, 196, 0.85), 0 0 60px rgba(255, 45, 120, 0.4);
+}
+
+.bday-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.bday-btn-ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 194, 222, 0.4);
+  box-shadow: 0 0 14px rgba(255, 45, 120, 0.25);
+}
+
+/* ---------- polaroid ---------- */
+
+.bday-polaroid {
+  background: #fffaf9;
+  border-radius: 6px;
+  padding: 0.6rem 0.6rem 1.1rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.6), 0 0 26px rgba(255, 94, 196, 0.25);
+  transform: rotate(var(--tilt, -3deg));
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+.bday-polaroid:hover,
+.bday-polaroid:focus-visible {
+  transform: rotate(0deg) scale(1.045) translateY(-4px);
+  box-shadow: 0 18px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.7), 0 0 34px rgba(255, 94, 196, 0.5);
+}
+
+.bday-polaroid-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 3px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #2a0713, #4d0a24 45%, #7a0c3e 100%);
+}
+
+.bday-polaroid-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bday-polaroid-caption {
+  font-family: 'Dancing Script', cursive;
+  color: #3a2230;
+  font-size: 1.15rem;
+  text-align: center;
+  margin-top: 0.55rem;
+  line-height: 1.25;
+}
+
+/* ---------- flip card ---------- */
+
+.bday-flip-scene {
+  perspective: 1400px;
+}
+
+.bday-flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-style: preserve-3d;
+}
+
+.bday-flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.bday-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.25rem;
+}
+
+.bday-flip-face--back {
+  transform: rotateY(180deg);
+}
+
+/* ---------- scrollbar friendliness for horizontal reels ---------- */
+
+.bday-scroll-x {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.bday-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .bday-root .bday-particle,
+  .bday-root [data-anim] {
+    animation: none !important;
+  }
+  .bday-root * {
+    transition-duration: 0.01ms !important;
+  }
+}
