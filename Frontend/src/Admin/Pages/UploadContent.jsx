@@ -14,11 +14,11 @@ import {
 
 // Where the admin explicitly says this upload will appear — chosen first,
 // before any media-type detail. Matches ContentController::SECTION_MEDIA_TYPES
-// exactly; only "Content / Media Library" has more than one media_type to
-// choose from underneath it (see CONTENT_TYPES below) — Bible Study picks its
-// format via the "Study Type" field, and Devotion/Gallery/News are each a
-// single fixed media_type (SINGLETON_MEDIA_TYPE), so no further choice is
-// needed once the section itself is picked.
+// exactly. Content/Media Library and News each have more than one media_type
+// underneath them (CONTENT_TYPES / NEWS_TYPES below); Bible Study picks its
+// format via the "Study Type" field; Devotion/Gallery are each a single
+// fixed media_type (SINGLETON_MEDIA_TYPE), so no further choice is needed
+// once those two sections are picked.
 const SECTIONS = [
   { key: 'media_library', label: 'Content / Media Library', icon: Library },
   { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
@@ -30,16 +30,28 @@ const SECTIONS = [
 const SINGLETON_MEDIA_TYPE = {
   devotions: 'devotional',
   gallery: 'photo_gallery',
-  news: 'news_article',
 };
+
+// The default type-card key to pre-select when switching into a section that
+// has its own card grid (media_library / news) — keeps selectedKey valid
+// instead of carrying over a key from whichever section was picked before.
+const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article' };
+
+// ---------------------------------------------------------------------
+// Media types available WITHIN "News" — a news post isn't always a written
+// article, so this mirrors ContentController::SECTION_MEDIA_TYPES['news'].
+// ---------------------------------------------------------------------
+const NEWS_TYPES = [
+  { key: 'news_article', label: 'Article', icon: FileText, media_type: 'news_article' },
+  { key: 'news_video', label: 'Video', icon: Video, media_type: 'video' },
+  { key: 'news_pdf', label: 'PDF', icon: FileType, media_type: 'pdf' },
+];
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN the "Content / Media Library" section only —
-// every other section (Bible Study, Devotion, Gallery, News) either has its
-// own dedicated field (Bible Study's "Study Type") or just one fixed
-// media_type (SINGLETON_MEDIA_TYPE above), so it doesn't need a card grid.
-// Each card maps directly onto a media_type as validated server-side in
-// ContentController::SECTION_MEDIA_TYPES['media_library'].
+// Bible Study/Devotion/Gallery/News each have their own way of picking a
+// type instead (see above). Each card maps directly onto a media_type as
+// validated server-side in ContentController::SECTION_MEDIA_TYPES['media_library'].
 // ---------------------------------------------------------------------
 const CONTENT_TYPES = [
   { key: 'video', label: 'Video', icon: Video, media_type: 'video', group: 'primary' },
@@ -66,6 +78,7 @@ const BIBLE_STUDY_TYPES = [
   { value: 'sermon', label: 'Sermon' },
   { value: 'panel', label: 'Panel Discussion' },
   { value: 'audio', label: 'Audio' },
+  { value: 'podcast', label: 'Podcast' },
   { value: 'animated', label: 'Animated' },
   { value: 'documentary', label: 'Documentary' },
   { value: 'pdf_notes', label: 'PDF / Notes' },
@@ -202,7 +215,8 @@ export default function UploadContent() {
   const section = selectedSection;
   const isBibleStudy = section === 'bible_study';
   const isGallery = section === 'gallery';
-  const selectedType = CONTENT_TYPES.find((t) => t.key === selectedKey) || CONTENT_TYPES[0];
+  const typePool = section === 'news' ? NEWS_TYPES : CONTENT_TYPES;
+  const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
     ? (form.media_type_bible_study || 'video')
     : (SINGLETON_MEDIA_TYPE[section] || selectedType.media_type);
@@ -244,7 +258,7 @@ export default function UploadContent() {
 
   function selectSection(key) {
     setSelectedSection(key);
-    setSelectedKey('video');
+    setSelectedKey(DEFAULT_TYPE_KEY[key] || 'video');
     setErrors((e) => ({ ...e, type: undefined }));
   }
 
@@ -520,9 +534,9 @@ export default function UploadContent() {
         </div>
       </div>
 
-      {/* What are you uploading? — only Content / Media Library has more than
-          one media type; Bible Study picks its format via "Study Type" below,
-          and Devotion/Gallery/News are each a single fixed type already. */}
+      {/* What are you uploading? — only Content / Media Library and News have
+          more than one media type; Bible Study picks its format via "Study
+          Type" below, and Devotion/Gallery are each a single fixed type. */}
       {section === 'media_library' && (
         <div className="glass-card p-6">
           <h2 className="text-sm font-semibold text-ink mb-4">What type of content is this?</h2>
@@ -548,6 +562,17 @@ export default function UploadContent() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {section === 'news' && (
+        <div className="glass-card p-6">
+          <h2 className="text-sm font-semibold text-ink mb-4">What type of news post is this?</h2>
+          <div className="grid grid-cols-3 gap-3 max-w-md">
+            {NEWS_TYPES.map((t) => (
+              <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
+            ))}
+          </div>
         </div>
       )}
 

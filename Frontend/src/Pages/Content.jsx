@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search, ArrowRight, BookOpen, Baby, HeartPulse, Shirt, Music, Users,
-  ScrollText, Eye, PlayCircle, FileText, Headphones, Inbox, Globe,
+  ScrollText, Eye, PlayCircle, FileText, Headphones, Inbox, Globe, Wand2,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
@@ -12,19 +12,22 @@ import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
 
 // Display order + icon/color per category. Bible Studies deliberately
-// excluded — it has its own dedicated page.
+// excluded — it has its own dedicated page. Sabbath School content now
+// belongs under Bible Study, not here - excluded below rather than
+// deleted as a category outright, since the same category can still be
+// applied to a Bible Study upload (category_id is shared across sections).
 const CATEGORY_META = {
   'Children Ministry': { icon: Baby, tagline: 'Fun & Faith for Kids', bg: 'bg-violet-100', text: 'text-violet-600' },
   'Health Reform':     { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
   'Dress Reform':      { icon: Shirt, tagline: 'Modesty & Godly Life', bg: 'bg-orange-100', text: 'text-orange-600' },
-  'Sabbath School':    { icon: BookOpen, tagline: 'A Better Life Through Christ', bg: 'bg-pink-100', text: 'text-pink-600' },
+  'Animations':        { icon: Wand2, tagline: 'Fun & Creative Visuals', bg: 'bg-purple-100', text: 'text-purple-600' },
   'Music':             { icon: Music, tagline: 'Uplifting Gospel Sounds', bg: 'bg-blue-100', text: 'text-blue-600' },
   'Prophecy':          { icon: ScrollText, tagline: 'Bible Wisdom for Today', bg: 'bg-rose-100', text: 'text-rose-600' },
   'Youth Ministry':    { icon: Users, tagline: 'Growing Strong in Christ', bg: 'bg-sky-100', text: 'text-sky-600' },
 };
 
-const CATEGORY_ORDER = ['Children Ministry', 'Health Reform', 'Dress Reform', 'Sabbath School', 'Music', 'Prophecy', 'Youth Ministry'];
-const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies'];
+const CATEGORY_ORDER = ['Children Ministry', 'Health Reform', 'Dress Reform', 'Animations', 'Music', 'Prophecy', 'Youth Ministry'];
+const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies', 'sabbath school'];
 
 // Categories are admin-managed, so their exact names can't be relied on to
 // match CATEGORY_META above (an admin can rename "Children Ministry" to

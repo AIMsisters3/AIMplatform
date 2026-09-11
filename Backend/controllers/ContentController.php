@@ -24,13 +24,16 @@ class ContentController
             'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon', 'panel',
             'interview', 'documentary', 'audio', 'music', 'podcast', 'pdf', 'image', 'article',
         ],
-        'news'        => ['news_article'],
+        // News isn't always a written article - an admin can instead post a
+        // video or a PDF under News, same as Media Library's video/pdf types.
+        'news'        => ['news_article', 'video', 'pdf'],
         'gallery'     => ['photo_gallery'],
         'devotions'   => ['devotional'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004) - keep these in sync with that column.
+        // value (migration 004, extended by migration 012 for 'podcast') -
+        // keep these in sync with that column.
         'bible_study' => [
-            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated', 'documentary', 'pdf_notes',
+            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated', 'documentary', 'pdf_notes', 'podcast',
         ],
     ];
 

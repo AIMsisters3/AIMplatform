@@ -6,11 +6,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
 import CommentsSection from '../Components/CommentsSection.jsx';
 import ShareButton from '../Components/ShareButton.jsx';
+import DownloadButton from '../Components/DownloadButton.jsx';
 import ErrorBoundary from '../Components/ErrorBoundary.jsx';
 
 const FORMAT_LABELS = {
   short_film: 'Short Film', video: 'Video', sermon: 'Sermon', panel: 'Panel Discussion',
-  audio: 'Audio', animated: 'Animated', documentary: 'Documentary', pdf_notes: 'PDF / Notes',
+  audio: 'Audio', podcast: 'Podcast', animated: 'Animated', documentary: 'Documentary', pdf_notes: 'PDF / Notes',
 };
 
 export default function BibleStudyDetail() {
@@ -153,7 +154,10 @@ export default function BibleStudyDetail() {
             )}
           </div>
 
-          <div className="mb-6"><ShareButton item={item} /></div>
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <ShareButton item={item} />
+            <DownloadButton item={item} />
+          </div>
 
           {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}
           {item.body && <div className="prose prose-sm max-w-none text-ink/80 leading-relaxed whitespace-pre-line mb-5">{item.body}</div>}

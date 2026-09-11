@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, Calendar, BookOpen, FileText, Eye } from 'lucide-react';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
+import DownloadButton from './DownloadButton.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
 
@@ -98,8 +99,9 @@ export default function ContentViewerModal({ item, onClose }) {
               )}
             </div>
 
-            <div className="mb-6">
+            <div className="flex flex-wrap items-center gap-2 mb-6">
               <ShareButton item={item} />
+              <DownloadButton item={item} />
             </div>
 
             {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}

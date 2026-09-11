@@ -944,3 +944,19 @@ CREATE TABLE IF NOT EXISTS content_views (
   CONSTRAINT fk_content_views_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
   UNIQUE KEY uniq_content_view_per_day (content_id, visitor_key, viewed_date)
 ) ENGINE=InnoDB;
+
+-- ---- from database/migrations/012_bible_study_podcast_format.sql ----
+-- =========================================================
+-- Migration 012: Add "podcast" as a Bible Study format
+--
+-- WHAT THIS DOES
+-- bible_studies.format is a strict ENUM (migration 004) that
+-- ContentController::SECTION_MEDIA_TYPES['bible_study'] mirrors exactly -
+-- an admin can now also upload a podcast episode under the Bible Study
+-- section (previously only Media Library's podcast type existed), so the
+-- ENUM needs "podcast" added or every such save would fail with a
+-- truncation error.
+-- =========================================================
+
+ALTER TABLE bible_studies
+  MODIFY COLUMN format ENUM('short_film','video','sermon','panel','audio','animated','documentary','pdf_notes','podcast') NOT NULL DEFAULT 'video';

@@ -5,6 +5,7 @@ const items = [
   { to: '/admin', label: 'Dashboard', icon: '🏠', end: true },
   { to: '/admin/upload', label: 'Upload Content', icon: '⬆️' },
   { to: '/admin/content', label: 'Manage Content', icon: '📋' },
+  { to: '/admin/categories', label: 'Manage Categories', icon: '🏷️' },
   { to: '/admin/series', label: 'Manage Series', icon: '🎬' },
   { to: '/admin/products', label: 'Manage Products', icon: '🛍️' },
   { to: '/admin/orders', label: 'Orders', icon: '📦' },

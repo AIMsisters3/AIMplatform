@@ -31,6 +31,7 @@ import Dashboard from './Admin/Pages/Dashboard.jsx';
 import UploadContent from './Admin/Pages/UploadContent.jsx';
 import Testimonials from './Admin/Pages/Testimonials.jsx';
 import ManageContent from './Admin/Pages/ManageContent.jsx';
+import ManageCategories from './Admin/Pages/ManageCategories.jsx';
 import ManageProducts from './Admin/Pages/ManageProducts.jsx';
 import ManageSeries from './Admin/Pages/ManageSeries.jsx';
 import ManageOrders from './Admin/Pages/ManageOrders.jsx';
@@ -99,6 +100,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="upload" element={<UploadContent />} />
             <Route path="content" element={<ManageContent />} />
+            <Route path="categories" element={<ManageCategories />} />
             <Route path="products" element={<ManageProducts />} />
             <Route path="series" element={<ManageSeries />} />
             <Route path="orders" element={<ManageOrders />} />

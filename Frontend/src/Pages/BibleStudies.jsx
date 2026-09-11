@@ -11,6 +11,7 @@ const FORMATS = [
   { value: 'sermon', label: 'Sermon' },
   { value: 'panel', label: 'Panel Discussion' },
   { value: 'audio', label: 'Audio' },
+  { value: 'podcast', label: 'Podcast' },
   { value: 'animated', label: 'Animated' },
   { value: 'documentary', label: 'Documentary' },
   { value: 'pdf_notes', label: 'PDF / Notes' },
