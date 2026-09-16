@@ -26,6 +26,7 @@ class BibleStudyController
             'category_id' => $_GET['category_id'] ?? null,
             'language'    => $_GET['language'] ?? null,
             'search'      => $_GET['search'] ?? null,
+            'is_live'     => $_GET['live'] ?? null,
         ];
 
         if (!empty($_GET['status'])) {

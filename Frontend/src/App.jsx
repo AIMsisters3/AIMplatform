@@ -13,6 +13,7 @@ import BibleStudyDetail from './Pages/BibleStudyDetail.jsx';
 import SeriesList from './Pages/Series.jsx';
 import SeriesDetail from './Pages/SeriesDetail.jsx';
 import Devotions from './Pages/Devotions.jsx';
+import Kids from './Pages/Kids.jsx';
 import News from './Pages/News.jsx';
 import Gallery from './Pages/Gallery.jsx';
 import Shop from './Pages/Shop.jsx';
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="/series" element={<PublicLayout><SeriesList /></PublicLayout>} />
           <Route path="/series/:slugOrId" element={<PublicLayout><SeriesDetail /></PublicLayout>} />
           <Route path="/devotions" element={<PublicLayout><Devotions /></PublicLayout>} />
+          <Route path="/kids" element={<PublicLayout><Kids /></PublicLayout>} />
           <Route path="/news" element={<PublicLayout><News /></PublicLayout>} />
           <Route path="/gallery" element={<PublicLayout><Gallery /></PublicLayout>} />
           <Route path="/shop" element={<PublicLayout><Shop /></PublicLayout>} />

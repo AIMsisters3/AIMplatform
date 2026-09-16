@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
+import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
 import CommentsSection from '../Components/CommentsSection.jsx';
 import ShareButton from '../Components/ShareButton.jsx';
 import DownloadButton from '../Components/DownloadButton.jsx';
@@ -97,6 +97,7 @@ export default function BibleStudyDetail() {
 
   const kind = getItemKind(item);
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
+  const live = isLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
 
   return (
@@ -105,11 +106,26 @@ export default function BibleStudyDetail() {
 
       <div className="glass-card overflow-hidden mb-8">
         {kind === 'video' && youtubeSrc && (
-          <div className="aspect-video w-full bg-ink">
+          <div className="relative aspect-video w-full bg-ink">
+            {live && (
+              <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+              </span>
+            )}
             <iframe src={youtubeSrc} title={item.title} className="w-full h-full" allow="accelerate-compute; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
           </div>
         )}
-        {kind === 'video' && !youtubeSrc && item.media_url && (
+        {kind === 'video' && !youtubeSrc && live && item.media_url && (
+          <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
+            <span className="px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+            </span>
+            <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
+              Watch the Live Stream
+            </a>
+          </div>
+        )}
+        {kind === 'video' && !youtubeSrc && !live && item.media_url && (
           <video
             controls
             className="w-full max-h-[50vh] bg-ink"

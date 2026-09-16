@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
+import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const FORMATS = [
@@ -120,6 +121,8 @@ export default function BibleStudies() {
     <div className="max-w-7xl mx-auto px-6 py-14">
       <h1 className="text-3xl font-bold mb-2">Bible Studies</h1>
       <p className="text-ink/60 mb-8">Go deeper into God's Word with structured, verse-by-verse study guides.</p>
+
+      <LiveNowStrip endpoint="/bible-studies" itemHref={(item) => `/bible-studies/${item.slug}`} />
 
       {continuing.length > 0 && (
         <div className="mb-12">

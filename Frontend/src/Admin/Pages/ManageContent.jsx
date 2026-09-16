@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../api/axios.js';
+import { isLive } from '../../utils/mediaKind.js';
 
 const SECTIONS = [
   { value: '', label: 'All Sections' },
@@ -8,6 +9,7 @@ const SECTIONS = [
   { value: 'gallery', label: 'Gallery' },
   { value: 'bible_study', label: 'Bible Study' },
   { value: 'devotions', label: 'Devotions' },
+  { value: 'kids', label: 'Kids' },
 ];
 
 const STATUS_BADGE = {
@@ -122,7 +124,12 @@ export default function ManageContent() {
               {items.map((item) => (
                 <tr key={item.id} className="border-b border-ink/5 hover:bg-white/50">
                   <td className="p-4"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} /></td>
-                  <td className="p-4 font-medium">{item.title}</td>
+                  <td className="p-4 font-medium">
+                    {item.title}
+                    {isLive(item) && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold align-middle">LIVE</span>
+                    )}
+                  </td>
                   <td className="p-4 capitalize text-ink/60">{sectionLabel(item.section)}</td>
                   <td className="p-4 capitalize text-ink/60">{item.media_type?.replace('_', ' ')}</td>
                   <td className="p-4">
@@ -151,7 +158,12 @@ export default function ManageContent() {
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE[item.status] || 'bg-ink/10'}`}>{item.status}</span>
                 <input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelect(item.id)} />
               </div>
-              <h4 className="font-semibold mb-1">{item.title}</h4>
+              <h4 className="font-semibold mb-1">
+                {item.title}
+                {isLive(item) && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold align-middle">LIVE</span>
+                )}
+              </h4>
               <p className="text-xs text-ink/50 capitalize mb-3">{sectionLabel(item.section)} &middot; {item.media_type?.replace('_', ' ')}</p>
               <div className="flex gap-3 text-xs font-semibold">
                 <button onClick={() => handleDuplicate(item.id)} className="text-secondary">Duplicate</button>

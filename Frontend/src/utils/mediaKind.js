@@ -1,3 +1,10 @@
+// content.is_live comes back from the API as 1/0, '1'/'0', or a real
+// boolean depending on the PHP/PDO driver in play — normalize once here
+// rather than repeating the same loose check at every render site.
+export function isLive(item) {
+  return item?.is_live === 1 || item?.is_live === '1' || item?.is_live === true;
+}
+
 export function getYouTubeEmbed(url = '') {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;

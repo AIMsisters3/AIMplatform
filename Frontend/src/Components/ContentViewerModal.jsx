@@ -5,12 +5,13 @@ import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
 import DownloadButton from './DownloadButton.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
-import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
+import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
 
 export default function ContentViewerModal({ item, onClose }) {
   if (!item) return null;
   const kind = getItemKind(item);
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
+  const live = isLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
 
   return (
@@ -39,7 +40,12 @@ export default function ContentViewerModal({ item, onClose }) {
           </button>
 
           {kind === 'video' && youtubeSrc && (
-            <div className="aspect-video w-full bg-ink">
+            <div className="relative aspect-video w-full bg-ink">
+              {live && (
+                <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+                </span>
+              )}
               <iframe
                 src={youtubeSrc}
                 title={item.title}
@@ -50,7 +56,20 @@ export default function ContentViewerModal({ item, onClose }) {
             </div>
           )}
 
-          {kind === 'video' && !youtubeSrc && item.media_url && (
+          {/* A live item's media_url is always a link/embed source, never a
+              direct video file - <video src> would silently fail on it. */}
+          {kind === 'video' && !youtubeSrc && live && item.media_url && (
+            <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
+              <span className="px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+              </span>
+              <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
+                Watch the Live Stream
+              </a>
+            </div>
+          )}
+
+          {kind === 'video' && !youtubeSrc && !live && item.media_url && (
             <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} />
           )}
 

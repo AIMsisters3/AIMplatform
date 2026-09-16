@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
+import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { getItemKind } from '../utils/mediaKind.js';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
@@ -355,6 +356,8 @@ export default function Content() {
 </section>
 
       <div className="max-w-7xl mx-auto px-6 py-10">
+        <LiveNowStrip endpoint="/content" onItemClick={openItem} />
+
         {/* Language filter — small, unobtrusive */}
         <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex justify-end mb-2">
           <div className="relative">
