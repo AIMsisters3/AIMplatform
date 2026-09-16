@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
+import { usePaginatedList } from '../hooks/usePaginatedList.js';
 
 export default function News() {
-  const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [languageOptions, setLanguageOptions] = useState([]);
   const [categoryId, setCategoryId] = useState('');
   const [language, setLanguage] = useState('');
-  const [loading, setLoading] = useState(true);
   const [activeItem, setActiveItem] = useState(null);
 
   useEffect(() => {
@@ -22,13 +22,10 @@ export default function News() {
       .catch(() => setLanguageOptions([]));
   }, []);
 
-  useEffect(() => {
-    setLoading(true);
-    api.get('/news', { params: { category_id: categoryId || undefined, language: language || undefined, limit: 24 } })
-      .then((r) => setItems(r.data.data.items))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  }, [categoryId, language]);
+  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList(
+    '/news',
+    { category_id: categoryId || undefined, language: language || undefined }
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-14">
@@ -59,9 +56,23 @@ export default function News() {
       ) : items.length === 0 ? (
         <p className="text-ink/50">No news published yet. Check back soon.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {items.map((item) => <ContentCard key={item.id} item={item} onClick={() => setActiveItem(item)} />)}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {items.map((item) => <ContentCard key={item.id} item={item} onClick={() => setActiveItem(item)} />)}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center mt-10">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-6 py-3 rounded-full glass-card font-semibold text-sm disabled:opacity-60 flex items-center gap-2"
+              >
+                {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                {loadingMore ? 'Loading...' : 'Load More'}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <ContentViewerModal item={activeItem} onClose={() => setActiveItem(null)} />
