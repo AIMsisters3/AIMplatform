@@ -23,7 +23,7 @@ const SECTIONS = [
   { key: 'media_library', label: 'Content / Media Library', icon: Library },
   { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
   { key: 'devotions', label: 'Devotion', icon: BookHeart },
-  { key: 'kids', label: 'Kids', icon: Baby },
+  { key: 'kids', label: 'Children', icon: Baby },
   { key: 'gallery', label: 'Gallery', icon: Images },
   { key: 'news', label: 'News', icon: Newspaper },
 ];
@@ -160,7 +160,7 @@ const SECTION_DESTINATION = {
   gallery: 'Gallery',
   bible_study: 'Bible Study',
   devotions: 'Devotions',
-  kids: 'Kids',
+  kids: 'Children',
 };
 
 // Live is only offered for sections where "a stream is happening right
@@ -774,7 +774,7 @@ export default function UploadContent() {
 
       {section === 'kids' && (
         <div className="glass-card p-6">
-          <h2 className="text-sm font-semibold text-ink mb-4">What type of Kids content is this?</h2>
+          <h2 className="text-sm font-semibold text-ink mb-4">What type of Children content is this?</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {KIDS_TYPES.map((t) => (
               <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />

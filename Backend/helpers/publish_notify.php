@@ -28,7 +28,7 @@ const NEWSLETTER_NOTIFY_SECTIONS = [
     'devotions'   => ['eyebrow' => 'New Devotion', 'button' => 'Read the Devotion', 'type' => 'devotion'],
     'bible_study' => ['eyebrow' => 'New Bible Study', 'button' => 'Start the Bible Study', 'type' => 'bible_study'],
     'news'        => ['eyebrow' => 'Ministry News', 'button' => 'Read the Full Story', 'type' => 'news'],
-    'kids'        => ['eyebrow' => 'New for Kids', 'button' => 'Check It Out', 'type' => 'kids'],
+    'kids'        => ['eyebrow' => 'New for Children', 'button' => 'Check It Out', 'type' => 'kids'],
 ];
 
 /** Path only (no origin) — used for the in-app notification's link_url, which the frontend router resolves client-side. */

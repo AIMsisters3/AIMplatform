@@ -19,7 +19,7 @@ import heroGirl from '../assets/hero-girl.png';
 // deleted as a category outright, since the same category can still be
 // applied to a Bible Study upload (category_id is shared across sections).
 const CATEGORY_META = {
-  'Children Ministry': { icon: Baby, tagline: 'Fun & Faith for Kids', bg: 'bg-violet-100', text: 'text-violet-600' },
+  'Children Ministry': { icon: Baby, tagline: 'Fun & Faith for Children', bg: 'bg-violet-100', text: 'text-violet-600' },
   'Health Reform':     { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
   'Dress Reform':      { icon: Shirt, tagline: 'Modesty & Godly Life', bg: 'bg-orange-100', text: 'text-orange-600' },
   'Animations':        { icon: Wand2, tagline: 'Fun & Creative Visuals', bg: 'bg-purple-100', text: 'text-purple-600' },

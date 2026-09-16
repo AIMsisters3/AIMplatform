@@ -96,10 +96,10 @@ export default function Kids() {
               <Baby className="w-8 h-8 text-white" />
             </span>
             <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3">
-              AIMsisters Kids Zone
+              AIMsisters Children's Zone
             </h1>
             <p className="text-white/90 text-base sm:text-lg max-w-xl mx-auto">
-              Bible stories, lessons, cartoons, songs, and fun activities made just for kids.
+              Bible stories, lessons, cartoons, songs, and fun activities made just for children.
             </p>
           </motion.div>
 
@@ -187,7 +187,7 @@ export default function Kids() {
               <Inbox className="w-7 h-7 text-orange-500" />
             </div>
             <h3 className="font-display font-semibold text-lg text-ink mb-1">Nothing here yet</h3>
-            <p className="text-ink/50 text-sm max-w-xs">New stories, songs, and activities for kids are on the way — check back soon!</p>
+            <p className="text-ink/50 text-sm max-w-xs">New stories, songs, and activities for children are on the way — check back soon!</p>
           </div>
         ) : isFiltering ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">

@@ -9,7 +9,7 @@ const SECTIONS = [
   { value: 'gallery', label: 'Gallery' },
   { value: 'bible_study', label: 'Bible Study' },
   { value: 'devotions', label: 'Devotions' },
-  { value: 'kids', label: 'Kids' },
+  { value: 'kids', label: 'Children' },
 ];
 
 const STATUS_BADGE = {

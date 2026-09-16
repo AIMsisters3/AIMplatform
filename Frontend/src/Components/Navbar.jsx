@@ -13,7 +13,7 @@ const links = [
   { to: '/bible-studies', label: 'Bible Studies' },
   { to: '/series', label: 'Series' },
   { to: '/devotions', label: 'Devotions' },
-  { to: '/kids', label: 'Kids' },
+  { to: '/kids', label: 'Children' },
   { to: '/news', label: 'News' },
   { to: '/gallery', label: 'Gallery' },
   { to: '/shop', label: 'Shop' },
