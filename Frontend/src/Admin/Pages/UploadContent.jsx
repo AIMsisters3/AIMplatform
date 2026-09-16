@@ -9,7 +9,7 @@ import {
   Video, Film, Mic, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
   Clapperboard, Palette, Wand2, MessageSquare, Camera, Music2,
   Newspaper, BookHeart, Images, ChevronDown, ChevronUp, Loader2, CheckCircle2,
-  AlertCircle, Sparkles, ArrowLeft, Library,
+  AlertCircle, Sparkles, ArrowLeft, Library, Baby, Radio, RotateCcw, X,
 } from 'lucide-react';
 
 // Where the admin explicitly says this upload will appear — chosen first,
@@ -23,6 +23,7 @@ const SECTIONS = [
   { key: 'media_library', label: 'Content / Media Library', icon: Library },
   { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
   { key: 'devotions', label: 'Devotion', icon: BookHeart },
+  { key: 'kids', label: 'Kids', icon: Baby },
   { key: 'gallery', label: 'Gallery', icon: Images },
   { key: 'news', label: 'News', icon: Newspaper },
 ];
@@ -32,10 +33,10 @@ const SINGLETON_MEDIA_TYPE = {
 };
 
 // The default type-card key to pre-select when switching into a section that
-// has its own card grid (media_library / news / devotions) — keeps
+// has its own card grid (media_library / news / devotions / kids) — keeps
 // selectedKey valid instead of carrying over a key from whichever section
 // was picked before.
-const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article', devotions: 'devotion_article' };
+const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article', devotions: 'devotion_article', kids: 'kids_bible_story' };
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN "News" — a news post isn't always a written
@@ -56,6 +57,20 @@ const DEVOTION_TYPES = [
   { key: 'devotion_article', label: 'Article', icon: FileText, media_type: 'devotional' },
   { key: 'devotion_video', label: 'Video', icon: Video, media_type: 'video' },
   { key: 'devotion_audio', label: 'Audio', icon: Headphones, media_type: 'audio' },
+];
+
+// ---------------------------------------------------------------------
+// Media types available WITHIN "Kids" — its own dedicated, safe area
+// (not just another category), mirrors
+// ContentController::SECTION_MEDIA_TYPES['kids'].
+// ---------------------------------------------------------------------
+const KIDS_TYPES = [
+  { key: 'kids_bible_story', label: 'Bible Story', icon: BookHeart, media_type: 'bible_story' },
+  { key: 'kids_bible_lesson', label: 'Bible Lesson', icon: BookOpen, media_type: 'bible_lesson' },
+  { key: 'kids_cartoon', label: 'Cartoon', icon: Palette, media_type: 'cartoon' },
+  { key: 'kids_song', label: 'Song', icon: Music2, media_type: 'song' },
+  { key: 'kids_activity', label: 'Activity', icon: Sparkles, media_type: 'activity' },
+  { key: 'kids_other', label: 'Other', icon: FileType, media_type: 'other' },
 ];
 
 // ---------------------------------------------------------------------
@@ -99,18 +114,20 @@ const BIBLE_STUDY_TYPES = [
 ];
 
 // Mirrors ContentController::BODY_REQUIRED_MEDIA_TYPES exactly.
-const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
 
 // What kind of main-media control to show for a given media_type. `null`
 // means "no separate main file" — Article/News/Devotional use the rich
 // text body instead, and Photo Gallery/Image both reuse the Cover Image
 // field as their one photo rather than asking the admin to upload the same
-// image twice (once as "thumbnail", once as "the content").
+// image twice (once as "thumbnail", once as "the content"). Kids' Activity
+// is treated as a printable document (worksheet/coloring page), and Song
+// as audio, same reasoning as the rest of this list.
 function mediaKindFor(mediaType) {
   if (BODY_REQUIRED_MEDIA_TYPES.includes(mediaType)) return 'article';
   if (mediaType === 'photo_gallery' || mediaType === 'image') return null;
-  if (mediaType === 'pdf' || mediaType === 'pdf_notes') return 'document';
-  if (['audio', 'music', 'podcast'].includes(mediaType)) return 'audio';
+  if (mediaType === 'pdf' || mediaType === 'pdf_notes' || mediaType === 'activity') return 'document';
+  if (['audio', 'music', 'podcast', 'song'].includes(mediaType)) return 'audio';
   return 'video';
 }
 
@@ -143,7 +160,13 @@ const SECTION_DESTINATION = {
   gallery: 'Gallery',
   bible_study: 'Bible Study',
   devotions: 'Devotions',
+  kids: 'Kids',
 };
+
+// Live is only offered for sections where "a stream is happening right
+// now" makes sense — Content/Media Library and Bible Study (spec: "allow
+// under both Content and Bible Study").
+const LIVE_ELIGIBLE_SECTIONS = ['media_library', 'bible_study'];
 
 const emptyUpload = { file: null, previewUrl: null, uploadedUrl: null, uploading: false, progress: 0, error: null };
 
@@ -157,6 +180,7 @@ const DEFAULT_FORM = {
   study_guide_url: '',
   series_id: '', season_number: '1', episode_number: '',
   media_type_bible_study: 'video',
+  is_live: false, live_url: '',
 };
 
 function Toggle({ checked, onChange, label }) {
@@ -198,6 +222,40 @@ const Field = React.forwardRef(function Field({ label, required, error, hint, ch
 const inputClass = (hasError) =>
   `w-full px-4 py-2.5 rounded-xl2 border ${hasError ? 'border-red-300' : 'border-ink/10'} focus:outline-none focus:ring-2 focus:ring-secondary bg-white`;
 
+// Autosave / draft-recovery: a periodic localStorage snapshot so a closed
+// tab, dropped connection, or accidental refresh doesn't lose an in-progress
+// upload — separate from the explicit "Save Draft" button, which persists
+// to the server instead. Only the already-uploaded file URLs are kept (not
+// the File objects themselves, which can't survive a reload); the admin
+// keeps whatever they'd already uploaded when they resume, and just
+// re-picks anything still in flight at the time of the interruption.
+const DRAFT_STORAGE_KEY = 'aim_upload_draft_v1';
+
+function saveDraftSnapshot(snapshot) {
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Storage unavailable/full/private-mode — autosave is best-effort only.
+  }
+}
+
+function readDraftSnapshot() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraftSnapshot() {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export default function UploadContent() {
   const navigate = useNavigate();
 
@@ -220,6 +278,11 @@ export default function UploadContent() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [result, setResult] = useState(null); // { slug, viewHref, published }
+
+  // A draft found in localStorage on mount, offered for recovery — see
+  // "Autosave / draft-recovery" above. Stays null once resumed, discarded,
+  // or if there was nothing to recover.
+  const [recoverableDraft, setRecoverableDraft] = useState(null);
 
   // Tracks the in-flight chunked upload (if any) for the main media file,
   // so Replace/Remove/switching content type can cancel it instead of
@@ -244,7 +307,7 @@ export default function UploadContent() {
   const section = selectedSection;
   const isBibleStudy = section === 'bible_study';
   const isGallery = section === 'gallery';
-  const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : CONTENT_TYPES;
+  const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : section === 'kids' ? KIDS_TYPES : CONTENT_TYPES;
   const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
     ? (form.media_type_bible_study || 'video')
@@ -252,6 +315,8 @@ export default function UploadContent() {
   const mediaKind = mediaKindFor(mediaType);
   const requiresBody = mediaKind === 'article';
   const showSeries = mediaKind === 'video' || mediaKind === 'audio';
+  const isLiveEligible = LIVE_ELIGIBLE_SECTIONS.includes(section) && mediaKind === 'video';
+  const isLive = isLiveEligible && form.is_live;
 
   useEffect(() => {
     api.get('/categories', { params: { type: 'content' } })
@@ -266,7 +331,46 @@ export default function UploadContent() {
     api.get('/upload/limits')
       .then((r) => setLimits(r.data?.data || null))
       .catch(() => setLimits(null));
+
+    const draft = readDraftSnapshot();
+    if (draft?.form?.title?.trim()) setRecoverableDraft(draft);
   }, []);
+
+  // Debounced autosave — waits for a pause in typing/uploading rather than
+  // writing on every keystroke. Skipped while there's nothing worth saving
+  // yet, while the success screen is showing (nothing left to protect), or
+  // while an unresolved recovery banner is up (so it can't silently
+  // overwrite the very draft it's offering to resume before the admin
+  // decides).
+  useEffect(() => {
+    if (recoverableDraft || result || !form.title.trim()) return;
+    const timer = setTimeout(() => {
+      saveDraftSnapshot({
+        savedAt: Date.now(),
+        selectedSection,
+        selectedKey,
+        form,
+        thumbnailUrl: thumbnail.uploadedUrl || null,
+        mediaUrl: media.uploadedUrl || null,
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [form, selectedSection, selectedKey, thumbnail.uploadedUrl, media.uploadedUrl, recoverableDraft, result]);
+
+  function resumeDraft() {
+    if (!recoverableDraft) return;
+    setSelectedSection(recoverableDraft.selectedSection || 'media_library');
+    setSelectedKey(recoverableDraft.selectedKey || 'video');
+    setForm({ ...DEFAULT_FORM, ...recoverableDraft.form });
+    setThumbnail(recoverableDraft.thumbnailUrl ? { ...emptyUpload, uploadedUrl: recoverableDraft.thumbnailUrl } : emptyUpload);
+    setMedia(recoverableDraft.mediaUrl ? { ...emptyUpload, uploadedUrl: recoverableDraft.mediaUrl } : emptyUpload);
+    setRecoverableDraft(null);
+  }
+
+  function discardDraft() {
+    clearDraftSnapshot();
+    setRecoverableDraft(null);
+  }
 
   // Switching what's being uploaded changes which main-media control (if
   // any) applies — drop a file picked for a now-irrelevant kind rather
@@ -278,8 +382,19 @@ export default function UploadContent() {
       mediaAbortRef.current = null;
     }
     setMedia(emptyUpload);
+    setForm((f) => (f.is_live || f.live_url ? { ...f, is_live: false, live_url: '' } : f));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaKind]);
+
+  // Live is only offered for two sections — dropping straight into a
+  // section where it doesn't apply (e.g. Gallery) must not leave a
+  // stale is_live=true silently carried into that submission.
+  useEffect(() => {
+    if (!isLiveEligible && form.is_live) {
+      setForm((f) => ({ ...f, is_live: false, live_url: '' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLiveEligible]);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -391,6 +506,8 @@ export default function UploadContent() {
       if (requiresBody) {
         const plain = form.body.replace(/<[^>]*>/g, '').trim();
         if (!plain) next.body = 'Please write the article body.';
+      } else if (isLive) {
+        if (!form.live_url.trim()) next.media = 'Please enter the live stream URL.';
       } else if (mediaKind && !media.uploadedUrl) {
         const label = mediaKind === 'video' ? 'a video' : mediaKind === 'audio' ? 'an audio file' : mediaKind === 'document' ? 'a PDF' : 'an image';
         next.media = `Please upload ${label}.`;
@@ -431,9 +548,14 @@ export default function UploadContent() {
       visibility: form.visibility,
       status,
       is_featured: form.is_featured,
+      is_live: isLive,
       allow_comments: form.allow_comments,
       thumbnail: thumbnail.uploadedUrl || null,
-      media_url: mediaKind === null ? (thumbnail.uploadedUrl || null) : (media.uploadedUrl || null),
+      media_url: mediaKind === null
+        ? (thumbnail.uploadedUrl || null)
+        : isLive
+          ? (form.live_url.trim() || null)
+          : (media.uploadedUrl || null),
       body: requiresBody ? form.body : null,
       transcript: !requiresBody && mediaKind ? (form.transcript.trim() || null) : null,
     };
@@ -455,6 +577,7 @@ export default function UploadContent() {
       case 'news': return '/news';
       case 'gallery': return '/gallery';
       case 'devotions': return '/devotions';
+      case 'kids': return `/kids?item=${slug}`;
       default: return '/content';
     }
   }
@@ -486,6 +609,7 @@ export default function UploadContent() {
       const confirm = await api.get(`/content/${newId}`);
       const slug = confirm.data?.data?.item?.slug;
 
+      clearDraftSnapshot();
       setResult({
         slug,
         viewHref: slug ? viewHrefFor(section, slug) : null,
@@ -510,6 +634,7 @@ export default function UploadContent() {
     setErrors({});
     setSubmitError('');
     setResult(null);
+    clearDraftSnapshot();
   }
 
   function handleCancel() {
@@ -550,6 +675,26 @@ export default function UploadContent() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      {recoverableDraft && (
+        <div className="glass-card p-4 border border-secondary/20 bg-brand-gradient-soft flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <RotateCcw className="w-5 h-5 text-secondary shrink-0" />
+            <p className="text-sm text-ink/70">
+              <span className="font-semibold text-ink">Unsaved draft found:</span> "{recoverableDraft.form.title}"
+              <span className="text-ink/40"> — saved {new Date(recoverableDraft.savedAt).toLocaleString()}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={resumeDraft} className="px-4 py-2 rounded-full bg-brand-gradient text-white text-xs font-semibold shadow-glass">
+              Resume Draft
+            </button>
+            <button onClick={discardDraft} className="px-4 py-2 rounded-full bg-white text-xs font-semibold text-ink/50 hover:text-ink flex items-center gap-1">
+              <X className="w-3.5 h-3.5" /> Discard
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Breadcrumb + header */}
       <div>
         <p className="text-xs text-ink/40 mb-2">
@@ -621,6 +766,17 @@ export default function UploadContent() {
           <h2 className="text-sm font-semibold text-ink mb-4">What type of devotion is this?</h2>
           <div className="grid grid-cols-3 gap-3 max-w-md">
             {DEVOTION_TYPES.map((t) => (
+              <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {section === 'kids' && (
+        <div className="glass-card p-6">
+          <h2 className="text-sm font-semibold text-ink mb-4">What type of Kids content is this?</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {KIDS_TYPES.map((t) => (
               <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
             ))}
           </div>
@@ -746,32 +902,61 @@ export default function UploadContent() {
               />
             </Field>
 
+            {isLiveEligible && (
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-ink/10 bg-surface/60 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-accent" />
+                  <div>
+                    <p className="text-sm font-medium text-ink">This is a live stream</p>
+                    <p className="text-xs text-ink/40">Embed a live stream URL instead of uploading a file.</p>
+                  </div>
+                </div>
+                <Toggle checked={form.is_live} onChange={(v) => update('is_live', v)} label="Live stream" />
+              </div>
+            )}
+
             {mediaKind && mediaKind !== 'article' && (
               <Field
                 ref={(el) => { fieldRefs.current.media = el; }}
-                label={mediaKind === 'video' ? 'Upload Video' : mediaKind === 'audio' ? 'Audio File' : 'Document'}
+                label={isLive ? 'Live Stream URL' : mediaKind === 'video' ? 'Upload Video' : mediaKind === 'audio' ? 'Audio File' : 'Document'}
                 required
                 error={errors.media}
               >
-                <Dropzone
-                  icon={MEDIA_KIND_ICON[mediaKind]}
-                  title={mediaKind === 'video' ? 'video' : mediaKind === 'audio' ? 'audio' : mediaKind === 'document' ? 'PDF' : 'image'}
-                  acceptHint={`${MEDIA_RULES[mediaKind].label} · up to ${formatSizeLimit(maxSizeMb)}`}
-                  accept={MEDIA_RULES[mediaKind].accept}
-                  kind={mediaKind}
-                  file={media.file}
-                  previewUrl={media.previewUrl}
-                  uploadedUrl={media.uploadedUrl}
-                  uploading={media.uploading}
-                  progress={media.progress}
-                  error={media.error}
-                  onSelect={(f) => validateAndPick(f, MEDIA_RULES[mediaKind], setMedia, true)}
-                  onRemove={removeMedia}
-                />
-                {mediaKind === 'video' && (
-                  <p className="text-[11px] text-ink/35 mt-2">
-                    A full-length video (an hour or more) can take a while to upload depending on your connection. It uploads in small pieces, so if it's interrupted, picking the same file again will resume instead of starting over.
-                  </p>
+                {isLive ? (
+                  <>
+                    <input
+                      value={form.live_url}
+                      onChange={(e) => update('live_url', e.target.value)}
+                      placeholder="https://youtube.com/watch?v=... or Facebook Live URL"
+                      className={inputClass(errors.media)}
+                    />
+                    <p className="text-[11px] text-ink/35 mt-2">
+                      Paste the YouTube/Facebook Live URL. It goes live on the site with a "LIVE" badge as soon as you publish.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Dropzone
+                      icon={MEDIA_KIND_ICON[mediaKind]}
+                      title={mediaKind === 'video' ? 'video' : mediaKind === 'audio' ? 'audio' : mediaKind === 'document' ? 'PDF' : 'image'}
+                      acceptHint={`${MEDIA_RULES[mediaKind].label} · up to ${formatSizeLimit(maxSizeMb)}`}
+                      accept={MEDIA_RULES[mediaKind].accept}
+                      kind={mediaKind}
+                      file={media.file}
+                      previewUrl={media.previewUrl}
+                      uploadedUrl={media.uploadedUrl}
+                      uploading={media.uploading}
+                      progress={media.progress}
+                      error={media.error}
+                      onSelect={(f) => validateAndPick(f, MEDIA_RULES[mediaKind], setMedia, true)}
+                      onRemove={removeMedia}
+                    />
+                    {mediaKind === 'video' && (
+                      <p className="text-[11px] text-ink/35 mt-2">
+                        A full-length video (an hour or more) can take a while to upload depending on your connection. It uploads in small pieces, so if it's interrupted, picking the same file again will resume instead of starting over.
+                      </p>
+                    )}
+                  </>
                 )}
               </Field>
             )}
@@ -895,6 +1080,7 @@ export default function UploadContent() {
             media={media}
             mediaKind={mediaKind}
             requiresBody={requiresBody}
+            isLive={isLive}
           />
         </div>
       </div>
@@ -975,7 +1161,7 @@ function SectionCard({ sectionOption, active, onClick }) {
   );
 }
 
-function PreviewPanel({ form, section, category, language, thumbnail, media, mediaKind, requiresBody }) {
+function PreviewPanel({ form, section, category, language, thumbnail, media, mediaKind, requiresBody, isLive }) {
   const cover = thumbnail.previewUrl || thumbnail.uploadedUrl;
 
   return (
@@ -985,7 +1171,12 @@ function PreviewPanel({ form, section, category, language, thumbnail, media, med
         <h3 className="text-sm font-semibold text-ink">Preview</h3>
       </div>
 
-      <div className="rounded-2xl overflow-hidden bg-brand-gradient-soft aspect-video flex items-center justify-center mb-4">
+      <div className="relative rounded-2xl overflow-hidden bg-brand-gradient-soft aspect-video flex items-center justify-center mb-4">
+        {isLive && (
+          <span className="absolute top-2.5 left-2.5 z-10 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
+          </span>
+        )}
         {mediaKind === 'video' && media.uploadedUrl ? (
           <video src={media.uploadedUrl} controls className="w-full h-full object-cover bg-ink" />
         ) : mediaKind === 'audio' && media.uploadedUrl ? (
