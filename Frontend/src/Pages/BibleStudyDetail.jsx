@@ -160,7 +160,12 @@ export default function BibleStudyDetail() {
           </div>
 
           {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}
-          {item.body && <div className="prose prose-sm max-w-none text-ink/80 leading-relaxed whitespace-pre-line mb-5">{item.body}</div>}
+          {item.body && (
+            <div
+              className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5"
+              dangerouslySetInnerHTML={{ __html: item.body }}
+            />
+          )}
           {item.bible_references && (
             <div className="flex items-start gap-2 bg-surface rounded-2xl px-4 py-3 mb-5">
               <span className="text-sm text-ink/70 italic">📖 {item.bible_references}</span>

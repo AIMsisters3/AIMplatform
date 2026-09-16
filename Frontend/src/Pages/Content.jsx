@@ -164,11 +164,11 @@ export default function Content() {
   useEffect(() => {
     setLoading(true);
     api
-      .get('/content', { params: { search: search || undefined, category_id: categoryId || undefined, limit: 24 } })
+      .get('/content', { params: { search: search || undefined, category_id: categoryId || undefined, language: language || undefined, limit: 24 } })
       .then((r) => setItems(r.data?.data?.items || []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [search, categoryId]);
+  }, [search, categoryId, language]);
 
   useEffect(() => {
     const slug = searchParams.get('item');
@@ -179,6 +179,9 @@ export default function Content() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The server now filters by language (see the /content call above) - this
+  // is just a defensive fallback in case any item without the right
+  // language slips through, not the primary filtering mechanism anymore.
   const filteredItems = useMemo(() => {
     let list = Array.isArray(items) ? items : [];
     if (language) list = list.filter((item) => item.language === language);

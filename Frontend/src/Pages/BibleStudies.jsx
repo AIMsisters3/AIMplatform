@@ -12,6 +12,7 @@ const FORMATS = [
   { value: 'panel', label: 'Panel Discussion' },
   { value: 'audio', label: 'Audio' },
   { value: 'podcast', label: 'Podcast' },
+  { value: 'interview', label: 'Interview' },
   { value: 'animated', label: 'Animated' },
   { value: 'documentary', label: 'Documentary' },
   { value: 'pdf_notes', label: 'PDF / Notes' },
@@ -21,17 +22,38 @@ export default function BibleStudies() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [continuing, setContinuing] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [languageOptions, setLanguageOptions] = useState([]);
   const [format, setFormat] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [language, setLanguage] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    api.get('/categories', { params: { type: 'content' } })
+      .then((r) => setCategories(r.data?.data?.items || []))
+      .catch(() => setCategories([]));
+    api.get('/languages')
+      .then((r) => setLanguageOptions(r.data?.data?.items || []))
+      .catch(() => setLanguageOptions([]));
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
-    api.get('/bible-studies', { params: { format: format || undefined, search: search || undefined, limit: 24 } })
+    api.get('/bible-studies', {
+      params: {
+        format: format || undefined,
+        category_id: categoryId || undefined,
+        language: language || undefined,
+        search: search || undefined,
+        limit: 24,
+      },
+    })
       .then((r) => setItems(r.data.data.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [format, search]);
+  }, [format, categoryId, language, search]);
 
   useEffect(() => {
     if (!user) { setContinuing([]); return; }
@@ -73,6 +95,22 @@ export default function BibleStudies() {
           className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
         >
           {FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+        >
+          <option value="">All Categories</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+        >
+          <option value="">All Languages</option>
+          {languageOptions.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
         </select>
       </div>
 

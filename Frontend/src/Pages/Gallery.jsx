@@ -4,20 +4,40 @@ import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 
 export default function Gallery() {
   const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [categoryId, setCategoryId] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeItem, setActiveItem] = useState(null);
 
   useEffect(() => {
-    api.get('/gallery', { params: { limit: 40 } })
+    api.get('/categories', { params: { type: 'content' } })
+      .then((r) => setCategories(r.data?.data?.items || []))
+      .catch(() => setCategories([]));
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get('/gallery', { params: { category_id: categoryId || undefined, limit: 40 } })
       .then((r) => setItems(r.data.data.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [categoryId]);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-14">
       <h1 className="text-3xl font-bold mb-2">Gallery</h1>
-      <p className="text-ink/60 mb-10">Moments captured from ministry events, services, and outreach.</p>
+      <p className="text-ink/60 mb-8">Moments captured from ministry events, services, and outreach.</p>
+
+      <div className="mb-8">
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+        >
+          <option value="">All Categories</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
 
       {loading ? (
         <p className="text-ink/50">Loading gallery...</p>

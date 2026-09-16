@@ -7,18 +7,18 @@ import TagInput from '../Components/upload/TagInput.jsx';
 import { uploadFileChunked, cancelChunkedUpload } from '../utils/chunkedUpload.js';
 import {
   Video, Film, Mic, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
-  Clapperboard, Palette, Wand2, Users, MessageSquare, Camera, Music2, Podcast,
+  Clapperboard, Palette, Wand2, MessageSquare, Camera, Music2,
   Newspaper, BookHeart, Images, ChevronDown, ChevronUp, Loader2, CheckCircle2,
   AlertCircle, Sparkles, ArrowLeft, Library,
 } from 'lucide-react';
 
 // Where the admin explicitly says this upload will appear — chosen first,
 // before any media-type detail. Matches ContentController::SECTION_MEDIA_TYPES
-// exactly. Content/Media Library and News each have more than one media_type
-// underneath them (CONTENT_TYPES / NEWS_TYPES below); Bible Study picks its
-// format via the "Study Type" field; Devotion/Gallery are each a single
-// fixed media_type (SINGLETON_MEDIA_TYPE), so no further choice is needed
-// once those two sections are picked.
+// exactly. Content/Media Library, News, and Devotion each have more than one
+// media_type underneath them (CONTENT_TYPES / NEWS_TYPES / DEVOTION_TYPES
+// below); Bible Study picks its format via the "Study Type" field; Gallery
+// is a single fixed media_type (SINGLETON_MEDIA_TYPE), so no further choice
+// is needed once that section is picked.
 const SECTIONS = [
   { key: 'media_library', label: 'Content / Media Library', icon: Library },
   { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
@@ -28,14 +28,14 @@ const SECTIONS = [
 ];
 
 const SINGLETON_MEDIA_TYPE = {
-  devotions: 'devotional',
   gallery: 'photo_gallery',
 };
 
 // The default type-card key to pre-select when switching into a section that
-// has its own card grid (media_library / news) — keeps selectedKey valid
-// instead of carrying over a key from whichever section was picked before.
-const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article' };
+// has its own card grid (media_library / news / devotions) — keeps
+// selectedKey valid instead of carrying over a key from whichever section
+// was picked before.
+const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article', devotions: 'devotion_article' };
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN "News" — a news post isn't always a written
@@ -48,10 +48,23 @@ const NEWS_TYPES = [
 ];
 
 // ---------------------------------------------------------------------
+// Media types available WITHIN "Devotion" — a devotion isn't always a
+// written article either, so this mirrors
+// ContentController::SECTION_MEDIA_TYPES['devotions'].
+// ---------------------------------------------------------------------
+const DEVOTION_TYPES = [
+  { key: 'devotion_article', label: 'Article', icon: FileText, media_type: 'devotional' },
+  { key: 'devotion_video', label: 'Video', icon: Video, media_type: 'video' },
+  { key: 'devotion_audio', label: 'Audio', icon: Headphones, media_type: 'audio' },
+];
+
+// ---------------------------------------------------------------------
 // Media types available WITHIN the "Content / Media Library" section only —
 // Bible Study/Devotion/Gallery/News each have their own way of picking a
 // type instead (see above). Each card maps directly onto a media_type as
 // validated server-side in ContentController::SECTION_MEDIA_TYPES['media_library'].
+// Panel Discussion and Podcast deliberately live under Bible Study only —
+// see BIBLE_STUDY_TYPES below.
 // ---------------------------------------------------------------------
 const CONTENT_TYPES = [
   { key: 'video', label: 'Video', icon: Video, media_type: 'video', group: 'primary' },
@@ -65,13 +78,13 @@ const CONTENT_TYPES = [
   { key: 'movie', label: 'Movie', icon: Clapperboard, media_type: 'movie', group: 'more' },
   { key: 'cartoon', label: 'Cartoon', icon: Palette, media_type: 'cartoon', group: 'more' },
   { key: 'animation', label: 'Animation', icon: Wand2, media_type: 'animation', group: 'more' },
-  { key: 'panel', label: 'Panel Discussion', icon: Users, media_type: 'panel', group: 'more' },
   { key: 'interview', label: 'Interview', icon: MessageSquare, media_type: 'interview', group: 'more' },
   { key: 'documentary', label: 'Documentary', icon: Camera, media_type: 'documentary', group: 'more' },
   { key: 'music', label: 'Music', icon: Music2, media_type: 'music', group: 'more' },
-  { key: 'podcast', label: 'Podcast', icon: Podcast, media_type: 'podcast', group: 'more' },
 ];
 
+// Interview is available here too (in addition to Content/Media Library
+// above) - it's the one media type meant to work in both sections.
 const BIBLE_STUDY_TYPES = [
   { value: 'short_film', label: 'Short Film' },
   { value: 'video', label: 'Video' },
@@ -79,6 +92,7 @@ const BIBLE_STUDY_TYPES = [
   { value: 'panel', label: 'Panel Discussion' },
   { value: 'audio', label: 'Audio' },
   { value: 'podcast', label: 'Podcast' },
+  { value: 'interview', label: 'Interview' },
   { value: 'animated', label: 'Animated' },
   { value: 'documentary', label: 'Documentary' },
   { value: 'pdf_notes', label: 'PDF / Notes' },
@@ -89,14 +103,12 @@ const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
 
 // What kind of main-media control to show for a given media_type. `null`
 // means "no separate main file" — Article/News/Devotional use the rich
-// text body instead, and Photo Gallery (today: a single content row, one
-// cover image — see README §9 for the planned album/multi-image follow-up)
-// reuses the Cover Image field as its one photo rather than asking for the
-// same image twice.
+// text body instead, and Photo Gallery/Image both reuse the Cover Image
+// field as their one photo rather than asking the admin to upload the same
+// image twice (once as "thumbnail", once as "the content").
 function mediaKindFor(mediaType) {
   if (BODY_REQUIRED_MEDIA_TYPES.includes(mediaType)) return 'article';
-  if (mediaType === 'photo_gallery') return null;
-  if (mediaType === 'image') return 'image';
+  if (mediaType === 'photo_gallery' || mediaType === 'image') return null;
   if (mediaType === 'pdf' || mediaType === 'pdf_notes') return 'document';
   if (['audio', 'music', 'podcast'].includes(mediaType)) return 'audio';
   return 'video';
@@ -164,9 +176,11 @@ function Toggle({ checked, onChange, label }) {
   );
 }
 
-function Field({ label, required, error, hint, children }) {
+// forwardRef so a field can be scrolled/focused-into-view when it fails
+// validation on Publish (see fieldRefs/focusFirstError below).
+const Field = React.forwardRef(function Field({ label, required, error, hint, children }, ref) {
   return (
-    <label className="block">
+    <label ref={ref} className="block">
       <span className="text-xs font-semibold text-ink/50">
         {label} {required && <span className="text-accent">*</span>}
       </span>
@@ -179,7 +193,7 @@ function Field({ label, required, error, hint, children }) {
       )}
     </label>
   );
-}
+});
 
 const inputClass = (hasError) =>
   `w-full px-4 py-2.5 rounded-xl2 border ${hasError ? 'border-red-300' : 'border-ink/10'} focus:outline-none focus:ring-2 focus:ring-secondary bg-white`;
@@ -212,10 +226,25 @@ export default function UploadContent() {
   // letting an abandoned upload keep running in the background.
   const mediaAbortRef = useRef(null);
 
+  // Maps a validation error key to the DOM node of its Field, so a failed
+  // Publish can scroll to and focus the first thing that needs fixing
+  // instead of leaving the admin to hunt for a small red text somewhere on
+  // the page. Order matches the form's actual top-to-bottom layout.
+  const fieldRefs = useRef({});
+  const FIELD_ORDER = ['title', 'body', 'category_id', 'language', 'thumbnail', 'media', 'publish_date', 'episode_number'];
+
+  function focusFirstError(errs) {
+    const key = FIELD_ORDER.find((k) => errs[k]);
+    const el = key && fieldRefs.current[key];
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.querySelector('input, select, textarea, [contenteditable="true"]')?.focus();
+  }
+
   const section = selectedSection;
   const isBibleStudy = section === 'bible_study';
   const isGallery = section === 'gallery';
-  const typePool = section === 'news' ? NEWS_TYPES : CONTENT_TYPES;
+  const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : CONTENT_TYPES;
   const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
     ? (form.media_type_bible_study || 'video')
@@ -365,8 +394,15 @@ export default function UploadContent() {
       } else if (mediaKind && !media.uploadedUrl) {
         const label = mediaKind === 'video' ? 'a video' : mediaKind === 'audio' ? 'an audio file' : mediaKind === 'document' ? 'a PDF' : 'an image';
         next.media = `Please upload ${label}.`;
-      } else if (mediaKind === null && !thumbnail.uploadedUrl) {
-        next.thumbnail = 'Please upload an image for this gallery item.';
+      }
+
+      // Cover Image / thumbnail is always shown, so it's required on
+      // publish for every type — not just Gallery/Image (which reuse it as
+      // their one photo) — and must never be silently skippable.
+      if (!thumbnail.uploadedUrl) {
+        next.thumbnail = mediaKind === null
+          ? 'Please upload an image for this item.'
+          : 'Please upload a cover image / thumbnail.';
       }
 
       if (form.status === 'scheduled' && !form.publish_date) {
@@ -378,6 +414,7 @@ export default function UploadContent() {
     }
 
     setErrors(next);
+    if (Object.keys(next).length > 0) requestAnimationFrame(() => focusFirstError(next));
     return Object.keys(next).length === 0;
   }
 
@@ -425,7 +462,10 @@ export default function UploadContent() {
   async function handleSubmit(targetStatus) {
     setSubmitError('');
     const forPublish = targetStatus !== 'draft';
-    if (!validate({ forPublish })) return;
+    if (!validate({ forPublish })) {
+      setSubmitError('Please fix the highlighted fields before continuing.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -534,9 +574,9 @@ export default function UploadContent() {
         </div>
       </div>
 
-      {/* What are you uploading? — only Content / Media Library and News have
-          more than one media type; Bible Study picks its format via "Study
-          Type" below, and Devotion/Gallery are each a single fixed type. */}
+      {/* What are you uploading? — Content / Media Library, News, and
+          Devotion each have more than one media type; Bible Study picks its
+          format via "Study Type" below, and Gallery is a single fixed type. */}
       {section === 'media_library' && (
         <div className="glass-card p-6">
           <h2 className="text-sm font-semibold text-ink mb-4">What type of content is this?</h2>
@@ -576,6 +616,17 @@ export default function UploadContent() {
         </div>
       )}
 
+      {section === 'devotions' && (
+        <div className="glass-card p-6">
+          <h2 className="text-sm font-semibold text-ink mb-4">What type of devotion is this?</h2>
+          <div className="grid grid-cols-3 gap-3 max-w-md">
+            {DEVOTION_TYPES.map((t) => (
+              <TypeCard key={t.key} type={t} active={selectedKey === t.key} onClick={() => selectType(t.key)} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="text-[11px] text-ink/35 -mt-3">
         This will appear in <span className="font-semibold text-ink/50">{SECTION_DESTINATION[section]}</span>.
       </p>
@@ -584,7 +635,7 @@ export default function UploadContent() {
         {/* Content Details */}
         <div className="lg:col-span-2 space-y-6">
           <div className="glass-card p-6 space-y-4">
-            <Field label="Content Title" required error={errors.title}>
+            <Field ref={(el) => { fieldRefs.current.title = el; }} label="Content Title" required error={errors.title}>
               <input
                 value={form.title}
                 onChange={(e) => update('title', e.target.value)}
@@ -604,7 +655,7 @@ export default function UploadContent() {
             </Field>
 
             {requiresBody ? (
-              <Field label="Article Content" required error={errors.body}>
+              <Field ref={(el) => { fieldRefs.current.body = el; }} label="Article Content" required error={errors.body}>
                 <RichTextEditor
                   value={form.body}
                   onChange={(v) => update('body', v)}
@@ -623,7 +674,7 @@ export default function UploadContent() {
             ) : null}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Category" required error={errors.category_id}>
+              <Field ref={(el) => { fieldRefs.current.category_id = el; }} label="Category" required error={errors.category_id}>
                 <select value={form.category_id} onChange={(e) => update('category_id', e.target.value)} className={inputClass(errors.category_id)}>
                   <option value="">Select category...</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -635,7 +686,7 @@ export default function UploadContent() {
                   <input disabled value="Not applicable" readOnly className={inputClass(false) + ' bg-ink/5 text-ink/40'} />
                 </Field>
               ) : (
-                <Field label="Language" required error={errors.language}>
+                <Field ref={(el) => { fieldRefs.current.language = el; }} label="Language" required error={errors.language}>
                   <select value={form.language} onChange={(e) => update('language', e.target.value)} className={inputClass(errors.language)}>
                     <option value="">Select language...</option>
                     {languages.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
@@ -671,7 +722,12 @@ export default function UploadContent() {
           <div className="glass-card p-6 space-y-5">
             <h3 className="text-sm font-semibold text-ink">Media</h3>
 
-            <Field label={isGallery ? 'Cover Image' : 'Cover Image / Thumbnail'} error={errors.thumbnail}>
+            <Field
+              ref={(el) => { fieldRefs.current.thumbnail = el; }}
+              label={mediaKind === null ? 'Cover Image' : 'Cover Image / Thumbnail'}
+              required
+              error={errors.thumbnail}
+            >
               <Dropzone
                 icon={ImageIcon}
                 title="image"
@@ -692,7 +748,8 @@ export default function UploadContent() {
 
             {mediaKind && mediaKind !== 'article' && (
               <Field
-                label={mediaKind === 'video' ? 'Upload Video' : mediaKind === 'audio' ? 'Audio File' : mediaKind === 'document' ? 'Document' : 'Upload Image'}
+                ref={(el) => { fieldRefs.current.media = el; }}
+                label={mediaKind === 'video' ? 'Upload Video' : mediaKind === 'audio' ? 'Audio File' : 'Document'}
                 required
                 error={errors.media}
               >
@@ -736,7 +793,7 @@ export default function UploadContent() {
                     <Field label="Season">
                       <input type="number" min="1" value={form.season_number} onChange={(e) => update('season_number', e.target.value)} className={inputClass(false)} />
                     </Field>
-                    <Field label="Episode #" required error={errors.episode_number}>
+                    <Field ref={(el) => { fieldRefs.current.episode_number = el; }} label="Episode #" required error={errors.episode_number}>
                       <input type="number" min="1" value={form.episode_number} onChange={(e) => update('episode_number', e.target.value)} className={inputClass(errors.episode_number)} />
                     </Field>
                   </div>
@@ -794,7 +851,7 @@ export default function UploadContent() {
 
             {form.status === 'scheduled' && (
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Publish Date" required error={errors.publish_date}>
+                <Field ref={(el) => { fieldRefs.current.publish_date = el; }} label="Publish Date" required error={errors.publish_date}>
                   <input type="date" value={form.publish_date} onChange={(e) => update('publish_date', e.target.value)} className={inputClass(errors.publish_date)} />
                 </Field>
                 <Field label="Publish Time">
@@ -935,8 +992,6 @@ function PreviewPanel({ form, section, category, language, thumbnail, media, med
           <div className="w-full px-6">
             <audio src={media.uploadedUrl} controls className="w-full" />
           </div>
-        ) : mediaKind === 'image' && (media.previewUrl || media.uploadedUrl) ? (
-          <img src={media.previewUrl || media.uploadedUrl} alt="" className="w-full h-full object-cover" />
         ) : cover ? (
           <img src={cover} alt="" className="w-full h-full object-cover" />
         ) : (

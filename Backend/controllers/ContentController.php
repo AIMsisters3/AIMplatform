@@ -20,20 +20,26 @@ class ContentController
      * DB enum.
      */
     private const SECTION_MEDIA_TYPES = [
+        // 'panel' and 'podcast' deliberately live under Bible Study only, not
+        // here - those formats belong to structured study material, not
+        // general media library content.
         'media_library' => [
-            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon', 'panel',
-            'interview', 'documentary', 'audio', 'music', 'podcast', 'pdf', 'image', 'article',
+            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon',
+            'interview', 'documentary', 'audio', 'music', 'pdf', 'image', 'article',
         ],
         // News isn't always a written article - an admin can instead post a
         // video or a PDF under News, same as Media Library's video/pdf types.
         'news'        => ['news_article', 'video', 'pdf'],
         'gallery'     => ['photo_gallery'],
-        'devotions'   => ['devotional'],
+        // Devotions isn't always a written article either - an admin can
+        // instead post a video or audio recording of the devotion.
+        'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004, extended by migration 012 for 'podcast') -
-        // keep these in sync with that column.
+        // value (migration 004, extended by migration 012 for 'podcast', and
+        // migration 013 for 'interview') - keep these in sync with that column.
         'bible_study' => [
-            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated', 'documentary', 'pdf_notes', 'podcast',
+            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated',
+            'documentary', 'pdf_notes', 'podcast', 'interview',
         ],
     ];
 
@@ -108,7 +114,7 @@ class ContentController
         return $body;
     }
 
-    /** GET /api/content?type=&category_id=&search=&featured=&page=&status= */
+    /** GET /api/content?type=&category_id=&language=&search=&featured=&page=&status= */
     public function index(): void
     {
         $page  = max(1, (int) ($_GET['page'] ?? 1));
@@ -119,6 +125,7 @@ class ContentController
             'section'      => $_GET['section'] ?? null,
             'media_type'   => $_GET['media_type'] ?? null,
             'category_id'  => $_GET['category_id'] ?? null,
+            'language'     => $_GET['language'] ?? null,
             'search'       => $_GET['search'] ?? null,
             'is_featured'  => $_GET['featured'] ?? null,
         ];

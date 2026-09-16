@@ -24,6 +24,15 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
   const ref = useRef(null);
   const isFirstRender = useRef(true);
 
+  // Browsers disagree on what Enter inserts in a bare contentEditable
+  // (a wrapping <div> vs. a bare <br>), which is what silently loses
+  // paragraph structure while typing. Forcing <p> makes Enter behave
+  // consistently and matches the CSS below/the public-page renderer,
+  // which both already expect real <p> tags.
+  useEffect(() => {
+    document.execCommand('defaultParagraphSeparator', false, 'p');
+  }, []);
+
   // Only sync external value -> DOM when it actually differs (e.g. loading
   // a draft), never on every keystroke — that would fight the browser's
   // own cursor position mid-edit.

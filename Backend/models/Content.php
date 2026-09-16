@@ -32,6 +32,10 @@ class Content
             $where[] = 'c.category_id = :category_id';
             $params['category_id'] = $filters['category_id'];
         }
+        if (!empty($filters['language'])) {
+            $where[] = 'c.language = :language';
+            $params['language'] = $filters['language'];
+        }
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'c.status = :status';
             $params['status'] = $filters['status'];

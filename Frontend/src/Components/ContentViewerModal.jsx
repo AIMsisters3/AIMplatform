@@ -109,9 +109,10 @@ export default function ContentViewerModal({ item, onClose }) {
             {kind === 'audio' && <audio controls className="w-full mb-5" src={item.media_url} />}
 
             {item.body && (
-              <div className="prose prose-sm max-w-none text-ink/80 leading-relaxed whitespace-pre-line mb-5">
-                {item.body}
-              </div>
+              <div
+                className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5"
+                dangerouslySetInnerHTML={{ __html: item.body }}
+              />
             )}
 
             {item.bible_references && (

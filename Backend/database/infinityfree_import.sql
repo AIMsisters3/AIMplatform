@@ -960,3 +960,19 @@ CREATE TABLE IF NOT EXISTS content_views (
 
 ALTER TABLE bible_studies
   MODIFY COLUMN format ENUM('short_film','video','sermon','panel','audio','animated','documentary','pdf_notes','podcast') NOT NULL DEFAULT 'video';
+
+-- ---- from database/migrations/013_bible_study_interview_format.sql ----
+-- =========================================================
+-- Migration 013: Add "interview" as a Bible Study format
+--
+-- WHAT THIS DOES
+-- bible_studies.format is a strict ENUM (migration 004, extended by
+-- migration 012 for 'podcast') that ContentController::SECTION_MEDIA_TYPES
+-- ['bible_study'] mirrors exactly. Interviews should be publishable under
+-- both Content/Media Library and Bible Study, so the ENUM needs "interview"
+-- added or every such save under Bible Study would fail with a truncation
+-- error.
+-- =========================================================
+
+ALTER TABLE bible_studies
+  MODIFY COLUMN format ENUM('short_film','video','sermon','panel','audio','animated','documentary','pdf_notes','podcast','interview') NOT NULL DEFAULT 'video';
