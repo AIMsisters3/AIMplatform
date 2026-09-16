@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
+import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
 
 export default function News() {
   const [items, setItems] = useState([]);
@@ -54,7 +55,7 @@ export default function News() {
       </div>
 
       {loading ? (
-        <p className="text-ink/50">Loading news...</p>
+        <CardGridSkeleton />
       ) : items.length === 0 ? (
         <p className="text-ink/50">No news published yet. Check back soon.</p>
       ) : (

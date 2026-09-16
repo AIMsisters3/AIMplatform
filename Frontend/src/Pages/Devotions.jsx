@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
+import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
 
 export default function Devotions() {
   const [items, setItems] = useState([]);
@@ -54,7 +55,7 @@ export default function Devotions() {
       </div>
 
       {loading ? (
-        <p className="text-ink/50">Loading devotions...</p>
+        <CardGridSkeleton />
       ) : items.length === 0 ? (
         <p className="text-ink/50">No devotions published yet. Check back soon.</p>
       ) : (

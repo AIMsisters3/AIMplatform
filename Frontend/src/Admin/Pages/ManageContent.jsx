@@ -102,7 +102,18 @@ export default function ManageContent() {
       {message && <p className="text-sm text-secondary">{message}</p>}
 
       {loading ? (
-        <p className="text-ink/50">Loading content...</p>
+        <div className="glass-card overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 border-b border-ink/5 animate-pulse">
+              <div className="w-4 h-4 rounded bg-ink/10 shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 w-1/3 bg-ink/10 rounded-full" />
+                <div className="h-2.5 w-1/5 bg-ink/10 rounded-full" />
+              </div>
+              <div className="h-6 w-16 bg-ink/10 rounded-full shrink-0" />
+            </div>
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <div className="glass-card p-10 text-center text-ink/50">No content matches your filters yet.</div>
       ) : view === 'table' ? (

@@ -40,7 +40,11 @@ export default function Gallery() {
       </div>
 
       {loading ? (
-        <p className="text-ink/50">Loading gallery...</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="aspect-square rounded-xl2 bg-brand-gradient-soft animate-pulse" />
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (

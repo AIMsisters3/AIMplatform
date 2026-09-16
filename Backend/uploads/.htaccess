@@ -17,3 +17,24 @@
     </FilesMatch>
 </IfModule>
 Options -ExecCGI -Indexes
+
+# Uploaded media/thumbnails never change in place — UploadController always
+# writes a fresh, server-generated filename rather than overwriting an
+# existing one — so a long, immutable cache lifetime is safe here and cuts
+# repeat-visit bandwidth/load time considerably for image/video-heavy pages.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType video/mp4 "access plus 1 year"
+    ExpiresByType video/webm "access plus 1 year"
+    ExpiresByType audio/mpeg "access plus 1 year"
+    ExpiresByType audio/wav "access plus 1 year"
+    ExpiresByType audio/ogg "access plus 1 year"
+    ExpiresByType application/pdf "access plus 1 year"
+</IfModule>
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</IfModule>
