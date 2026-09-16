@@ -66,6 +66,9 @@ class Content
         if (!empty($filters['is_featured'])) {
             $where[] = 'c.is_featured = 1';
         }
+        if (!empty($filters['is_live'])) {
+            $where[] = 'c.is_live = 1';
+        }
 
         $sql = 'SELECT c.*, cat.name AS category_name,
                     (SELECT COUNT(*) FROM comments cm WHERE cm.content_id = c.id AND cm.status = \'approved\') AS comments_count
@@ -107,11 +110,11 @@ class Content
         $sql = 'INSERT INTO content
                 (title, slug, description, body, transcript, content_type, section, media_type, category_id, author_id, speaker,
                  bible_references, tags, language, thumbnail, media_url, visibility, status,
-                 is_featured, allow_comments, seo_keywords, publish_date)
+                 is_featured, is_live, allow_comments, seo_keywords, publish_date)
                 VALUES
                 (:title, :slug, :description, :body, :transcript, :content_type, :section, :media_type, :category_id, :author_id, :speaker,
                  :bible_references, :tags, :language, :thumbnail, :media_url, :visibility, :status,
-                 :is_featured, :allow_comments, :seo_keywords, :publish_date)';
+                 :is_featured, :is_live, :allow_comments, :seo_keywords, :publish_date)';
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -137,6 +140,7 @@ class Content
             'visibility'       => $data['visibility'] ?? 'public',
             'status'           => $data['status'] ?? 'draft',
             'is_featured'      => !empty($data['is_featured']) ? 1 : 0,
+            'is_live'          => !empty($data['is_live']) ? 1 : 0,
             'allow_comments'   => array_key_exists('allow_comments', $data) ? (int) (bool) $data['allow_comments'] : 1,
             'seo_keywords'     => $data['seo_keywords'] ?? null,
             'publish_date'     => $data['publish_date'] ?? null,
@@ -153,7 +157,7 @@ class Content
         $allowed = [
             'title', 'slug', 'description', 'body', 'transcript', 'content_type', 'section', 'media_type', 'category_id', 'speaker',
             'bible_references', 'tags', 'language', 'thumbnail', 'media_url', 'visibility',
-            'status', 'is_featured', 'allow_comments', 'seo_keywords', 'publish_date',
+            'status', 'is_featured', 'is_live', 'allow_comments', 'seo_keywords', 'publish_date',
         ];
 
         foreach ($allowed as $field) {

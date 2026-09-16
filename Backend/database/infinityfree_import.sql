@@ -976,3 +976,24 @@ ALTER TABLE bible_studies
 
 ALTER TABLE bible_studies
   MODIFY COLUMN format ENUM('short_film','video','sermon','panel','audio','animated','documentary','pdf_notes','podcast','interview') NOT NULL DEFAULT 'video';
+
+-- ---- from database/migrations/014_kids_live_notifications.sql ----
+-- =========================================================
+-- Migration 014: Kids section, Live content flag, notification links
+--
+-- WHAT THIS DOES
+-- Kids becomes a first-class `section` value alongside media_library/
+-- news/gallery/bible_study/devotions - it reuses the exact same `content`
+-- table (title/slug/thumbnail/media_url/category/language/status all
+-- keep working unchanged). is_live marks a content row (Content/Media
+-- Library OR Bible Study) as a live stream - the stream URL itself
+-- reuses the existing media_url column. notifications.link_url lets an
+-- in-app notification deep-link straight to the content it's about.
+-- =========================================================
+
+ALTER TABLE content
+  MODIFY COLUMN section ENUM('media_library','news','gallery','bible_study','devotions','kids') NOT NULL DEFAULT 'media_library',
+  ADD COLUMN is_live TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured;
+
+ALTER TABLE notifications
+  ADD COLUMN link_url VARCHAR(255) NULL AFTER type;

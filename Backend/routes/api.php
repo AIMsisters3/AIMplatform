@@ -267,6 +267,15 @@ function route(string $method, string $path)
         json_error('Language route not found.', 404);
     }
 
+    // ---------- KIDS (alias into ContentController, filtered by section) ----------
+    // Its own dedicated, safe area (spec: "not just another category") -
+    // reuses the generic content model/table exactly like every other
+    // section rather than a parallel Kids-specific backend.
+    if ($resource === 'kids' && $method === 'GET') {
+        $_GET['section'] = 'kids';
+        return (new ContentController())->index();
+    }
+
      // ---------- Convenience aliases matching the spec ----------
     // GET /api/news, /api/devotions -> content filtered by type
     // (bible-studies has its own dedicated controller/routes above)

@@ -41,6 +41,9 @@ class ContentController
             'short_film', 'video', 'sermon', 'panel', 'audio', 'animated',
             'documentary', 'pdf_notes', 'podcast', 'interview',
         ],
+        // Kids is its own dedicated, safe section (migration 014) - not just
+        // another category - with its own age-appropriate vocabulary.
+        'kids' => ['bible_lesson', 'bible_story', 'cartoon', 'song', 'activity', 'other'],
     ];
 
     /**
@@ -50,7 +53,7 @@ class ContentController
      * audio, gallery, ...) and gets an optional Transcript/Notes field
      * instead.
      */
-    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
 
     /**
      * content_type keeps its original 6-value ENUM and is still what
@@ -128,6 +131,7 @@ class ContentController
             'language'     => $_GET['language'] ?? null,
             'search'       => $_GET['search'] ?? null,
             'is_featured'  => $_GET['featured'] ?? null,
+            'is_live'      => $_GET['live'] ?? null,
         ];
 
         // "status" (including the special "all" value used by the admin's Manage
