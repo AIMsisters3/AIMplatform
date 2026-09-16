@@ -25,8 +25,23 @@ class Content
             $params['section'] = $filters['section'];
         }
         if (!empty($filters['media_type'])) {
-            $where[] = 'c.media_type = :media_type';
-            $params['media_type'] = $filters['media_type'];
+            // Accepts either a single value or a comma-separated list, so the
+            // frontend can offer grouped filters (e.g. "Animations & Cartoons"
+            // = animation,cartoon) without the backend needing to know about
+            // the grouping itself.
+            $types = array_values(array_filter(array_map('trim', explode(',', $filters['media_type']))));
+            if (count($types) === 1) {
+                $where[] = 'c.media_type = :media_type';
+                $params['media_type'] = $types[0];
+            } elseif (count($types) > 1) {
+                $placeholders = [];
+                foreach ($types as $i => $type) {
+                    $key = "media_type_$i";
+                    $placeholders[] = ':' . $key;
+                    $params[$key] = $type;
+                }
+                $where[] = 'c.media_type IN (' . implode(', ', $placeholders) . ')';
+            }
         }
         if (!empty($filters['category_id'])) {
             $where[] = 'c.category_id = :category_id';
