@@ -1,5 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Film, Video, Mic, Users, Headphones, Podcast, MessageSquare,
+  Wand2, Camera, FileType, ArrowRight, BookOpen,
+} from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -18,6 +22,46 @@ const FORMATS = [
   { value: 'pdf_notes', label: 'PDF / Notes' },
 ];
 
+// Order + icon for the "browse by format" groups shown when nothing is
+// filtered yet — gives the admin's flat, one-list-of-everything data a
+// structure a visitor can actually scan, instead of dumping every format
+// into one undifferentiated grid.
+const FORMAT_GROUPS = [
+  { value: 'sermon', label: 'Sermons', icon: Mic },
+  { value: 'panel', label: 'Panel Discussions', icon: Users },
+  { value: 'podcast', label: 'Podcasts', icon: Podcast },
+  { value: 'interview', label: 'Interviews', icon: MessageSquare },
+  { value: 'video', label: 'Videos', icon: Video },
+  { value: 'audio', label: 'Audio', icon: Headphones },
+  { value: 'documentary', label: 'Documentaries', icon: Camera },
+  { value: 'short_film', label: 'Short Films', icon: Film },
+  { value: 'animated', label: 'Animated', icon: Wand2 },
+  { value: 'pdf_notes', label: 'PDF & Notes', icon: FileType },
+];
+
+function RowCard({ item }) {
+  return (
+    <Link
+      to={`/bible-studies/${item.slug}`}
+      className="shrink-0 w-56 glass-card overflow-hidden group hover:-translate-y-1 transition-transform"
+    >
+      <div className="h-32 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
+        {item.thumbnail ? (
+          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-2xl brand-gradient-text font-display font-bold">AIM</span>
+        )}
+      </div>
+      <div className="p-3">
+        <p className="text-sm font-semibold text-ink leading-snug line-clamp-2 group-hover:text-secondary transition-colors">
+          {item.title}
+        </p>
+        {item.speaker && <p className="text-xs text-ink/45 mt-1">{item.speaker}</p>}
+      </div>
+    </Link>
+  );
+}
+
 export default function BibleStudies() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -29,6 +73,8 @@ export default function BibleStudies() {
   const [language, setLanguage] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const isFiltering = Boolean(format || categoryId || language || search);
 
   useEffect(() => {
     api.get('/categories', { params: { type: 'content' } })
@@ -47,18 +93,28 @@ export default function BibleStudies() {
         category_id: categoryId || undefined,
         language: language || undefined,
         search: search || undefined,
-        limit: 24,
+        // When browsing unfiltered, pull enough to populate every format
+        // group below; once the admin narrows down, a normal page of
+        // results is enough.
+        limit: isFiltering ? 24 : 100,
       },
     })
       .then((r) => setItems(r.data.data.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [format, categoryId, language, search]);
+  }, [format, categoryId, language, search, isFiltering]);
 
   useEffect(() => {
     if (!user) { setContinuing([]); return; }
     api.get('/bible-studies/continue').then((r) => setContinuing(r.data.data.items)).catch(() => setContinuing([]));
   }, [user]);
+
+  const groups = useMemo(() => {
+    if (isFiltering) return [];
+    return FORMAT_GROUPS
+      .map((g) => ({ ...g, items: items.filter((i) => i.format === g.value) }))
+      .filter((g) => g.items.length > 0);
+  }, [items, isFiltering]);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-14">
@@ -117,13 +173,42 @@ export default function BibleStudies() {
       {loading ? (
         <p className="text-ink/50">Loading studies...</p>
       ) : items.length === 0 ? (
-        <p className="text-ink/50">No Bible studies published yet. Check back soon.</p>
-      ) : (
+        <div className="glass-card p-10 text-center">
+          <BookOpen className="w-8 h-8 text-ink/25 mx-auto mb-3" />
+          <p className="text-ink/50">No Bible studies published yet. Check back soon.</p>
+        </div>
+      ) : isFiltering ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {items.map((item) => (
             <Link key={item.id} to={`/bible-studies/${item.slug}`}>
               <ContentCard item={item} />
             </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-10">
+          {groups.map((g) => (
+            <div key={g.value}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-semibold text-lg flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center">
+                    <g.icon className="w-4 h-4 text-secondary" />
+                  </span>
+                  {g.label}
+                </h2>
+                {g.items.length > 4 && (
+                  <button
+                    onClick={() => setFormat(g.value)}
+                    className="text-xs font-semibold text-secondary flex items-center gap-1 hover:gap-1.5 transition-all"
+                  >
+                    See all <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-4 overflow-x-auto scrollbar-none pb-2">
+                {g.items.slice(0, 8).map((item) => <RowCard key={item.id} item={item} />)}
+              </div>
+            </div>
           ))}
         </div>
       )}
