@@ -20,7 +20,7 @@ export default function ProductCard({ product }) {
     <article className="glass-card overflow-hidden group cursor-pointer hover:-translate-y-1 transition-transform">
       <div className="h-48 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
         {product.thumbnail ? (
-          <img src={product.thumbnail} alt={product.name} className="w-full h-full object-cover" />
+          <img src={product.thumbnail} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           <span className="text-3xl brand-gradient-text font-display font-bold">📖</span>
         )}

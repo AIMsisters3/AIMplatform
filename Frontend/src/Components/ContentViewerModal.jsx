@@ -79,7 +79,7 @@ export default function ContentViewerModal({ item, onClose }) {
 
           {kind === 'article' && !item.media_url && item.thumbnail && (
             <div className="h-56 w-full overflow-hidden">
-              <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+              <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             </div>
           )}
 

@@ -113,7 +113,7 @@ function FeaturedCard({ item, onClick }) {
     >
       <div className="relative h-36 bg-brand-gradient-soft overflow-hidden">
         {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-3xl brand-gradient-text font-display font-bold">AIM</span>
@@ -150,7 +150,7 @@ function PopularItem({ item, rank, onClick }) {
       </div>
       <div className="h-44 rounded-xl2 overflow-hidden bg-brand-gradient-soft shadow-glass">
         {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-xl brand-gradient-text font-display font-bold">AIM</span>
@@ -187,7 +187,7 @@ function SeriesStrip({ series }) {
           >
             <div className="relative h-32 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
               {s.cover_image ? (
-                <img src={s.cover_image} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <img src={s.cover_image} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               ) : (
                 <Layers className="w-8 h-8 text-secondary" />
               )}

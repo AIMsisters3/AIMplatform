@@ -62,7 +62,7 @@ export default function Series() {
             <Link key={s.id} to={`/series/${s.slug}`} className="glass-card overflow-hidden group hover:-translate-y-1 transition-transform">
               <div className="relative h-44 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
                 {s.cover_image ? (
-                  <img src={s.cover_image} alt={s.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <img src={s.cover_image} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 ) : (
                   <Layers className="w-10 h-10 text-secondary" />
                 )}

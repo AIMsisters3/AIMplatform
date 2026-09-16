@@ -19,7 +19,7 @@ export default function ContentCard({ item, onClick }) {
     >
       <div className="relative h-44 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
         {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           <span className="text-4xl brand-gradient-text font-display font-bold">AIM</span>
         )}

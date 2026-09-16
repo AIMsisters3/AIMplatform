@@ -32,7 +32,7 @@ export default function Cart() {
               <div key={item.product_id} className="glass-card p-4 flex items-center gap-4">
                 <div className="w-20 h-20 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center overflow-hidden shrink-0">
                   {item.thumbnail ? (
-                    <img src={item.thumbnail} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.thumbnail} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-2xl">📖</span>
                   )}

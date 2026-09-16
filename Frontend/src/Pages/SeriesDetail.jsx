@@ -117,7 +117,7 @@ export default function SeriesDetail() {
                 </span>
                 <div className="relative w-28 h-20 sm:w-32 sm:h-20 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center overflow-hidden shrink-0">
                   {ep.thumbnail ? (
-                    <img src={ep.thumbnail} alt={ep.title} className="w-full h-full object-cover" />
+                    <img src={ep.thumbnail} alt={ep.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <PlayCircle className="w-6 h-6 text-secondary" />
                   )}
