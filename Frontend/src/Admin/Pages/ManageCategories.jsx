@@ -8,6 +8,7 @@ export default function ManageCategories() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [parentId, setParentId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -20,6 +21,10 @@ export default function ManageCategories() {
   }, [type]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setParentId(''); }, [type]);
+
+  const topLevel = categories.filter((c) => !c.parent_id);
+  const childrenOf = (id) => categories.filter((c) => String(c.parent_id) === String(id));
 
   async function addCategory(e) {
     e.preventDefault();
@@ -27,9 +32,10 @@ export default function ManageCategories() {
     setSubmitting(true);
     setMessage('');
     try {
-      await api.post('/categories', { name: name.trim(), type, description: description.trim() || null });
+      await api.post('/categories', { name: name.trim(), type, description: description.trim() || null, parent_id: parentId || null });
       setName('');
       setDescription('');
+      setParentId('');
       load();
     } catch (err) {
       setMessage(err.response?.data?.message || 'Could not create category.');
@@ -92,6 +98,16 @@ export default function ManageCategories() {
             placeholder="Short tagline (optional)"
             className="flex-1 px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white"
           />
+          {type === 'product' && (
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white shrink-0"
+            >
+              <option value="">Top-level category</option>
+              {topLevel.map((c) => <option key={c.id} value={c.id}>Subcategory of {c.name}</option>)}
+            </select>
+          )}
           <button
             type="submit"
             disabled={submitting || !name.trim()}
@@ -111,20 +127,37 @@ export default function ManageCategories() {
           <p className="text-sm text-ink/60">No categories yet — add one above.</p>
         ) : (
           <ul className="divide-y divide-ink/5">
-            {categories.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">{c.name}</p>
-                  {c.description && <p className="text-xs text-ink/40">{c.description}</p>}
-                </div>
-                <button
-                  onClick={() => removeCategory(c)}
-                  className="text-ink/40 hover:text-red-500 transition shrink-0"
-                  aria-label={`Delete ${c.name}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </li>
+            {topLevel.map((c) => (
+              <React.Fragment key={c.id}>
+                <li className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">{c.name}</p>
+                    {c.description && <p className="text-xs text-ink/40">{c.description}</p>}
+                  </div>
+                  <button
+                    onClick={() => removeCategory(c)}
+                    className="text-ink/40 hover:text-red-500 transition shrink-0"
+                    aria-label={`Delete ${c.name}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </li>
+                {childrenOf(c.id).map((sub) => (
+                  <li key={sub.id} className="flex items-center justify-between gap-4 py-3 pl-6 border-l-2 border-ink/5 ml-2">
+                    <div>
+                      <p className="text-sm text-ink/80">{sub.name}</p>
+                      {sub.description && <p className="text-xs text-ink/40">{sub.description}</p>}
+                    </div>
+                    <button
+                      onClick={() => removeCategory(sub)}
+                      className="text-ink/40 hover:text-red-500 transition shrink-0"
+                      aria-label={`Delete ${sub.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </React.Fragment>
             ))}
           </ul>
         )}
