@@ -1,63 +1,94 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Truck, MapPin, Clock, Info } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/axios.js';
 
 const METHOD_LABELS = {
-  manual: 'Pay Offline (bank transfer / cash — confirmed by our team)',
+  manual_bank: 'Bank Transfer',
+  manual_mobile_wallet: 'Mobile Wallet',
 };
 
 export default function Checkout() {
-  const { items, subtotal, hasPhysical, clear } = useCart();
+  const { items, subtotal, hasOnOrder, clear } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [methods, setMethods] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState('manual');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [payLaterDays, setPayLaterDays] = useState(7);
+  const [deliveryAreas, setDeliveryAreas] = useState([]);
+  const [fulfillmentType, setFulfillmentType] = useState('delivery');
+  const [deliveryAreaId, setDeliveryAreaId] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
-  const [placedOrder, setPlacedOrder] = useState(null);
+  const [result, setResult] = useState(null); // { orders, split }
 
   useEffect(() => {
     if (!user) {
       navigate('/login', { replace: true });
       return;
     }
-    if (items.length === 0 && !placedOrder) {
+    if (items.length === 0 && !result) {
       navigate('/cart', { replace: true });
     }
-  }, [user, items.length, placedOrder, navigate]);
+  }, [user, items.length, result, navigate]);
 
   useEffect(() => {
     api.get('/orders/payment-methods')
       .then((r) => {
         const list = r.data?.data?.methods || [];
-        setMethods(list);
-        if (list.length) setPaymentMethod(list[0]);
+        setMethods(list.filter((m) => m !== 'pay_later'));
+        if (list.length) setPaymentMethod(list.find((m) => m !== 'pay_later') || list[0]);
       })
-      .catch(() => setMethods(['manual']));
+      .catch(() => setMethods(['manual_bank']));
+    api.get('/delivery-areas').then((r) => setDeliveryAreas(r.data?.data?.items || [])).catch(() => setDeliveryAreas([]));
   }, []);
+
+  const deliveryOptions = deliveryAreas.filter((a) => !a.is_pickup);
+  const pickupOptions = deliveryAreas.filter((a) => a.is_pickup);
+  const areaOptions = fulfillmentType === 'pickup' ? pickupOptions : deliveryOptions;
+  const selectedArea = areaOptions.find((a) => String(a.id) === String(deliveryAreaId));
+  const deliveryFee = fulfillmentType === 'delivery' ? Number(selectedArea?.fee || 0) : 0;
+  const estimatedTotal = subtotal + deliveryFee;
+
+  const payLaterEligible = !hasOnOrder;
+
+  useEffect(() => {
+    setDeliveryAreaId('');
+  }, [fulfillmentType]);
 
   async function handlePlaceOrder(e) {
     e.preventDefault();
     setError('');
     if (shippingAddress.trim() === '') {
-      setError('Please provide a shipping / contact address.');
+      setError('Please provide a contact address.');
       return;
     }
+    if (fulfillmentType === 'delivery' && !deliveryAreaId) {
+      setError('Please choose your delivery area.');
+      return;
+    }
+    if (fulfillmentType === 'pickup' && pickupOptions.length > 0 && !deliveryAreaId) {
+      setError('Please choose a pickup location.');
+      return;
+    }
+
     setPlacing(true);
     try {
       const { data } = await api.post('/orders', {
-        items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
+        items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id || undefined, quantity: i.quantity })),
+        fulfillment_type: fulfillmentType,
+        delivery_area_id: deliveryAreaId || undefined,
         shipping_address: shippingAddress,
         coupon_code: couponCode || undefined,
-        payment_method: paymentMethod,
+        payment_method: paymentMethod === 'pay_later' ? 'pay_later' : paymentMethod,
+        pay_later_days: paymentMethod === 'pay_later' ? payLaterDays : undefined,
       });
-      setPlacedOrder(data.data.item);
+      setResult(data.data);
       clear();
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong placing your order.');
@@ -66,15 +97,34 @@ export default function Checkout() {
     }
   }
 
-  if (placedOrder) {
+  if (result) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-24 text-center">
         <CheckCircle2 className="w-16 h-16 mx-auto text-emerald-500 mb-4" />
         <h1 className="text-3xl font-display font-bold mb-2">Thank you!</h1>
-        <p className="text-ink/60 mb-1">Your order has been received.</p>
         <p className="text-ink/60 mb-8">
-          Order number: <span className="font-semibold text-ink">{placedOrder.order_number}</span> · Total: <span className="font-semibold text-ink">${Number(placedOrder.grand_total).toFixed(2)}</span>
+          {result.split
+            ? 'Your cart included both in-stock and on-order items, so it was placed as two separate orders:'
+            : 'Your order has been received.'}
         </p>
+        <div className="space-y-4 mb-8 text-left">
+          {result.orders.map((o) => (
+            <div key={o.id} className="glass-card p-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold">{o.order_number}</span>
+                <span className="font-bold">N$ {Number(o.grand_total).toFixed(2)}</span>
+              </div>
+              <p className="text-xs text-ink/50 uppercase tracking-wide font-semibold mb-1">
+                {o.order_kind === 'pay_later' ? 'Pay Later — Awaiting Approval' : o.order_kind === 'on_order' ? 'On Order — Awaiting Deposit Details' : 'Standard Order'}
+              </p>
+              <p className="text-sm text-ink/60">
+                {o.order_kind === 'pay_later' && "We'll notify you once your Pay Later request is approved, with your exact payment deadline."}
+                {o.order_kind === 'on_order' && "Our team will confirm a deposit amount and deadline shortly — we'll notify you."}
+                {o.order_kind === 'standard' && 'Payment instructions will be sent to your account shortly.'}
+              </p>
+            </div>
+          ))}
+        </div>
         <div className="flex gap-3 justify-center">
           <Link to="/orders" className="px-6 py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
             View My Orders
@@ -91,16 +141,55 @@ export default function Checkout() {
     <div className="max-w-4xl mx-auto px-6 py-14">
       <h1 className="text-3xl font-bold mb-8">Checkout</h1>
 
+      {hasOnOrder && (
+        <p className="flex items-start gap-2 text-sm text-ink/60 mb-6 bg-brand-gradient-soft rounded-2xl px-4 py-3">
+          <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+          Your cart has both in-stock and on-order items — placing this order will create two separate orders, each with its own tracking.
+        </p>
+      )}
+
       <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="glass-card p-6">
-            <h3 className="font-display font-semibold mb-4">Shipping / Contact Address</h3>
+            <h3 className="font-display font-semibold mb-4">Delivery or Pickup</h3>
+            <div className="inline-flex rounded-xl2 border border-ink/10 p-1 bg-surface/60 mb-4">
+              {[{ value: 'delivery', label: 'Delivery', icon: Truck }, { value: 'pickup', label: 'Pickup', icon: MapPin }].map((f) => (
+                <button
+                  key={f.value} type="button" onClick={() => setFulfillmentType(f.value)}
+                  className={`px-4 py-1.5 rounded-xl2 text-xs font-semibold flex items-center gap-1.5 transition ${
+                    fulfillmentType === f.value ? 'bg-brand-gradient text-white shadow-glass' : 'text-ink/60'
+                  }`}
+                >
+                  <f.icon className="w-3.5 h-3.5" /> {f.label}
+                </button>
+              ))}
+            </div>
+
+            {areaOptions.length > 0 ? (
+              <select
+                value={deliveryAreaId}
+                onChange={(e) => setDeliveryAreaId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+              >
+                <option value="">{fulfillmentType === 'pickup' ? 'Choose a pickup location...' : 'Choose your delivery area...'}</option>
+                {areaOptions.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}{a.is_pickup ? '' : ` — N$ ${Number(a.fee).toFixed(2)}`}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-ink/50">No {fulfillmentType} options are configured yet — please contact us to arrange {fulfillmentType}.</p>
+            )}
+            {selectedArea?.instructions && <p className="text-xs text-ink/45 mt-2">{selectedArea.instructions}</p>}
+          </div>
+
+          <div className="glass-card p-6">
+            <h3 className="font-display font-semibold mb-4">Contact / Address</h3>
             <textarea
               rows={4}
               required
               value={shippingAddress}
               onChange={(e) => setShippingAddress(e.target.value)}
-              placeholder={hasPhysical ? 'Full name, street address, city, region, postal code, country' : 'Your name and contact email (for digital delivery)'}
+              placeholder={fulfillmentType === 'delivery' ? 'Full name, street address, city, phone number' : 'Full name and phone number'}
               className="w-full px-4 py-3 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
             />
           </div>
@@ -120,17 +209,29 @@ export default function Checkout() {
             <div className="space-y-2">
               {methods.map((m) => (
                 <label key={m} className="flex items-center gap-3 px-4 py-3 rounded-xl2 border border-ink/10 cursor-pointer has-[:checked]:border-secondary has-[:checked]:bg-secondary/5">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value={m}
-                    checked={paymentMethod === m}
-                    onChange={() => setPaymentMethod(m)}
-                  />
+                  <input type="radio" name="payment_method" value={m} checked={paymentMethod === m} onChange={() => setPaymentMethod(m)} />
                   <span className="text-sm">{METHOD_LABELS[m] || m}</span>
                 </label>
               ))}
+              {payLaterEligible && (
+                <label className="flex items-center gap-3 px-4 py-3 rounded-xl2 border border-ink/10 cursor-pointer has-[:checked]:border-secondary has-[:checked]:bg-secondary/5">
+                  <input type="radio" name="payment_method" value="pay_later" checked={paymentMethod === 'pay_later'} onChange={() => setPaymentMethod('pay_later')} />
+                  <span className="text-sm flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-secondary" /> Pay Later (in-stock items only)</span>
+                </label>
+              )}
             </div>
+
+            {paymentMethod === 'pay_later' && (
+              <div className="mt-4 p-4 rounded-xl2 bg-surface/60">
+                <label className="block text-xs font-semibold text-ink/50 mb-2">Pay within how many days? (1–14)</label>
+                <input
+                  type="number" min="1" max="14" value={payLaterDays}
+                  onChange={(e) => setPayLaterDays(Math.max(1, Math.min(14, Number(e.target.value) || 1)))}
+                  className="w-24 px-3 py-2 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+                />
+                <p className="text-xs text-ink/45 mt-2">Subject to admin approval. Stock is not reserved until your request is approved.</p>
+              </div>
+            )}
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
@@ -139,23 +240,33 @@ export default function Checkout() {
         <div className="glass-card p-6 h-fit sticky top-24">
           <h3 className="font-display font-semibold text-lg mb-4">Order Summary</h3>
           <div className="space-y-2 mb-4 max-h-56 overflow-y-auto scrollbar-none">
-            {items.map((i) => (
-              <div key={i.product_id} className="flex justify-between text-sm text-ink/70">
-                <span className="truncate pr-2">{i.name} × {i.quantity}</span>
-                <span className="shrink-0">${((i.sale_price !== null && i.sale_price < i.price ? i.sale_price : i.price) * i.quantity).toFixed(2)}</span>
-              </div>
-            ))}
+            {items.map((i) => {
+              const unit = i.variant_price_override ?? (i.sale_price !== null && i.sale_price < i.price ? i.sale_price : i.price);
+              return (
+                <div key={`${i.product_id}::${i.variant_id || 'base'}`} className="flex justify-between text-sm text-ink/70">
+                  <span className="truncate pr-2">{i.name} × {i.quantity}</span>
+                  <span className="shrink-0">N$ {(unit * i.quantity).toFixed(2)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-sm text-ink/70 mb-1">
+            <span>Subtotal</span>
+            <span>N$ {subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-ink/70 mb-4">
+            <span>Delivery</span>
+            <span>{fulfillmentType === 'pickup' ? 'Free (pickup)' : selectedArea ? `N$ ${deliveryFee.toFixed(2)}` : '—'}</span>
           </div>
           <div className="border-t border-ink/10 pt-4 flex justify-between font-bold mb-6">
-            <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>Estimated Total</span>
+            <span>N$ {estimatedTotal.toFixed(2)}</span>
           </div>
-          <p className="text-xs text-ink/40 mb-4">Final total (with shipping/discount) is confirmed on the order you receive.</p>
           <button
             disabled={placing}
             className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
           >
-            {placing ? 'Placing order...' : 'Place Order'}
+            {placing ? 'Placing order...' : paymentMethod === 'pay_later' ? 'Submit Pay Later Request' : 'Place Order'}
           </button>
         </div>
       </form>

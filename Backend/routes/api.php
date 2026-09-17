@@ -25,6 +25,7 @@ require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../controllers/LanguageController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
+require_once __DIR__ . '/../controllers/CronController.php';
 require_once __DIR__ . '/../controllers/WishlistController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -175,6 +176,11 @@ function route(string $method, string $path)
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
+        if ($id !== null && $action === 'cancel' && $method === 'POST') return $ctrl->cancel((int) $id);
+        if ($id !== null && $action === 'pay-later' && $subId === 'approve' && $method === 'POST') return $ctrl->approvePayLater((int) $id);
+        if ($id !== null && $action === 'pay-later' && $subId === 'decline' && $method === 'POST') return $ctrl->declinePayLater((int) $id);
+        if ($id !== null && $action === 'deposit' && $method === 'POST') return $ctrl->setDeposit((int) $id);
+        if ($id !== null && $action === 'item-procurement' && $subId !== null && $method === 'POST') return $ctrl->updateItemProcurement((int) $id, (int) $subId);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show((int) $id);
 
         json_error('Order route not found.', 404);
@@ -287,6 +293,12 @@ function route(string $method, string $path)
         if ($id !== null && $method === 'POST') return $ctrl->toggle((int) $id);
 
         json_error('Wishlist route not found.', 404);
+    }
+
+    // ---------- CRON (shared-secret auth, not a user session — see CronController) ----------
+    if ($resource === 'cron') {
+        if ($id === 'run-due-tasks' && $method === 'POST') return (new CronController())->runDueTasks();
+        json_error('Cron route not found.', 404);
     }
 
     // ---------- DELIVERY AREAS ----------

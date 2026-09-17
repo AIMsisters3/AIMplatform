@@ -21,8 +21,8 @@ class DashboardController
                 (SELECT COUNT(*) FROM orders) AS orders,
                 (SELECT COUNT(*) FROM content WHERE status = 'draft' AND deleted_at IS NULL) AS drafts,
                 (SELECT COUNT(*) FROM comments WHERE status = 'pending') AS pending_comments,
-                (SELECT COUNT(*) FROM orders WHERE status IN ('pending','paid','processing')) AS orders_awaiting_fulfillment,
-                (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_type = 'physical' AND status != 'archived' AND stock_quantity <= 5) AS low_stock_products"
+                (SELECT COUNT(*) FROM orders WHERE status IN ('awaiting_approval','awaiting_payment','processing','supplier_ordered')) AS orders_awaiting_fulfillment,
+                (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_type = 'physical' AND sourcing_type = 'in_stock' AND status != 'archived' AND stock_quantity <= 5) AS low_stock_products"
         )->fetch();
 
         // Separate, best-effort query: content_views (migration 011) may not

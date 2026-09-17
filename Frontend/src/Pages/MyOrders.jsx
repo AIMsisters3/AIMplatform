@@ -1,16 +1,36 @@
 import React, { useEffect, useState } from 'react';
-import { Package } from 'lucide-react';
+import { Package, Clock, Truck, Link2 } from 'lucide-react';
 import api from '../api/axios.js';
 
 const STATUS_BADGE = {
-  pending: 'bg-amber-100 text-amber-700',
-  paid: 'bg-sky-100 text-sky-700',
+  awaiting_approval: 'bg-amber-100 text-amber-700',
+  awaiting_payment: 'bg-amber-100 text-amber-700',
   processing: 'bg-sky-100 text-sky-700',
+  supplier_ordered: 'bg-sky-100 text-sky-700',
+  arrived: 'bg-violet-100 text-violet-700',
+  ready_for_pickup: 'bg-violet-100 text-violet-700',
   shipped: 'bg-secondary/10 text-secondary',
-  completed: 'bg-emerald-100 text-emerald-700',
+  delivered: 'bg-emerald-100 text-emerald-700',
   cancelled: 'bg-red-100 text-red-600',
-  refunded: 'bg-ink/10 text-ink/50',
 };
+
+const PAYMENT_BADGE = {
+  pending: 'bg-ink/10 text-ink/50',
+  awaiting_verification: 'bg-amber-100 text-amber-700',
+  partially_paid: 'bg-sky-100 text-sky-700',
+  paid: 'bg-emerald-100 text-emerald-700',
+  failed: 'bg-red-100 text-red-600',
+  expired: 'bg-red-100 text-red-600',
+  cancelled: 'bg-ink/10 text-ink/50',
+  refunded: 'bg-ink/10 text-ink/50',
+  partially_refunded: 'bg-ink/10 text-ink/50',
+};
+
+const KIND_LABEL = { pay_later: 'Pay Later', on_order: 'On Order', standard: null };
+
+function label(s) {
+  return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function MyOrders() {
   const [orders, setOrders] = useState([]);
@@ -51,44 +71,103 @@ export default function MyOrders() {
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((o) => (
-            <div key={o.id} className="glass-card p-5">
-              <button
-                onClick={() => toggleExpand(o.id)}
-                className="w-full flex items-center justify-between gap-4 text-left"
-              >
-                <div>
-                  <p className="font-semibold">{o.order_number}</p>
-                  <p className="text-xs text-ink/50">{new Date(o.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_BADGE[o.status] || 'bg-ink/10'}`}>
-                    {o.status}
-                  </span>
-                  <span className="font-bold">${Number(o.grand_total).toFixed(2)}</span>
-                </div>
-              </button>
+          {orders.map((o) => {
+            const d = details[o.id];
+            const balanceDue = Number(o.grand_total) - Number(o.amount_paid || 0);
+            return (
+              <div key={o.id} className="glass-card p-5">
+                <button
+                  onClick={() => toggleExpand(o.id)}
+                  className="w-full flex flex-wrap items-center justify-between gap-3 text-left"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-semibold">{o.order_number}</p>
+                      {KIND_LABEL[o.order_kind] && (
+                        <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" /> {KIND_LABEL[o.order_kind]}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-ink/50">{new Date(o.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE[o.status] || 'bg-ink/10'}`}>{label(o.status)}</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${PAYMENT_BADGE[o.payment_state] || 'bg-ink/10'}`}>{label(o.payment_state)}</span>
+                    <span className="font-bold">N$ {Number(o.grand_total).toFixed(2)}</span>
+                  </div>
+                </button>
 
-              {expanded === o.id && (
-                <div className="mt-4 pt-4 border-t border-ink/10 space-y-3 text-sm">
-                  {details[o.id] ? (
-                    details[o.id].items.map((li) => (
-                      <div key={li.id} className="flex justify-between text-ink/70">
-                        <span>{li.product_name} × {li.quantity}</span>
-                        <span>${(li.unit_price * li.quantity).toFixed(2)}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-ink/40">Loading items...</p>
-                  )}
-                  {o.tracking_number && (
-                    <p className="text-ink/60">Tracking number: <span className="font-semibold">{o.tracking_number}</span></p>
-                  )}
-                  <p className="text-ink/50">Shipping to: {o.shipping_address}</p>
-                </div>
-              )}
-            </div>
-          ))}
+                {expanded === o.id && (
+                  <div className="mt-4 pt-4 border-t border-ink/10 space-y-3 text-sm">
+                    {d ? (
+                      <>
+                        {d.items.map((li) => (
+                          <div key={li.id} className="flex justify-between text-ink/70">
+                            <span>
+                              {li.product_name} × {li.quantity}
+                              {li.variant_attributes_snapshot && (
+                                <span className="text-ink/40"> ({Object.values(li.variant_attributes_snapshot).join(', ')})</span>
+                              )}
+                              {li.sourcing_type_snapshot === 'on_order' && li.procurement_status && (
+                                <span className="ml-2 text-[10px] font-bold text-sky-600 uppercase">{label(li.procurement_status)}</span>
+                              )}
+                            </span>
+                            <span>N$ {(li.unit_price * li.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+
+                        {o.order_kind === 'pay_later' && d.pay_later && (
+                          <div className="bg-surface/60 rounded-xl2 px-4 py-3">
+                            {d.pay_later.approved_at ? (
+                              <p className="text-ink/70">Payment due by <span className="font-semibold">{new Date(d.pay_later.due_at).toLocaleString()}</span></p>
+                            ) : d.pay_later.declined_at ? (
+                              <p className="text-red-600">Request declined{d.pay_later.decline_reason ? `: ${d.pay_later.decline_reason}` : '.'}</p>
+                            ) : (
+                              <p className="text-ink/70">Your Pay Later request is awaiting approval.</p>
+                            )}
+                          </div>
+                        )}
+
+                        {o.order_kind === 'on_order' && (
+                          <div className="bg-surface/60 rounded-xl2 px-4 py-3 space-y-1">
+                            {o.deposit_amount ? (
+                              <>
+                                <p className="text-ink/70">Deposit ({o.deposit_percent}%): <span className="font-semibold">N$ {Number(o.deposit_amount).toFixed(2)}</span></p>
+                                {o.deposit_deadline_at && <p className="text-ink/70">Due by <span className="font-semibold">{new Date(o.deposit_deadline_at).toLocaleString()}</span></p>}
+                              </>
+                            ) : (
+                              <p className="text-ink/70">We're finalizing your deposit amount and supplier timeline — you'll be notified shortly.</p>
+                            )}
+                          </div>
+                        )}
+
+                        {balanceDue > 0 && (
+                          <p className="text-ink/70">Balance due: <span className="font-semibold">N$ {balanceDue.toFixed(2)}</span></p>
+                        )}
+
+                        {d.sibling_orders?.length > 0 && (
+                          <p className="flex items-center gap-1.5 text-ink/50 text-xs">
+                            <Link2 className="w-3.5 h-3.5" /> Split from the same checkout: {d.sibling_orders.map((s) => s.order_number).join(', ')}
+                          </p>
+                        )}
+
+                        {o.tracking_number && (
+                          <p className="text-ink/60">Tracking number: <span className="font-semibold">{o.tracking_number}</span></p>
+                        )}
+                        <p className="text-ink/50 flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5" /> {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}
+                          {o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-ink/40">Loading items...</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
