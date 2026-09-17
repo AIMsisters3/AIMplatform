@@ -4,6 +4,7 @@ require_once __DIR__ . '/../models/BibleStudy.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/visitor.php';
 
 class BibleStudyController
 {
@@ -25,6 +26,7 @@ class BibleStudyController
             'category_id' => $_GET['category_id'] ?? null,
             'language'    => $_GET['language'] ?? null,
             'search'      => $_GET['search'] ?? null,
+            'is_live'     => $_GET['live'] ?? null,
         ];
 
         if (!empty($_GET['status'])) {
@@ -56,9 +58,12 @@ class BibleStudyController
         }
 
         $study = $this->model->findByContentId((int) $item['id']);
-        $contentModel->incrementViews((int) $item['id']);
 
         $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+        $contentModel->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
+
         $progress = $payload ? $this->model->getProgress((int) $payload['sub'], (int) $item['id']) : null;
 
         json_ok(['item' => $study, 'progress' => $progress]);

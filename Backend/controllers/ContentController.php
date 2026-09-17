@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/publish_notify.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/visitor.php';
 
 class ContentController
 {
@@ -19,18 +20,30 @@ class ContentController
      * DB enum.
      */
     private const SECTION_MEDIA_TYPES = [
+        // 'panel' and 'podcast' deliberately live under Bible Study only, not
+        // here - those formats belong to structured study material, not
+        // general media library content.
         'media_library' => [
-            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon', 'panel',
-            'interview', 'documentary', 'audio', 'music', 'podcast', 'pdf', 'image', 'article',
+            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon',
+            'interview', 'documentary', 'audio', 'music', 'pdf', 'image', 'article',
         ],
-        'news'        => ['news_article'],
+        // News isn't always a written article - an admin can instead post a
+        // video or a PDF under News, same as Media Library's video/pdf types.
+        'news'        => ['news_article', 'video', 'pdf'],
         'gallery'     => ['photo_gallery'],
-        'devotions'   => ['devotional'],
+        // Devotions isn't always a written article either - an admin can
+        // instead post a video or audio recording of the devotion.
+        'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004) - keep these in sync with that column.
+        // value (migration 004, extended by migration 012 for 'podcast', and
+        // migration 013 for 'interview') - keep these in sync with that column.
         'bible_study' => [
-            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated', 'documentary', 'pdf_notes',
+            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated',
+            'documentary', 'pdf_notes', 'podcast', 'interview',
         ],
+        // Kids is its own dedicated, safe section (migration 014) - not just
+        // another category - with its own age-appropriate vocabulary.
+        'kids' => ['bible_lesson', 'bible_story', 'cartoon', 'song', 'activity', 'other'],
     ];
 
     /**
@@ -40,7 +53,7 @@ class ContentController
      * audio, gallery, ...) and gets an optional Transcript/Notes field
      * instead.
      */
-    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
 
     /**
      * content_type keeps its original 6-value ENUM and is still what
@@ -104,7 +117,7 @@ class ContentController
         return $body;
     }
 
-    /** GET /api/content?type=&category_id=&search=&featured=&page=&status= */
+    /** GET /api/content?type=&category_id=&language=&search=&featured=&page=&status= */
     public function index(): void
     {
         $page  = max(1, (int) ($_GET['page'] ?? 1));
@@ -115,8 +128,10 @@ class ContentController
             'section'      => $_GET['section'] ?? null,
             'media_type'   => $_GET['media_type'] ?? null,
             'category_id'  => $_GET['category_id'] ?? null,
+            'language'     => $_GET['language'] ?? null,
             'search'       => $_GET['search'] ?? null,
             'is_featured'  => $_GET['featured'] ?? null,
+            'is_live'      => $_GET['live'] ?? null,
         ];
 
         // "status" (including the special "all" value used by the admin's Manage
@@ -149,7 +164,11 @@ class ContentController
             json_error('Content not found.', 404);
         }
 
-        $this->model->incrementViews((int) $item['id']);
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+        $this->model->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
+
         json_ok(['item' => $item]);
     }
 

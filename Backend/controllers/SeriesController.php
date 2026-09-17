@@ -1,9 +1,11 @@
 <?php
 
 require_once __DIR__ . '/../models/Series.php';
+require_once __DIR__ . '/../models/Content.php';
 require_once __DIR__ . '/../helpers/response.php';
-require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/publish_notify.php';
+require_once __DIR__ . '/../middleware/auth.php';
 
 class SeriesController
 {
@@ -95,6 +97,16 @@ class SeriesController
             isset($body['season_number']) ? (int) $body['season_number'] : 1,
             isset($body['episode_number']) ? (int) $body['episode_number'] : 1
         );
+
+        // Covers the "already published, then attached to a series" order
+        // of operations — see maybe_notify_new_episode()'s docblock. Must
+        // never break the attach itself if notifying fails.
+        try {
+            maybe_notify_new_episode(new Content(), $contentId);
+        } catch (Throwable $e) {
+            error_log('Episode notify failed for content ' . $contentId . ': ' . $e->getMessage());
+        }
+
         json_ok(null, 'Episode attached to series.');
     }
 }

@@ -11,13 +11,36 @@ class Notification
         $this->db = Database::getConnection();
     }
 
-    public function create(int $userId, string $title, ?string $message = null, string $type = 'general'): int
+    public function create(int $userId, string $title, ?string $message = null, string $type = 'general', ?string $linkUrl = null): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO notifications (user_id, title, message, type) VALUES (:user_id, :title, :message, :type)'
+            'INSERT INTO notifications (user_id, title, message, type, link_url) VALUES (:user_id, :title, :message, :type, :link_url)'
         );
-        $stmt->execute(['user_id' => $userId, 'title' => $title, 'message' => $message, 'type' => $type]);
+        $stmt->execute(['user_id' => $userId, 'title' => $title, 'message' => $message, 'type' => $type, 'link_url' => $linkUrl]);
         return (int) $this->db->lastInsertId();
+    }
+
+    /**
+     * Fans a single notification out to every active account — used for
+     * platform-wide content announcements (new devotion/Bible study/news/
+     * kids item/series episode) where there's no per-user subscription
+     * list to target, unlike the email newsletter which has its own opt-in
+     * subscriber table. Suspended accounts are skipped since they can't
+     * sign in to see it anyway.
+     */
+    public function broadcastToAllUsers(string $title, ?string $message, string $type, ?string $linkUrl = null): void
+    {
+        $userIds = $this->db->query("SELECT id FROM users WHERE status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+        if (empty($userIds)) {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO notifications (user_id, title, message, type, link_url) VALUES (:user_id, :title, :message, :type, :link_url)'
+        );
+        foreach ($userIds as $userId) {
+            $stmt->execute(['user_id' => $userId, 'title' => $title, 'message' => $message, 'type' => $type, 'link_url' => $linkUrl]);
+        }
     }
 
     public function forUser(int $userId, int $limit = 20, int $offset = 0): array

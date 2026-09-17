@@ -3,14 +3,15 @@ import { useParams, Link } from 'react-router-dom';
 import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
+import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
 import CommentsSection from '../Components/CommentsSection.jsx';
 import ShareButton from '../Components/ShareButton.jsx';
+import DownloadButton from '../Components/DownloadButton.jsx';
 import ErrorBoundary from '../Components/ErrorBoundary.jsx';
 
 const FORMAT_LABELS = {
   short_film: 'Short Film', video: 'Video', sermon: 'Sermon', panel: 'Panel Discussion',
-  audio: 'Audio', animated: 'Animated', documentary: 'Documentary', pdf_notes: 'PDF / Notes',
+  audio: 'Audio', podcast: 'Podcast', animated: 'Animated', documentary: 'Documentary', pdf_notes: 'PDF / Notes',
 };
 
 export default function BibleStudyDetail() {
@@ -96,6 +97,7 @@ export default function BibleStudyDetail() {
 
   const kind = getItemKind(item);
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
+  const live = isLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
 
   return (
@@ -104,11 +106,26 @@ export default function BibleStudyDetail() {
 
       <div className="glass-card overflow-hidden mb-8">
         {kind === 'video' && youtubeSrc && (
-          <div className="aspect-video w-full bg-ink">
+          <div className="relative aspect-video w-full bg-ink">
+            {live && (
+              <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+              </span>
+            )}
             <iframe src={youtubeSrc} title={item.title} className="w-full h-full" allow="accelerate-compute; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
           </div>
         )}
-        {kind === 'video' && !youtubeSrc && item.media_url && (
+        {kind === 'video' && !youtubeSrc && live && item.media_url && (
+          <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
+            <span className="px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+            </span>
+            <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
+              Watch the Live Stream
+            </a>
+          </div>
+        )}
+        {kind === 'video' && !youtubeSrc && !live && item.media_url && (
           <video
             controls
             className="w-full max-h-[50vh] bg-ink"
@@ -153,10 +170,18 @@ export default function BibleStudyDetail() {
             )}
           </div>
 
-          <div className="mb-6"><ShareButton item={item} /></div>
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <ShareButton item={item} />
+            <DownloadButton item={item} />
+          </div>
 
           {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}
-          {item.body && <div className="prose prose-sm max-w-none text-ink/80 leading-relaxed whitespace-pre-line mb-5">{item.body}</div>}
+          {item.body && (
+            <div
+              className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5"
+              dangerouslySetInnerHTML={{ __html: item.body }}
+            />
+          )}
           {item.bible_references && (
             <div className="flex items-start gap-2 bg-surface rounded-2xl px-4 py-3 mb-5">
               <span className="text-sm text-ink/70 italic">📖 {item.bible_references}</span>

@@ -1,7 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  Bell, BookHeart, BookOpen, Newspaper, Baby, PlayCircle, Megaphone,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import api from '../api/axios.js';
+
+const TYPE_ICON = {
+  devotion: BookHeart,
+  bible_study: BookOpen,
+  news: Newspaper,
+  kids: Baby,
+  series_episode: PlayCircle,
+  announcement: Megaphone,
+};
 
 export default function NotificationsBell() {
   const [open, setOpen] = useState(false);
@@ -88,20 +100,37 @@ export default function NotificationsBell() {
               <p className="px-4 py-8 text-center text-sm text-ink/40">No notifications yet.</p>
             ) : (
               <ul>
-                {items.map((n) => (
-                  <li key={n.id}>
-                    <button
-                      onClick={() => markRead(n.id)}
-                      className={`w-full text-left px-4 py-3 border-b border-ink/5 hover:bg-surface transition ${
-                        n.is_read ? 'opacity-60' : ''
-                      }`}
-                    >
-                      <p className="text-sm font-semibold text-ink">{n.title}</p>
-                      <p className="text-xs text-ink/60 mt-0.5">{n.message}</p>
-                      <p className="text-[10px] text-ink/35 mt-1">{new Date(n.created_at).toLocaleString()}</p>
-                    </button>
-                  </li>
-                ))}
+                {items.map((n) => {
+                  const Icon = TYPE_ICON[n.type] || Bell;
+                  const content = (
+                    <>
+                      <span className="w-8 h-8 rounded-full bg-brand-gradient-soft flex items-center justify-center shrink-0">
+                        <Icon className="w-4 h-4 text-secondary" />
+                      </span>
+                      <span className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">{n.title}</p>
+                        {n.message && <p className="text-xs text-ink/60 mt-0.5 line-clamp-2">{n.message}</p>}
+                        <p className="text-[10px] text-ink/35 mt-1">{new Date(n.created_at).toLocaleString()}</p>
+                      </span>
+                    </>
+                  );
+                  const rowClass = `w-full flex items-start gap-3 text-left px-4 py-3 border-b border-ink/5 hover:bg-surface transition ${
+                    n.is_read ? 'opacity-60' : ''
+                  }`;
+                  return (
+                    <li key={n.id}>
+                      {n.link_url ? (
+                        <Link to={n.link_url} onClick={() => { markRead(n.id); setOpen(false); }} className={rowClass}>
+                          {content}
+                        </Link>
+                      ) : (
+                        <button onClick={() => markRead(n.id)} className={rowClass}>
+                          {content}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </motion.div>

@@ -43,6 +43,14 @@ if (!$jwtSecret) {
     // auto-generates .env with a JWT_SECRET on first run).
     $jwtSecret = 'local-dev-only-insecure-secret-change-me';
 }
+
+// --- Cron (scheduled task sweep) ---
+// This shared host has no server-side cron (README §7's known
+// limitations) — a scheduled GitHub Actions workflow calls
+// /api/cron/run-due-tasks instead, authenticated by this shared secret
+// rather than a user JWT (see CronController). Left blank, that endpoint
+// refuses every request rather than running with no auth at all.
+define('CRON_SECRET', env('CRON_SECRET', ''));
 define('JWT_SECRET', $jwtSecret);
 define('JWT_ALGO', 'HS256');
 define('JWT_EXPIRY_SECONDS', 60 * 60 * 24 * 7); // 7 days
@@ -57,6 +65,12 @@ define('UPLOAD_URL', APP_URL . '/uploads/');
 // chunk is never web-accessible even by guessing a path. Blocked further by
 // its own .htaccess (Backend/storage/chunk_uploads/.htaccess).
 define('CHUNK_UPLOAD_DIR', __DIR__ . '/../storage/chunk_uploads/');
+// Proof-of-payment screenshots/PDFs — same "outside the public uploads/
+// tree, blocked by storage/.htaccess" reasoning as CHUNK_UPLOAD_DIR
+// above, except here it's permanent, not staging: a payment proof is a
+// customer document and must never be reachable by a guessed URL, only
+// through PaymentController's own auth-checked download endpoint.
+define('PROOF_OF_PAYMENT_DIR', __DIR__ . '/../storage/proof_of_payment/');
 
 // Allowed frontend origins (Vite dev server + production domain).
 // Add production domains via ALLOWED_ORIGINS_EXTRA="https://aimsisters.org,https://www.aimsisters.org"
@@ -84,7 +98,12 @@ define('ALLOWED_VIDEO_TYPES', ['mp4','mov','webm']);
 define('ALLOWED_AUDIO_TYPES', ['mp3','wav','ogg']);
 define('ALLOWED_DOC_TYPES', ['pdf']);
 
-date_default_timezone_set('UTC');
+// AIMsisters trades physically in Namibia — Pay Later/deposit deadlines,
+// reminders, and every date shown to a customer or admin need to mean
+// "Namibian time" consistently, in both PHP and MySQL (see
+// config/database.php's matching `SET time_zone`). Namibia has used a
+// single fixed UTC+2 offset (no DST) since 2018 in practice.
+date_default_timezone_set('Africa/Windhoek');
 error_reporting(APP_ENV === 'local' ? E_ALL : 0);
 ini_set('display_errors', APP_ENV === 'local' ? '1' : '0');
 

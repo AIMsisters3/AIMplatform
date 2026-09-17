@@ -25,12 +25,31 @@ class Content
             $params['section'] = $filters['section'];
         }
         if (!empty($filters['media_type'])) {
-            $where[] = 'c.media_type = :media_type';
-            $params['media_type'] = $filters['media_type'];
+            // Accepts either a single value or a comma-separated list, so the
+            // frontend can offer grouped filters (e.g. "Animations & Cartoons"
+            // = animation,cartoon) without the backend needing to know about
+            // the grouping itself.
+            $types = array_values(array_filter(array_map('trim', explode(',', $filters['media_type']))));
+            if (count($types) === 1) {
+                $where[] = 'c.media_type = :media_type';
+                $params['media_type'] = $types[0];
+            } elseif (count($types) > 1) {
+                $placeholders = [];
+                foreach ($types as $i => $type) {
+                    $key = "media_type_$i";
+                    $placeholders[] = ':' . $key;
+                    $params[$key] = $type;
+                }
+                $where[] = 'c.media_type IN (' . implode(', ', $placeholders) . ')';
+            }
         }
         if (!empty($filters['category_id'])) {
             $where[] = 'c.category_id = :category_id';
             $params['category_id'] = $filters['category_id'];
+        }
+        if (!empty($filters['language'])) {
+            $where[] = 'c.language = :language';
+            $params['language'] = $filters['language'];
         }
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'c.status = :status';
@@ -46,6 +65,9 @@ class Content
         }
         if (!empty($filters['is_featured'])) {
             $where[] = 'c.is_featured = 1';
+        }
+        if (!empty($filters['is_live'])) {
+            $where[] = 'c.is_live = 1';
         }
 
         $sql = 'SELECT c.*, cat.name AS category_name,
@@ -88,11 +110,11 @@ class Content
         $sql = 'INSERT INTO content
                 (title, slug, description, body, transcript, content_type, section, media_type, category_id, author_id, speaker,
                  bible_references, tags, language, thumbnail, media_url, visibility, status,
-                 is_featured, allow_comments, seo_keywords, publish_date)
+                 is_featured, is_live, allow_comments, seo_keywords, publish_date)
                 VALUES
                 (:title, :slug, :description, :body, :transcript, :content_type, :section, :media_type, :category_id, :author_id, :speaker,
                  :bible_references, :tags, :language, :thumbnail, :media_url, :visibility, :status,
-                 :is_featured, :allow_comments, :seo_keywords, :publish_date)';
+                 :is_featured, :is_live, :allow_comments, :seo_keywords, :publish_date)';
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -118,6 +140,7 @@ class Content
             'visibility'       => $data['visibility'] ?? 'public',
             'status'           => $data['status'] ?? 'draft',
             'is_featured'      => !empty($data['is_featured']) ? 1 : 0,
+            'is_live'          => !empty($data['is_live']) ? 1 : 0,
             'allow_comments'   => array_key_exists('allow_comments', $data) ? (int) (bool) $data['allow_comments'] : 1,
             'seo_keywords'     => $data['seo_keywords'] ?? null,
             'publish_date'     => $data['publish_date'] ?? null,
@@ -134,7 +157,7 @@ class Content
         $allowed = [
             'title', 'slug', 'description', 'body', 'transcript', 'content_type', 'section', 'media_type', 'category_id', 'speaker',
             'bible_references', 'tags', 'language', 'thumbnail', 'media_url', 'visibility',
-            'status', 'is_featured', 'allow_comments', 'seo_keywords', 'publish_date',
+            'status', 'is_featured', 'is_live', 'allow_comments', 'seo_keywords', 'publish_date',
         ];
 
         foreach ($allowed as $field) {
@@ -206,6 +229,33 @@ class Content
     {
         $stmt = $this->db->prepare('UPDATE content SET views = views + 1 WHERE id = :id');
         $stmt->execute(['id' => $id]);
+    }
+
+    /**
+     * Records a single visitor's view of a content item, deduplicated per
+     * (content, visitor, day) via content_views' unique key — a repeat
+     * view from the same visitor the same day is a silent no-op. Only
+     * increments the public views counter when this is a genuinely new
+     * row, so the count reflects reach (unique visitors/day) rather than
+     * raw page loads. $visitorKey identifies the viewer regardless of
+     * login status — see Backend/helpers/visitor.php for guests, or
+     * "user:<id>" for a signed-in one.
+     */
+    public function recordView(int $id, string $visitorKey, ?int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO content_views (content_id, visitor_key, user_id)
+             VALUES (:content_id, :visitor_key, :user_id)'
+        );
+        $stmt->execute([
+            'content_id'  => $id,
+            'visitor_key' => $visitorKey,
+            'user_id'     => $userId,
+        ]);
+
+        if ($stmt->rowCount() > 0) {
+            $this->incrementViews($id);
+        }
     }
 
     /** Marks a devotion/Bible study/news item as having already triggered its one newsletter notification — see helpers/publish_notify.php. */

@@ -1,10 +1,15 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, Package, Info } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
 
+function unitPriceFor(item) {
+  if (item.variant_price_override != null) return item.variant_price_override;
+  return item.sale_price !== null && item.sale_price < item.price ? item.sale_price : item.price;
+}
+
 export default function Cart() {
-  const { items, setQuantity, removeItem, subtotal, hasPhysical } = useCart();
+  const { items, setQuantity, removeItem, subtotal, hasPhysical, hasInStock, hasOnOrder } = useCart();
   const navigate = useNavigate();
 
   if (items.length === 0) {
@@ -12,7 +17,7 @@ export default function Cart() {
       <div className="max-w-3xl mx-auto px-6 py-24 text-center">
         <ShoppingBag className="w-14 h-14 mx-auto text-ink/20 mb-4" />
         <h1 className="text-2xl font-display font-bold mb-2">Your cart is empty</h1>
-        <p className="text-ink/60 mb-8">Browse the bookstore to find Bibles, study guides, music, and more.</p>
+        <p className="text-ink/60 mb-8">Browse the shop to find clothing, accessories, food, wellness products, and more.</p>
         <Link to="/shop" className="inline-block px-6 py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
           Go to Shop
         </Link>
@@ -22,29 +27,43 @@ export default function Cart() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-14">
-      <h1 className="text-3xl font-bold mb-8">Your Cart</h1>
+      <h1 className="text-3xl font-bold mb-2">Your Cart</h1>
+      {hasInStock && hasOnOrder && (
+        <p className="flex items-start gap-2 text-sm text-ink/60 mb-6 bg-brand-gradient-soft rounded-2xl px-4 py-3">
+          <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+          Your cart has both in-stock and on-order items — these will be placed as two separate orders (each with its own tracking and payment) so your in-stock items aren't held up waiting on a supplier order. You'll see both, clearly, before you confirm at checkout.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => {
-            const unit = item.sale_price !== null && item.sale_price < item.price ? item.sale_price : item.price;
+            const unit = unitPriceFor(item);
+            const key = `${item.product_id}::${item.variant_id || 'base'}`;
             return (
-              <div key={item.product_id} className="glass-card p-4 flex items-center gap-4">
+              <div key={key} className="glass-card p-4 flex items-center gap-4">
                 <div className="w-20 h-20 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center overflow-hidden shrink-0">
                   {item.thumbnail ? (
-                    <img src={item.thumbnail} alt={item.name} className="w-full h-full object-cover" />
+                    <img src={item.thumbnail} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-2xl">📖</span>
+                    <Package className="w-6 h-6 text-secondary/60" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold truncate">{item.name}</h3>
-                  <p className="text-sm text-ink/50 capitalize">{item.product_type}</p>
-                  <p className="font-bold text-ink mt-1">${unit.toFixed(2)}</p>
+                  {item.variant_attributes && (
+                    <p className="text-xs text-ink/50">
+                      {Object.entries(item.variant_attributes).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                    </p>
+                  )}
+                  {item.sourcing_type === 'on_order' && (
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold">ON ORDER</span>
+                  )}
+                  <p className="font-bold text-ink mt-1">N$ {unit.toFixed(2)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setQuantity(item.product_id, item.quantity - 1)}
+                    onClick={() => setQuantity(item.product_id, item.quantity - 1, item.variant_id)}
                     className="w-8 h-8 rounded-full glass-card flex items-center justify-center hover:bg-white"
                     aria-label="Decrease quantity"
                   >
@@ -52,7 +71,7 @@ export default function Cart() {
                   </button>
                   <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
                   <button
-                    onClick={() => setQuantity(item.product_id, item.quantity + 1)}
+                    onClick={() => setQuantity(item.product_id, item.quantity + 1, item.variant_id)}
                     className="w-8 h-8 rounded-full glass-card flex items-center justify-center hover:bg-white"
                     aria-label="Increase quantity"
                   >
@@ -60,7 +79,7 @@ export default function Cart() {
                   </button>
                 </div>
                 <button
-                  onClick={() => removeItem(item.product_id)}
+                  onClick={() => removeItem(item.product_id, item.variant_id)}
                   className="w-9 h-9 rounded-full flex items-center justify-center text-red-500 hover:bg-red-50 transition"
                   aria-label="Remove item"
                 >
@@ -75,15 +94,15 @@ export default function Cart() {
           <h3 className="font-display font-semibold text-lg mb-4">Order Summary</h3>
           <div className="flex justify-between text-sm text-ink/70 mb-2">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>N$ {subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm text-ink/70 mb-4">
-            <span>Shipping</span>
-            <span>{hasPhysical ? 'Calculated at checkout' : 'Free (digital)'}</span>
+            <span>Delivery</span>
+            <span>{hasPhysical ? 'Calculated at checkout' : 'N/A'}</span>
           </div>
           <div className="border-t border-ink/10 pt-4 flex justify-between font-bold mb-6">
             <span>Estimated Total</span>
-            <span>${subtotal.toFixed(2)}{hasPhysical ? '+' : ''}</span>
+            <span>N$ {subtotal.toFixed(2)}{hasPhysical ? '+' : ''}</span>
           </div>
           <button
             onClick={() => navigate('/checkout')}

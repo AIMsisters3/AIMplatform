@@ -915,3 +915,427 @@ CREATE TABLE IF NOT EXISTS testimonials (
   CONSTRAINT fk_testimonials_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_testimonials_status (status)
 ) ENGINE=InnoDB;
+
+-- ---- from database/migrations/011_content_view_dedup.sql ----
+-- =========================================================
+-- Migration 011: Content View Deduplication
+--
+-- WHAT THIS DOES:
+-- content.views used to be incremented on every single GET of an item's
+-- detail page, so refreshing the page (or a bot re-fetching it) inflated
+-- the count with no relation to real reach. This adds a log table
+-- recording one row per (content item, visitor, day) — a "visitor" is
+-- either a logged-in user_id or an anonymous long-lived cookie value
+-- (see Backend/helpers/visitor.php) — so a repeat view from the same
+-- visitor on the same day is a no-op, while a genuinely new visitor,
+-- registered or not, still counts. content.views is now only
+-- incremented when a new row is actually inserted here (see
+-- Content::recordView()).
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS content_views (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  content_id INT UNSIGNED NOT NULL,
+  visitor_key VARCHAR(64) NOT NULL,
+  user_id INT UNSIGNED DEFAULT NULL,
+  viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  viewed_date DATE GENERATED ALWAYS AS (DATE(viewed_at)) STORED,
+  CONSTRAINT fk_content_views_content FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE,
+  CONSTRAINT fk_content_views_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE KEY uniq_content_view_per_day (content_id, visitor_key, viewed_date)
+) ENGINE=InnoDB;
+
+-- ---- from database/migrations/012_bible_study_podcast_format.sql ----
+-- =========================================================
+-- Migration 012: Add "podcast" as a Bible Study format
+--
+-- WHAT THIS DOES
+-- bible_studies.format is a strict ENUM (migration 004) that
+-- ContentController::SECTION_MEDIA_TYPES['bible_study'] mirrors exactly -
+-- an admin can now also upload a podcast episode under the Bible Study
+-- section (previously only Media Library's podcast type existed), so the
+-- ENUM needs "podcast" added or every such save would fail with a
+-- truncation error.
+-- =========================================================
+
+ALTER TABLE bible_studies
+  MODIFY COLUMN format ENUM('short_film','video','sermon','panel','audio','animated','documentary','pdf_notes','podcast') NOT NULL DEFAULT 'video';
+
+-- ---- from database/migrations/013_bible_study_interview_format.sql ----
+-- =========================================================
+-- Migration 013: Add "interview" as a Bible Study format
+--
+-- WHAT THIS DOES
+-- bible_studies.format is a strict ENUM (migration 004, extended by
+-- migration 012 for 'podcast') that ContentController::SECTION_MEDIA_TYPES
+-- ['bible_study'] mirrors exactly. Interviews should be publishable under
+-- both Content/Media Library and Bible Study, so the ENUM needs "interview"
+-- added or every such save under Bible Study would fail with a truncation
+-- error.
+-- =========================================================
+
+ALTER TABLE bible_studies
+  MODIFY COLUMN format ENUM('short_film','video','sermon','panel','audio','animated','documentary','pdf_notes','podcast','interview') NOT NULL DEFAULT 'video';
+
+-- ---- from database/migrations/014_kids_live_notifications.sql ----
+-- =========================================================
+-- Migration 014: Kids section, Live content flag, notification links
+--
+-- WHAT THIS DOES
+-- Kids becomes a first-class `section` value alongside media_library/
+-- news/gallery/bible_study/devotions - it reuses the exact same `content`
+-- table (title/slug/thumbnail/media_url/category/language/status all
+-- keep working unchanged). is_live marks a content row (Content/Media
+-- Library OR Bible Study) as a live stream - the stream URL itself
+-- reuses the existing media_url column. notifications.link_url lets an
+-- in-app notification deep-link straight to the content it's about.
+-- =========================================================
+
+ALTER TABLE content
+  MODIFY COLUMN section ENUM('media_library','news','gallery','bible_study','devotions','kids') NOT NULL DEFAULT 'media_library',
+  ADD COLUMN is_live TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured;
+
+ALTER TABLE notifications
+  ADD COLUMN link_url VARCHAR(255) NULL AFTER type;
+
+-- ---- from database/migrations/015_shop_foundation.sql ----
+-- =========================================================
+-- Migration 015: Shop foundation — subcategories, flexible product
+-- attributes, variants, multiple images, stock movements, delivery areas
+--
+-- WHAT THIS DOES
+-- Extends the existing products table (sourcing_type, brand, barcode,
+-- scheduled sale window, flexible attributes JSON, reserved_quantity)
+-- rather than replacing it, adds categories.parent_id for subcategories,
+-- and adds product_images / product_variants / stock_movements /
+-- delivery_areas as new tables. See migration 015's own header comment
+-- for full rationale.
+-- =========================================================
+
+ALTER TABLE categories
+  ADD COLUMN parent_id INT UNSIGNED DEFAULT NULL AFTER type,
+  ADD CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL,
+  ADD INDEX idx_categories_parent (parent_id);
+
+ALTER TABLE products
+  ADD COLUMN brand VARCHAR(150) DEFAULT NULL AFTER category_id,
+  ADD COLUMN sourcing_type ENUM('in_stock','on_order') NOT NULL DEFAULT 'in_stock' AFTER product_type,
+  ADD COLUMN barcode VARCHAR(64) DEFAULT NULL AFTER sku,
+  ADD COLUMN is_new TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured,
+  ADD COLUMN sale_starts_at DATETIME DEFAULT NULL AFTER sale_price,
+  ADD COLUMN sale_ends_at DATETIME DEFAULT NULL AFTER sale_starts_at,
+  ADD COLUMN seo_keywords VARCHAR(255) DEFAULT NULL AFTER description,
+  ADD COLUMN weight_kg DECIMAL(8,3) DEFAULT NULL AFTER stock_quantity,
+  ADD COLUMN reserved_quantity INT UNSIGNED NOT NULL DEFAULT 0 AFTER stock_quantity,
+  ADD COLUMN currency CHAR(3) NOT NULL DEFAULT 'NAD' AFTER price,
+  ADD COLUMN attributes JSON DEFAULT NULL AFTER gallery_images,
+  ADD INDEX idx_products_sourcing_type (sourcing_type),
+  ADD INDEX idx_products_is_new (is_new);
+
+CREATE TABLE IF NOT EXISTS product_images (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  url VARCHAR(255) NOT NULL,
+  alt_text VARCHAR(255) DEFAULT NULL,
+  sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_product_images_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  INDEX idx_product_images_product (product_id, sort_order)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS product_variants (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  sku VARCHAR(100) DEFAULT NULL,
+  barcode VARCHAR(64) DEFAULT NULL,
+  attributes JSON NOT NULL,
+  price_override DECIMAL(10,2) DEFAULT NULL,
+  stock_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  reserved_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  image_id INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_product_variants_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_product_variants_image FOREIGN KEY (image_id) REFERENCES product_images(id) ON DELETE SET NULL,
+  INDEX idx_product_variants_product (product_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  variant_id INT UNSIGNED DEFAULT NULL,
+  quantity_change INT NOT NULL,
+  reason ENUM(
+    'restock', 'sale', 'pay_later_reserve', 'pay_later_release',
+    'adjustment', 'return', 'on_order_receive'
+  ) NOT NULL,
+  reference_type VARCHAR(30) DEFAULT NULL,
+  reference_id INT UNSIGNED DEFAULT NULL,
+  note VARCHAR(255) DEFAULT NULL,
+  created_by INT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_movements_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_movements_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_stock_movements_product (product_id, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS delivery_areas (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  is_pickup TINYINT(1) NOT NULL DEFAULT 0,
+  instructions TEXT,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT INTO permissions (slug, name, description) VALUES
+  ('shop.settings_manage', 'Manage shop settings', 'Manage delivery areas/fees, payment instructions, and other Shop-wide configuration.')
+ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r JOIN permissions p ON p.slug = 'shop.settings_manage'
+WHERE r.slug = 'admin';
+
+INSERT INTO categories (name, slug, type) VALUES
+  ('Clothing', 'clothing', 'product'),
+  ('Accessories', 'accessories', 'product'),
+  ('Home & Lifestyle', 'home_lifestyle', 'product'),
+  ('Food', 'food', 'product'),
+  ('Natural & Wellness', 'natural_wellness', 'product'),
+  ('Books', 'books', 'product')
+ON DUPLICATE KEY UPDATE name = VALUES(name), type = VALUES(type);
+
+-- ---- from database/migrations/016_shop_orders_payments.sql ----
+-- =========================================================
+-- Migration 016: Order splitting, Pay Later, on-order deposits, payments
+--
+-- HOW TO RUN: after migration 015. Safe to run once; re-running errors on
+-- the ADD COLUMN/CREATE TABLE statements (expected — means it already ran).
+--
+-- WHAT THIS DOES (Stage 4-5 of the Shop rebuild)
+--
+-- orders.status used to conflate payment and fulfillment ("paid" sat in
+-- the same enum as "shipped"). The spec requires these tracked
+-- separately, so:
+--   - orders.status becomes a PURE FULFILLMENT state (awaiting_approval,
+--     awaiting_payment, processing, supplier_ordered, arrived,
+--     ready_for_pickup, shipped, delivered, cancelled).
+--   - orders.payment_state is NEW and pure payment state (pending,
+--     awaiting_verification, partially_paid, paid, failed, expired,
+--     cancelled, refunded, partially_refunded).
+-- Every existing order row is migrated (not reset) — see the UPDATE
+-- statements below, run BEFORE the enum is narrowed, so no row is ever
+-- left holding a value the new enum doesn't have.
+--
+-- Other order columns: order_kind distinguishes the three workflows this
+-- schema now supports (standard/pay_later/on_order) that all still share
+-- one orders/order_items pair rather than three parallel tables.
+-- split_group_id links the sibling orders produced when a mixed cart
+-- (in-stock + on-order items) is split at checkout. fulfillment_type +
+-- delivery_area_id + delivery_area_name_snapshot capture the customer's
+-- delivery/pickup choice — the fee itself is already snapshotted in the
+-- existing shipping_total column, so a later delivery_areas.fee edit
+-- never changes an existing order's total. amount_paid is the running
+-- total of *verified* payments (supports partial/deposit payments).
+--
+-- pay_later_details is a 1:1 extension table (same pattern as
+-- bible_studies extending content) — keeps the one-active-Pay-Later-
+-- order-per-customer rule enforceable with a simple query and keeps the
+-- base orders table from growing a dozen mostly-null columns.
+--
+-- order_items gains variant_id (a real gap: variants didn't exist when
+-- order_items was first designed, so a variant purchase had nowhere to
+-- record which variant), snapshots of what was actually bought (name,
+-- variant attributes) so a later product edit/rename never rewrites
+-- history, and per-item procurement tracking for on-order products
+-- (spec: "clear item-level deposit calculations and procurement
+-- tracking" for orders with multiple on-order products).
+--
+-- payment_records is the audited payment ledger — every manual proof
+-- submission, verification/rejection, and (Stage 5) gateway callback
+-- goes through one table, supporting partial payments and preventing
+-- duplicate processing via idempotency_key.
+--
+-- refunds is a separate, explicitly audited workflow (spec: "Do not mark
+-- a refund completed merely because an admin changes an order status").
+-- =========================================================
+
+-- ---- orders.status: migrate existing data BEFORE narrowing the enum ----
+-- (payment_state defaults to 'pending' below; these UPDATEs set the real
+-- value for every existing row based on its old conflated status.)
+ALTER TABLE orders
+  ADD COLUMN payment_state ENUM(
+    'pending', 'awaiting_verification', 'partially_paid', 'paid', 'failed',
+    'expired', 'cancelled', 'refunded', 'partially_refunded'
+  ) NOT NULL DEFAULT 'pending' AFTER status;
+
+UPDATE orders SET payment_state = 'pending'   WHERE status = 'pending';
+UPDATE orders SET payment_state = 'paid'      WHERE status IN ('paid', 'processing', 'shipped', 'completed');
+UPDATE orders SET payment_state = 'cancelled' WHERE status = 'cancelled';
+UPDATE orders SET payment_state = 'refunded'  WHERE status = 'refunded';
+
+ALTER TABLE orders
+  ADD COLUMN amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER grand_total;
+UPDATE orders SET amount_paid = grand_total WHERE payment_state = 'paid';
+
+-- Now narrow status to pure fulfillment values, remapping each old value.
+UPDATE orders SET status = 'awaiting_payment' WHERE status = 'pending';
+UPDATE orders SET status = 'processing'       WHERE status = 'paid';
+UPDATE orders SET status = 'delivered'        WHERE status = 'completed';
+UPDATE orders SET status = 'cancelled'        WHERE status = 'refunded';
+-- 'processing', 'shipped', 'cancelled' already match the new enum's spelling.
+
+ALTER TABLE orders
+  MODIFY COLUMN status ENUM(
+    'awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered',
+    'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'
+  ) NOT NULL DEFAULT 'awaiting_payment';
+
+ALTER TABLE orders
+  ADD COLUMN order_kind ENUM('standard', 'pay_later', 'on_order') NOT NULL DEFAULT 'standard' AFTER order_number,
+  ADD COLUMN split_group_id CHAR(20) DEFAULT NULL AFTER order_kind,
+  ADD COLUMN fulfillment_type ENUM('delivery', 'pickup') NOT NULL DEFAULT 'delivery' AFTER shipping_address,
+  ADD COLUMN delivery_area_id INT UNSIGNED DEFAULT NULL AFTER fulfillment_type,
+  ADD COLUMN delivery_area_name_snapshot VARCHAR(150) DEFAULT NULL AFTER delivery_area_id,
+  ADD COLUMN deposit_percent TINYINT UNSIGNED DEFAULT NULL AFTER amount_paid,
+  ADD COLUMN deposit_amount DECIMAL(10,2) DEFAULT NULL AFTER deposit_percent,
+  ADD COLUMN deposit_deadline_at DATETIME DEFAULT NULL AFTER deposit_amount,
+  ADD COLUMN deposit_paid_at DATETIME DEFAULT NULL AFTER deposit_deadline_at,
+  ADD COLUMN deposit_reminder_sent_at DATETIME DEFAULT NULL AFTER deposit_paid_at,
+  ADD COLUMN cancelled_at DATETIME DEFAULT NULL AFTER updated_at,
+  ADD COLUMN cancellation_reason VARCHAR(255) DEFAULT NULL AFTER cancelled_at,
+  ADD CONSTRAINT fk_orders_delivery_area FOREIGN KEY (delivery_area_id) REFERENCES delivery_areas(id) ON DELETE SET NULL,
+  ADD INDEX idx_orders_split_group (split_group_id),
+  ADD INDEX idx_orders_order_kind (order_kind),
+  ADD INDEX idx_orders_payment_state (payment_state);
+
+CREATE TABLE IF NOT EXISTS pay_later_details (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id INT UNSIGNED NOT NULL,
+  requested_days TINYINT UNSIGNED NOT NULL,
+  due_at DATETIME NOT NULL,
+  requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  approved_at DATETIME DEFAULT NULL,
+  approved_by INT UNSIGNED DEFAULT NULL,
+  declined_at DATETIME DEFAULT NULL,
+  declined_by INT UNSIGNED DEFAULT NULL,
+  decline_reason VARCHAR(255) DEFAULT NULL,
+  reminder_sent_at DATETIME DEFAULT NULL,
+  expired_at DATETIME DEFAULT NULL,
+  cancelled_at DATETIME DEFAULT NULL,
+  cancellation_reason VARCHAR(255) DEFAULT NULL,
+  CONSTRAINT fk_pay_later_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pay_later_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_pay_later_declined_by FOREIGN KEY (declined_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE KEY uniq_pay_later_order (order_id)
+) ENGINE=InnoDB;
+
+ALTER TABLE order_items
+  ADD COLUMN variant_id INT UNSIGNED DEFAULT NULL AFTER product_id,
+  ADD COLUMN product_name_snapshot VARCHAR(255) DEFAULT NULL AFTER variant_id,
+  ADD COLUMN variant_attributes_snapshot JSON DEFAULT NULL AFTER product_name_snapshot,
+  ADD COLUMN sourcing_type_snapshot ENUM('in_stock', 'on_order') DEFAULT NULL AFTER unit_price,
+  ADD COLUMN procurement_status ENUM('pending', 'ordered_from_supplier', 'arrived', 'unavailable') DEFAULT NULL AFTER sourcing_type_snapshot,
+  ADD COLUMN expected_arrival_date DATE DEFAULT NULL AFTER procurement_status,
+  ADD COLUMN supplier_notes TEXT AFTER expected_arrival_date,
+  ADD CONSTRAINT fk_order_items_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS payment_records (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id INT UNSIGNED NOT NULL,
+  method ENUM('manual_bank', 'manual_mobile_wallet', 'gateway_dpo', 'gateway_paytoday', 'other') NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'NAD',
+  reference VARCHAR(150) DEFAULT NULL,
+  -- Server-side storage path (under Backend/storage/, never web-accessible
+  -- directly) — served only through an auth-checked download endpoint.
+  proof_file_path VARCHAR(255) DEFAULT NULL,
+  status ENUM('awaiting_verification', 'verified', 'rejected') NOT NULL DEFAULT 'awaiting_verification',
+  submitted_by INT UNSIGNED DEFAULT NULL,
+  submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  verified_by INT UNSIGNED DEFAULT NULL,
+  verified_at DATETIME DEFAULT NULL,
+  rejection_reason VARCHAR(255) DEFAULT NULL,
+  gateway_payload JSON DEFAULT NULL,
+  -- Prevents double-processing the same gateway callback/webhook (Stage 5).
+  idempotency_key VARCHAR(191) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_payment_records_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_payment_records_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_payment_records_verified_by FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE KEY uniq_payment_idempotency (idempotency_key),
+  INDEX idx_payment_records_order (order_id),
+  INDEX idx_payment_records_status (status)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id INT UNSIGNED NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  reason VARCHAR(255) DEFAULT NULL,
+  status ENUM('requested', 'approved', 'rejected', 'processed') NOT NULL DEFAULT 'requested',
+  requested_by INT UNSIGNED DEFAULT NULL,
+  processed_by INT UNSIGNED DEFAULT NULL,
+  processed_at DATETIME DEFAULT NULL,
+  method VARCHAR(50) DEFAULT NULL,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_refunds_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_refunds_requested_by FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_refunds_processed_by FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_refunds_order (order_id)
+) ENGINE=InnoDB;
+
+-- Auditable record of every automated sweep run (Pay Later reminders/
+-- expiry, deposit-deadline reminders) — there's no server cron on the
+-- shared host this project deploys to, so a scheduled GitHub Actions
+-- workflow calls a protected endpoint instead; this table is that
+-- endpoint's audit trail; see Backend/controllers/CronController.php.
+CREATE TABLE IF NOT EXISTS scheduled_task_runs (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  task VARCHAR(60) NOT NULL,
+  items_processed INT UNSIGNED NOT NULL DEFAULT 0,
+  details JSON DEFAULT NULL,
+  ran_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- ============================================================
+-- Migration 017: Verified-purchaser product reviews
+-- ============================================================
+-- =========================================================
+-- Migration 017: Verified-purchaser product reviews
+--
+-- HOW TO RUN: after migration 016. Safe to run once; re-running errors on
+-- the ADD COLUMN statements (expected — means it already ran).
+--
+-- product_reviews already existed in schema.sql (rating/review/status
+-- moderation queue, same shape as `comments`) but had no way to enforce
+-- "only verified purchasers may review" or prevent duplicate reviews.
+-- order_item_id links a review to the specific purchased line item that
+-- makes the reviewer eligible: a "verified purchaser" is defined here as
+-- someone whose order_item belongs to an order they own where
+-- orders.payment_state = 'paid' (checked in application code, not a FK
+-- constraint, since payment_state changes over time and a review earned
+-- at time of purchase should not vanish if a later partial refund drops
+-- the state to partially_refunded).
+--
+-- UNIQUE(product_id, user_id) prevents a customer leaving multiple
+-- reviews for the same product even across separate qualifying orders.
+-- admin_response/admin_response_at let a Shop admin publicly reply to a
+-- review (spec: "rating, text, date, moderation, and admin response").
+-- =========================================================
+
+ALTER TABLE product_reviews
+  ADD COLUMN order_item_id INT UNSIGNED DEFAULT NULL AFTER user_id,
+  ADD COLUMN admin_response TEXT DEFAULT NULL AFTER review,
+  ADD COLUMN admin_response_at DATETIME DEFAULT NULL AFTER admin_response,
+  ADD COLUMN admin_response_by INT UNSIGNED DEFAULT NULL AFTER admin_response_at,
+  ADD CONSTRAINT fk_review_order_item FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE SET NULL,
+  ADD CONSTRAINT fk_review_admin_response_by FOREIGN KEY (admin_response_by) REFERENCES users(id) ON DELETE SET NULL,
+  ADD UNIQUE KEY uniq_review_product_user (product_id, user_id),
+  ADD INDEX idx_review_status (status);

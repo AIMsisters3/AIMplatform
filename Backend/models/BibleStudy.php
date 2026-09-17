@@ -49,6 +49,9 @@ class BibleStudy
             $where[] = '(c.title LIKE :search OR c.tags LIKE :search OR c.bible_references LIKE :search)';
             $params['search'] = '%' . $filters['search'] . '%';
         }
+        if (!empty($filters['is_live'])) {
+            $where[] = 'c.is_live = 1';
+        }
 
         $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
                 FROM content c

@@ -1,6 +1,6 @@
 import React from 'react';
 import { PlayCircle, FileText, Headphones } from 'lucide-react';
-import { getItemKind } from '../utils/mediaKind.js';
+import { getItemKind, isLive } from '../utils/mediaKind.js';
 
 const KIND_ICON = {
   video: PlayCircle,
@@ -19,9 +19,15 @@ export default function ContentCard({ item, onClick }) {
     >
       <div className="relative h-44 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
         {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           <span className="text-4xl brand-gradient-text font-display font-bold">AIM</span>
+        )}
+
+        {isLive(item) && (
+          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1 shadow-glass">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
+          </span>
         )}
 
         {KindIcon && (

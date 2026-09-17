@@ -3,28 +3,53 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search, ArrowRight, BookOpen, Baby, HeartPulse, Shirt, Music, Users,
-  ScrollText, Eye, PlayCircle, FileText, Headphones, Inbox, Globe,
+  ScrollText, Eye, PlayCircle, FileText, Headphones, Inbox, Globe, Wand2,
+  Sparkles, Film, Mic, Camera, FileType, Image as ImageIcon, Layers,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
+import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { getItemKind } from '../utils/mediaKind.js';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
 
 // Display order + icon/color per category. Bible Studies deliberately
-// excluded — it has its own dedicated page.
+// excluded — it has its own dedicated page. Sabbath School content now
+// belongs under Bible Study, not here - excluded below rather than
+// deleted as a category outright, since the same category can still be
+// applied to a Bible Study upload (category_id is shared across sections).
 const CATEGORY_META = {
-  'Children Ministry': { icon: Baby, tagline: 'Fun & Faith for Kids', bg: 'bg-violet-100', text: 'text-violet-600' },
+  'Children Ministry': { icon: Baby, tagline: 'Fun & Faith for Children', bg: 'bg-violet-100', text: 'text-violet-600' },
   'Health Reform':     { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
   'Dress Reform':      { icon: Shirt, tagline: 'Modesty & Godly Life', bg: 'bg-orange-100', text: 'text-orange-600' },
-  'Sabbath School':    { icon: BookOpen, tagline: 'A Better Life Through Christ', bg: 'bg-pink-100', text: 'text-pink-600' },
+  'Animations':        { icon: Wand2, tagline: 'Fun & Creative Visuals', bg: 'bg-purple-100', text: 'text-purple-600' },
   'Music':             { icon: Music, tagline: 'Uplifting Gospel Sounds', bg: 'bg-blue-100', text: 'text-blue-600' },
   'Prophecy':          { icon: ScrollText, tagline: 'Bible Wisdom for Today', bg: 'bg-rose-100', text: 'text-rose-600' },
   'Youth Ministry':    { icon: Users, tagline: 'Growing Strong in Christ', bg: 'bg-sky-100', text: 'text-sky-600' },
 };
 
-const CATEGORY_ORDER = ['Children Ministry', 'Health Reform', 'Dress Reform', 'Sabbath School', 'Music', 'Prophecy', 'Youth Ministry'];
-const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies'];
+const CATEGORY_ORDER = ['Children Ministry', 'Health Reform', 'Dress Reform', 'Animations', 'Music', 'Prophecy', 'Youth Ministry'];
+const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies', 'sabbath school'];
+
+// Categories are admin-managed, so their exact names can't be relied on to
+// match CATEGORY_META above (an admin can rename "Children Ministry" to
+// "Children", or add a brand-new category CATEGORY_META has never heard
+// of). Any category without a curated entry still gets a real color from
+// this rotating palette, keyed by its id so a given category's color stays
+// stable across reloads — rather than the flat, colorless fallback that
+// made unmatched categories look broken/unstyled next to the curated ones.
+const FALLBACK_PALETTE = [
+  { bg: 'bg-amber-100', text: 'text-amber-600' },
+  { bg: 'bg-teal-100', text: 'text-teal-600' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  { bg: 'bg-fuchsia-100', text: 'text-fuchsia-600' },
+  { bg: 'bg-lime-100', text: 'text-lime-600' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-600' },
+];
+
+function fallbackMetaFor(cat) {
+  return { icon: ScrollText, tagline: '', ...FALLBACK_PALETTE[cat.id % FALLBACK_PALETTE.length] };
+}
 
 function sortCategories(categories) {
   return [...categories]
@@ -41,6 +66,27 @@ function sortCategories(categories) {
 
 const KIND_ICON = { video: PlayCircle, pdf: FileText, audio: Headphones };
 const KIND_LABEL = { video: 'Watch', pdf: 'Read', audio: 'Listen', article: 'Read' };
+
+// "Browse by Type" chips. Values map to content.media_type — a value can be
+// a comma-separated group (e.g. "animation,cartoon") since the backend now
+// accepts either a single media_type or an IN-list of several, letting a
+// couple of raw media_type values read as one intuitive option for visitors
+// (cartoons and animations are the same kind of watching experience to a
+// visitor, even though the admin tags them with two distinct types).
+const TYPE_FILTERS = [
+  { value: '', label: 'All Types', icon: Sparkles },
+  { value: 'movie', label: 'Movies', icon: Film },
+  { value: 'animation,cartoon', label: 'Animations & Cartoons', icon: Wand2 },
+  { value: 'short_film', label: 'Short Films', icon: Film },
+  { value: 'video', label: 'Videos', icon: PlayCircle },
+  { value: 'sermon', label: 'Sermons', icon: Mic },
+  { value: 'interview', label: 'Interviews', icon: Users },
+  { value: 'documentary', label: 'Documentaries', icon: Camera },
+  { value: 'audio,music', label: 'Music & Audio', icon: Headphones },
+  { value: 'article', label: 'Articles', icon: FileText },
+  { value: 'image', label: 'Photos', icon: ImageIcon },
+  { value: 'pdf', label: 'Documents', icon: FileType },
+];
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -67,7 +113,7 @@ function FeaturedCard({ item, onClick }) {
     >
       <div className="relative h-36 bg-brand-gradient-soft overflow-hidden">
         {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-3xl brand-gradient-text font-display font-bold">AIM</span>
@@ -104,7 +150,7 @@ function PopularItem({ item, rank, onClick }) {
       </div>
       <div className="h-44 rounded-xl2 overflow-hidden bg-brand-gradient-soft shadow-glass">
         {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-xl brand-gradient-text font-display font-bold">AIM</span>
@@ -117,15 +163,62 @@ function PopularItem({ item, rank, onClick }) {
   );
 }
 
+function SeriesStrip({ series }) {
+  if (series.length === 0) return null;
+  return (
+    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-display font-bold text-ink flex items-center gap-2">
+            <Layers className="w-4 h-4 text-secondary" /> Series & Collections
+          </h2>
+          <p className="text-xs text-ink/45">Multi-part stories, animations, and studies told across episodes.</p>
+        </div>
+        <Link to="/series" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
+          View All <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
+        {series.map((s) => (
+          <Link
+            key={s.id}
+            to={`/series/${s.slug}`}
+            className="shrink-0 w-60 glass-card overflow-hidden group hover:-translate-y-1 transition-transform"
+          >
+            <div className="relative h-32 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
+              {s.cover_image ? (
+                <img src={s.cover_image} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+              ) : (
+                <Layers className="w-8 h-8 text-secondary" />
+              )}
+              <span className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-brand-gradient text-white text-[11px] font-semibold shadow-glass flex items-center gap-1">
+                <PlayCircle className="w-3 h-3" /> {s.episode_count}
+              </span>
+            </div>
+            <div className="p-3.5">
+              <h3 className="font-display font-semibold text-sm leading-snug mb-0.5 line-clamp-1 group-hover:text-secondary transition-colors">
+                {s.title}
+              </h3>
+              {s.category_name && <p className="text-[11px] text-ink/45">{s.category_name}</p>}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 export default function Content() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [languageOptions, setLanguageOptions] = useState([]);
+  const [series, setSeries] = useState([]);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [language, setLanguage] = useState('');
+  const [mediaType, setMediaType] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeItem, setActiveItem] = useState(null);
 
@@ -136,16 +229,27 @@ export default function Content() {
     api.get('/languages')
       .then((r) => setLanguageOptions(r.data?.data?.items || []))
       .catch(() => setLanguageOptions([]));
+    api.get('/series', { params: { limit: 8 } })
+      .then((r) => setSeries(r.data?.data?.items || []))
+      .catch(() => setSeries([]));
   }, []);
 
   useEffect(() => {
     setLoading(true);
     api
-      .get('/content', { params: { search: search || undefined, category_id: categoryId || undefined, limit: 24 } })
+      .get('/content', {
+        params: {
+          search: search || undefined,
+          category_id: categoryId || undefined,
+          language: language || undefined,
+          media_type: mediaType || undefined,
+          limit: 24,
+        },
+      })
       .then((r) => setItems(r.data?.data?.items || []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [search, categoryId]);
+  }, [search, categoryId, language, mediaType]);
 
   useEffect(() => {
     const slug = searchParams.get('item');
@@ -156,6 +260,9 @@ export default function Content() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The server now filters by language (see the /content call above) - this
+  // is just a defensive fallback in case any item without the right
+  // language slips through, not the primary filtering mechanism anymore.
   const filteredItems = useMemo(() => {
     let list = Array.isArray(items) ? items : [];
     if (language) list = list.filter((item) => item.language === language);
@@ -249,6 +356,8 @@ export default function Content() {
 </section>
 
       <div className="max-w-7xl mx-auto px-6 py-10">
+        <LiveNowStrip endpoint="/content" onItemClick={openItem} />
+
         {/* Language filter — small, unobtrusive */}
         <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex justify-end mb-2">
           <div className="relative">
@@ -264,6 +373,30 @@ export default function Content() {
           </div>
         </motion.div>
 
+        {/* Browse by Type */}
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-8">
+          <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Type</h2>
+          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+            {TYPE_FILTERS.map((t) => {
+              const active = mediaType === t.value;
+              return (
+                <button
+                  key={t.label}
+                  onClick={() => setMediaType(active ? '' : t.value)}
+                  className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                    active ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
+                  }`}
+                >
+                  <t.icon className="w-3.5 h-3.5" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        <SeriesStrip series={series} />
+
         {/* Browse by Category */}
         <motion.div initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }} className="mb-10">
           <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Category</h2>
@@ -272,7 +405,7 @@ export default function Content() {
             initial="hidden" animate="visible" variants={staggerContainer}
           >
            {categories.map((cat) => {
-              const meta = CATEGORY_META[cat.name] || { icon: ScrollText, tagline: '', bg: 'bg-surface', text: 'text-secondary' };
+              const meta = CATEGORY_META[cat.name] || fallbackMetaFor(cat);
               const Icon = meta.icon;
               const active = categoryId === String(cat.id);
               return (
@@ -320,9 +453,9 @@ export default function Content() {
               <Inbox className="w-7 h-7 text-secondary" />
             </div>
             <h3 className="font-display font-semibold text-lg text-ink mb-1">No content found</h3>
-            <p className="text-ink/50 text-sm mb-5 max-w-xs">Try a different search, category, or language.</p>
+            <p className="text-ink/50 text-sm mb-5 max-w-xs">Try a different search, category, type, or language.</p>
             <button
-              onClick={() => { setSearch(''); setCategoryId(''); setLanguage(''); }}
+              onClick={() => { setSearch(''); setCategoryId(''); setLanguage(''); setMediaType(''); }}
               className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass"
             >
               Reset filters
@@ -336,7 +469,7 @@ export default function Content() {
                 <h2 className="text-lg font-display font-bold text-ink">Featured Content</h2>
               </div>
               <motion.div
-                key={`featured-${search}-${categoryId}-${language}`}
+                key={`featured-${search}-${categoryId}-${language}-${mediaType}`}
                 className="grid grid-cols-2 md:grid-cols-4 gap-5"
                 initial="hidden" animate="visible" variants={staggerContainer}
               >
@@ -358,7 +491,7 @@ export default function Content() {
                 </button>
               </div>
               <motion.div
-                key={`popular-${search}-${categoryId}-${language}`}
+                key={`popular-${search}-${categoryId}-${language}-${mediaType}`}
                 className="flex gap-4 overflow-x-auto pb-2 scrollbar-none"
                 initial="hidden" animate="visible" variants={staggerContainer}
               >
