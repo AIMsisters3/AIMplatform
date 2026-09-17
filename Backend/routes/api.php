@@ -26,6 +26,7 @@ require_once __DIR__ . '/../controllers/LanguageController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
 require_once __DIR__ . '/../controllers/CronController.php';
+require_once __DIR__ . '/../controllers/PaymentController.php';
 require_once __DIR__ . '/../controllers/WishlistController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -181,9 +182,23 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'pay-later' && $subId === 'decline' && $method === 'POST') return $ctrl->declinePayLater((int) $id);
         if ($id !== null && $action === 'deposit' && $method === 'POST') return $ctrl->setDeposit((int) $id);
         if ($id !== null && $action === 'item-procurement' && $subId !== null && $method === 'POST') return $ctrl->updateItemProcurement((int) $id, (int) $subId);
+        if ($id !== null && $action === 'payments' && $method === 'POST') return (new PaymentController())->submit((int) $id);
+        if ($id !== null && $action === 'payments' && $method === 'GET') return (new PaymentController())->forOrder((int) $id);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show((int) $id);
 
         json_error('Order route not found.', 404);
+    }
+
+    // ---------- PAYMENTS (verification queue) ----------
+    if ($resource === 'payments') {
+        $ctrl = new PaymentController();
+
+        if ($id === 'queue' && $method === 'GET') return $ctrl->queue();
+        if ($id !== null && $action === 'verify' && $method === 'POST') return $ctrl->verify((int) $id);
+        if ($id !== null && $action === 'reject' && $method === 'POST') return $ctrl->reject((int) $id);
+        if ($id !== null && $action === 'proof' && $method === 'GET') return $ctrl->downloadProof((int) $id);
+
+        json_error('Payment route not found.', 404);
     }
 
     // ---------- NOTIFICATIONS ----------

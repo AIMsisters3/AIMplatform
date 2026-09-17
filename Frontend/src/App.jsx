@@ -46,6 +46,7 @@ const ManageProducts = lazy(() => import('./Admin/Pages/ManageProducts.jsx'));
 const ManageSeries = lazy(() => import('./Admin/Pages/ManageSeries.jsx'));
 const ManageOrders = lazy(() => import('./Admin/Pages/ManageOrders.jsx'));
 const ManageDeliveryAreas = lazy(() => import('./Admin/Pages/ManageDeliveryAreas.jsx'));
+const PaymentVerification = lazy(() => import('./Admin/Pages/PaymentVerification.jsx'));
 const ModerateComments = lazy(() => import('./Admin/Pages/ModerateComments.jsx'));
 const ManageNewsletter = lazy(() => import('./Admin/Pages/ManageNewsletter.jsx'));
 const ManageRoles = lazy(() => import('./Admin/Pages/ManageRoles.jsx'));
@@ -128,6 +129,7 @@ export default function App() {
               <Route path="series" element={<ManageSeries />} />
               <Route path="orders" element={<ManageOrders />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />
+              <Route path="payments" element={<PaymentVerification />} />
               <Route path="comments" element={<ModerateComments />} />
               <Route path="newsletter" element={<ManageNewsletter />} />
               <Route path="roles" element={<ManageRoles />} />

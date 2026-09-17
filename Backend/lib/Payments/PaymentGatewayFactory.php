@@ -37,7 +37,12 @@ class PaymentGatewayFactory
             case 'manual': // back-compat alias for pre-Shop-rebuild orders
                 return new ManualPaymentGateway();
 
+            // Uncomment once a real DPO merchant account + credentials
+            // exist (see DpoPayGateway.php's docblock for the full setup
+            // checklist) AND 'gateway_dpo' is added to
+            // availableMethods() below:
             // case 'gateway_dpo':
+            //     require_once __DIR__ . '/DpoPayGateway.php';
             //     return new DpoPayGateway(env('DPO_COMPANY_TOKEN'), env('DPO_SERVICE_TYPE'));
 
             default:

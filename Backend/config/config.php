@@ -65,6 +65,12 @@ define('UPLOAD_URL', APP_URL . '/uploads/');
 // chunk is never web-accessible even by guessing a path. Blocked further by
 // its own .htaccess (Backend/storage/chunk_uploads/.htaccess).
 define('CHUNK_UPLOAD_DIR', __DIR__ . '/../storage/chunk_uploads/');
+// Proof-of-payment screenshots/PDFs — same "outside the public uploads/
+// tree, blocked by storage/.htaccess" reasoning as CHUNK_UPLOAD_DIR
+// above, except here it's permanent, not staging: a payment proof is a
+// customer document and must never be reachable by a guessed URL, only
+// through PaymentController's own auth-checked download endpoint.
+define('PROOF_OF_PAYMENT_DIR', __DIR__ . '/../storage/proof_of_payment/');
 
 // Allowed frontend origins (Vite dev server + production domain).
 // Add production domains via ALLOWED_ORIGINS_EXTRA="https://aimsisters.org,https://www.aimsisters.org"

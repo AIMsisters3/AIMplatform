@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Clock, Truck, Link2 } from 'lucide-react';
+import { Package, Clock, Truck, Link2, Upload, Loader2, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import api from '../api/axios.js';
 
 const STATUS_BADGE = {
@@ -26,10 +26,129 @@ const PAYMENT_BADGE = {
   partially_refunded: 'bg-ink/10 text-ink/50',
 };
 
+const RECORD_BADGE = {
+  awaiting_verification: { label: 'Awaiting Verification', className: 'bg-amber-100 text-amber-700', icon: Clock },
+  verified: { label: 'Verified', className: 'bg-emerald-100 text-emerald-700', icon: CheckCircle2 },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-600', icon: XCircle },
+};
+
 const KIND_LABEL = { pay_later: 'Pay Later', on_order: 'On Order', standard: null };
+const CLOSED_PAYMENT_STATES = ['paid', 'cancelled', 'expired', 'refunded'];
 
 function label(s) {
   return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function PaymentHistory({ orderId, refreshKey }) {
+  const [records, setRecords] = useState(null);
+
+  useEffect(() => {
+    api.get(`/orders/${orderId}/payments`).then((r) => setRecords(r.data?.data?.items || [])).catch(() => setRecords([]));
+  }, [orderId, refreshKey]);
+
+  async function viewProof(paymentId) {
+    try {
+      const res = await api.get(`/payments/${paymentId}/proof`, { responseType: 'blob' });
+      window.open(URL.createObjectURL(res.data), '_blank');
+    } catch {
+      // best-effort
+    }
+  }
+
+  if (!records || records.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-ink/40">Payment submissions</p>
+      {records.map((r) => {
+        const meta = RECORD_BADGE[r.status] || {};
+        const Icon = meta.icon || Clock;
+        return (
+          <div key={r.id} className="flex items-center justify-between gap-3 bg-surface/60 rounded-xl2 px-3 py-2">
+            <span className="text-ink/70">
+              N$ {Number(r.amount).toFixed(2)} · {r.method === 'manual_mobile_wallet' ? 'Mobile Wallet' : 'Bank Transfer'}
+              {r.reference && ` · Ref: ${r.reference}`}
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {r.proof_file_path && (
+                <button onClick={() => viewProof(r.id)} className="text-secondary" aria-label="View proof"><Eye className="w-3.5 h-3.5" /></button>
+              )}
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${meta.className || 'bg-ink/10 text-ink/50'}`}>
+                <Icon className="w-2.5 h-2.5" /> {meta.label || label(r.status)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PaymentSubmitForm({ orderId, defaultAmount, onSubmitted }) {
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState('manual_bank');
+  const [amount, setAmount] = useState(defaultAmount.toFixed(2));
+  const [reference, setReference] = useState('');
+  const [file, setFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (!reference.trim() && !file) {
+      setError('Please provide a payment reference and/or upload proof of payment.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const data = new FormData();
+      data.append('method', method);
+      data.append('amount', amount);
+      if (reference.trim()) data.append('reference', reference.trim());
+      if (file) data.append('proof', file);
+      await api.post(`/orders/${orderId}/payments`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setOpen(false);
+      setReference('');
+      setFile(null);
+      onSubmitted();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not submit payment.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-xs font-semibold text-secondary">
+        <Upload className="w-3.5 h-3.5" /> Submit Payment Reference / Proof
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-surface/60 rounded-xl2 p-4 space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <select value={method} onChange={(e) => setMethod(e.target.value)} className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm">
+          <option value="manual_bank">Bank Transfer</option>
+          <option value="manual_mobile_wallet">Mobile Wallet</option>
+        </select>
+        <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)}
+          placeholder="Amount paid (N$)" className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm" />
+      </div>
+      <input value={reference} onChange={(e) => setReference(e.target.value)}
+        placeholder="Payment reference (e.g. bank ref number)" className="w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm" />
+      <input type="file" accept="image/*,.pdf" onChange={(e) => setFile(e.target.files[0] || null)} className="text-xs" />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" disabled={submitting} className="px-4 py-2 rounded-xl2 bg-brand-gradient text-white text-xs font-semibold shadow-glass disabled:opacity-60 flex items-center gap-1.5">
+          {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Submit
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 rounded-xl2 text-xs font-semibold text-ink/50">Cancel</button>
+      </div>
+    </form>
+  );
 }
 
 export default function MyOrders() {
@@ -37,6 +156,7 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [details, setDetails] = useState({}); // order id -> full order (with items)
+  const [paymentsRefresh, setPaymentsRefresh] = useState({});
 
   useEffect(() => {
     api.get('/orders')
@@ -74,6 +194,7 @@ export default function MyOrders() {
           {orders.map((o) => {
             const d = details[o.id];
             const balanceDue = Number(o.grand_total) - Number(o.amount_paid || 0);
+            const canSubmitPayment = o.status !== 'awaiting_approval' && !CLOSED_PAYMENT_STATES.includes(o.payment_state) && balanceDue > 0;
             return (
               <div key={o.id} className="glass-card p-5">
                 <button
@@ -144,6 +265,16 @@ export default function MyOrders() {
 
                         {balanceDue > 0 && (
                           <p className="text-ink/70">Balance due: <span className="font-semibold">N$ {balanceDue.toFixed(2)}</span></p>
+                        )}
+
+                        <PaymentHistory orderId={o.id} refreshKey={paymentsRefresh[o.id] || 0} />
+
+                        {canSubmitPayment && (
+                          <PaymentSubmitForm
+                            orderId={o.id}
+                            defaultAmount={o.deposit_amount && !o.deposit_paid_at ? Number(o.deposit_amount) : balanceDue}
+                            onSubmitted={() => setPaymentsRefresh((p) => ({ ...p, [o.id]: (p[o.id] || 0) + 1 }))}
+                          />
                         )}
 
                         {d.sibling_orders?.length > 0 && (

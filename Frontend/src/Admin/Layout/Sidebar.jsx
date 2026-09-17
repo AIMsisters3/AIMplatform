@@ -10,6 +10,7 @@ const items = [
   { to: '/admin/products', label: 'Manage Products', icon: '🛍️' },
   { to: '/admin/orders', label: 'Orders', icon: '📦' },
   { to: '/admin/delivery-areas', label: 'Delivery & Pickup', icon: '🚚' },
+  { to: '/admin/payments', label: 'Payment Verification', icon: '💳' },
   { to: '/admin/comments', label: 'Comments', icon: '💬' },
   { to: '/admin/newsletter', label: 'Newsletter', icon: '✉️' },
   { to: '/admin/roles', label: 'Roles & Users', icon: '👥' },
