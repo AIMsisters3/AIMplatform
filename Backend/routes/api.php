@@ -24,6 +24,7 @@ require_once __DIR__ . '/../controllers/SearchController.php';
 require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../controllers/LanguageController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
+require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
@@ -35,12 +36,16 @@ function route(string $method, string $path)
 
     $segments = array_values(array_filter(explode('/', trim($path, '/'))));
 
-    // Expect: api/{resource}/{id?}/{action?}
+    // Expect: api/{resource}/{id?}/{action?}/{subId?}
     array_shift($segments); // drop leading "api"
 
     $resource = $segments[0] ?? '';
     $id       = $segments[1] ?? null;
     $action   = $segments[2] ?? null;
+    // 4th segment — only a couple of nested sub-resources need it (e.g.
+    // /products/{id}/images/{imageId}); every other resource below simply
+    // never reads it.
+    $subId    = $segments[3] ?? null;
 
     // ---------- AUTH ----------
     if ($resource === 'auth') {
@@ -91,9 +96,21 @@ function route(string $method, string $path)
 
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
-        if ($id !== null && $method === 'GET') return $ctrl->show((int) $id);
-        if ($id !== null && $method === 'PUT') return $ctrl->update((int) $id);
-        if ($id !== null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        if ($id !== null && $action === 'images' && $subId === 'reorder' && $method === 'POST') return $ctrl->reorderImages((int) $id);
+        if ($id !== null && $action === 'images' && $subId !== null && $method === 'DELETE') return $ctrl->deleteImage((int) $id, (int) $subId);
+        if ($id !== null && $action === 'images' && $subId === null && $method === 'POST') return $ctrl->addImage((int) $id);
+
+        if ($id !== null && $action === 'variants' && $subId !== null && $method === 'PUT') return $ctrl->updateVariant((int) $id, (int) $subId);
+        if ($id !== null && $action === 'variants' && $subId !== null && $method === 'DELETE') return $ctrl->deleteVariant((int) $id, (int) $subId);
+        if ($id !== null && $action === 'variants' && $subId === null && $method === 'POST') return $ctrl->addVariant((int) $id);
+
+        if ($id !== null && $action === 'stock' && $method === 'POST') return $ctrl->adjustStock((int) $id);
+        if ($id !== null && $action === 'stock-movements' && $method === 'GET') return $ctrl->stockMovements((int) $id);
+
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+        if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
 
         json_error('Product route not found.', 404);
     }
@@ -259,6 +276,18 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
 
         json_error('User route not found.', 404);
+    }
+
+    // ---------- DELIVERY AREAS ----------
+    if ($resource === 'delivery-areas') {
+        $ctrl = new DeliveryAreaController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === null && $method === 'POST') return $ctrl->store();
+        if ($id !== null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Delivery area route not found.', 404);
     }
 
     // ---------- LANGUAGES ----------

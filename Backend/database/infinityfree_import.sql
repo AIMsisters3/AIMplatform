@@ -997,3 +997,115 @@ ALTER TABLE content
 
 ALTER TABLE notifications
   ADD COLUMN link_url VARCHAR(255) NULL AFTER type;
+
+-- ---- from database/migrations/015_shop_foundation.sql ----
+-- =========================================================
+-- Migration 015: Shop foundation — subcategories, flexible product
+-- attributes, variants, multiple images, stock movements, delivery areas
+--
+-- WHAT THIS DOES
+-- Extends the existing products table (sourcing_type, brand, barcode,
+-- scheduled sale window, flexible attributes JSON, reserved_quantity)
+-- rather than replacing it, adds categories.parent_id for subcategories,
+-- and adds product_images / product_variants / stock_movements /
+-- delivery_areas as new tables. See migration 015's own header comment
+-- for full rationale.
+-- =========================================================
+
+ALTER TABLE categories
+  ADD COLUMN parent_id INT UNSIGNED DEFAULT NULL AFTER type,
+  ADD CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL,
+  ADD INDEX idx_categories_parent (parent_id);
+
+ALTER TABLE products
+  ADD COLUMN brand VARCHAR(150) DEFAULT NULL AFTER category_id,
+  ADD COLUMN sourcing_type ENUM('in_stock','on_order') NOT NULL DEFAULT 'in_stock' AFTER product_type,
+  ADD COLUMN barcode VARCHAR(64) DEFAULT NULL AFTER sku,
+  ADD COLUMN is_new TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured,
+  ADD COLUMN sale_starts_at DATETIME DEFAULT NULL AFTER sale_price,
+  ADD COLUMN sale_ends_at DATETIME DEFAULT NULL AFTER sale_starts_at,
+  ADD COLUMN seo_keywords VARCHAR(255) DEFAULT NULL AFTER description,
+  ADD COLUMN weight_kg DECIMAL(8,3) DEFAULT NULL AFTER stock_quantity,
+  ADD COLUMN reserved_quantity INT UNSIGNED NOT NULL DEFAULT 0 AFTER stock_quantity,
+  ADD COLUMN currency CHAR(3) NOT NULL DEFAULT 'NAD' AFTER price,
+  ADD COLUMN attributes JSON DEFAULT NULL AFTER gallery_images,
+  ADD INDEX idx_products_sourcing_type (sourcing_type),
+  ADD INDEX idx_products_is_new (is_new);
+
+CREATE TABLE IF NOT EXISTS product_images (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  url VARCHAR(255) NOT NULL,
+  alt_text VARCHAR(255) DEFAULT NULL,
+  sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_product_images_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  INDEX idx_product_images_product (product_id, sort_order)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS product_variants (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  sku VARCHAR(100) DEFAULT NULL,
+  barcode VARCHAR(64) DEFAULT NULL,
+  attributes JSON NOT NULL,
+  price_override DECIMAL(10,2) DEFAULT NULL,
+  stock_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  reserved_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  image_id INT UNSIGNED DEFAULT NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_product_variants_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_product_variants_image FOREIGN KEY (image_id) REFERENCES product_images(id) ON DELETE SET NULL,
+  INDEX idx_product_variants_product (product_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  variant_id INT UNSIGNED DEFAULT NULL,
+  quantity_change INT NOT NULL,
+  reason ENUM(
+    'restock', 'sale', 'pay_later_reserve', 'pay_later_release',
+    'adjustment', 'return', 'on_order_receive'
+  ) NOT NULL,
+  reference_type VARCHAR(30) DEFAULT NULL,
+  reference_id INT UNSIGNED DEFAULT NULL,
+  note VARCHAR(255) DEFAULT NULL,
+  created_by INT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_movements_variant FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL,
+  CONSTRAINT fk_stock_movements_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_stock_movements_product (product_id, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS delivery_areas (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  is_pickup TINYINT(1) NOT NULL DEFAULT 0,
+  instructions TEXT,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+INSERT INTO permissions (slug, name, description) VALUES
+  ('shop.settings_manage', 'Manage shop settings', 'Manage delivery areas/fees, payment instructions, and other Shop-wide configuration.')
+ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r JOIN permissions p ON p.slug = 'shop.settings_manage'
+WHERE r.slug = 'admin';
+
+INSERT INTO categories (name, slug, type) VALUES
+  ('Clothing', 'clothing', 'product'),
+  ('Accessories', 'accessories', 'product'),
+  ('Home & Lifestyle', 'home_lifestyle', 'product'),
+  ('Food', 'food', 'product'),
+  ('Natural & Wellness', 'natural_wellness', 'product'),
+  ('Books', 'books', 'product')
+ON DUPLICATE KEY UPDATE name = VALUES(name), type = VALUES(type);
