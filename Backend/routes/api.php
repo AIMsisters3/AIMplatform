@@ -25,6 +25,7 @@ require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../controllers/LanguageController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
+require_once __DIR__ . '/../controllers/WishlistController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
@@ -276,6 +277,16 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
 
         json_error('User route not found.', 404);
+    }
+
+    // ---------- WISHLIST (Shop products — distinct from /bookmarks, which is for ministry content) ----------
+    if ($resource === 'wishlist') {
+        $ctrl = new WishlistController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $method === 'POST') return $ctrl->toggle((int) $id);
+
+        json_error('Wishlist route not found.', 404);
     }
 
     // ---------- DELIVERY AREAS ----------

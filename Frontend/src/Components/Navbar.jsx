@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Search, User, LogOut, Package, Bookmark, LayoutDashboard } from 'lucide-react';
+import { ShoppingCart, Search, User, LogOut, Package, Bookmark, Heart, LayoutDashboard } from 'lucide-react';
 import logo from '../assets/lg.png';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
@@ -76,6 +76,9 @@ function AccountMenu() {
             </button>
             <button onClick={() => { setOpen(false); navigate('/bookmarks'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
               <Bookmark className="w-4 h-4" /> My Bookmarks
+            </button>
+            <button onClick={() => { setOpen(false); navigate('/wishlist'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
+              <Heart className="w-4 h-4" /> My Wishlist
             </button>
             {isAdmin && (
               <button onClick={() => { setOpen(false); navigate('/admin'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">

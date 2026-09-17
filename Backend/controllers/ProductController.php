@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../models/Product.php';
+require_once __DIR__ . '/../models/Wishlist.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -44,6 +45,18 @@ class ProductController
 
         $items = $this->model->all($filters, $limit, ($page - 1) * $limit);
         $total = $this->model->count($filters);
+
+        // Mark which of these items the signed-in visitor has wishlisted,
+        // in one extra query instead of N — never fires for a guest.
+        $viewer = optional_auth();
+        if ($viewer) {
+            $wishlisted = (new Wishlist())->wishlistedIdsAmong((int) $viewer['sub'], array_column($items, 'id'));
+            foreach ($items as &$item) {
+                $item['is_wishlisted'] = in_array((int) $item['id'], $wishlisted, true);
+            }
+            unset($item);
+        }
+
         json_ok(['items' => $items, 'page' => $page, 'limit' => $limit, 'total' => $total]);
     }
 
@@ -58,6 +71,11 @@ class ProductController
         $related = $product['category_id']
             ? $this->model->related((int) $product['id'], (int) $product['category_id'])
             : [];
+
+        $viewer = optional_auth();
+        if ($viewer) {
+            $product['is_wishlisted'] = (new Wishlist())->contains((int) $viewer['sub'], (int) $product['id']);
+        }
 
         json_ok(['item' => $product, 'related' => $related]);
     }

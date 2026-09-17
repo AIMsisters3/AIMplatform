@@ -25,6 +25,8 @@ const Kids = lazy(() => import('./Pages/Kids.jsx'));
 const News = lazy(() => import('./Pages/News.jsx'));
 const Gallery = lazy(() => import('./Pages/Gallery.jsx'));
 const Shop = lazy(() => import('./Pages/Shop.jsx'));
+const ProductDetail = lazy(() => import('./Pages/ProductDetail.jsx'));
+const Wishlist = lazy(() => import('./Pages/Wishlist.jsx'));
 const Cart = lazy(() => import('./Pages/Cart.jsx'));
 const Checkout = lazy(() => import('./Pages/Checkout.jsx'));
 const MyOrders = lazy(() => import('./Pages/MyOrders.jsx'));
@@ -96,6 +98,8 @@ export default function App() {
             <Route path="/news" element={<PublicLayout><News /></PublicLayout>} />
             <Route path="/gallery" element={<PublicLayout><Gallery /></PublicLayout>} />
             <Route path="/shop" element={<PublicLayout><Shop /></PublicLayout>} />
+            <Route path="/shop/:slug" element={<PublicLayout><ProductDetail /></PublicLayout>} />
+            <Route path="/wishlist" element={<PublicLayout><RequireAuth><Wishlist /></RequireAuth></PublicLayout>} />
             <Route path="/cart" element={<PublicLayout><Cart /></PublicLayout>} />
             <Route path="/checkout" element={<PublicLayout><Checkout /></PublicLayout>} />
             <Route path="/orders" element={<PublicLayout><RequireAuth><MyOrders /></RequireAuth></PublicLayout>} />
