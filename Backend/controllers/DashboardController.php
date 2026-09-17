@@ -22,7 +22,10 @@ class DashboardController
                 (SELECT COUNT(*) FROM content WHERE status = 'draft' AND deleted_at IS NULL) AS drafts,
                 (SELECT COUNT(*) FROM comments WHERE status = 'pending') AS pending_comments,
                 (SELECT COUNT(*) FROM orders WHERE status IN ('awaiting_approval','awaiting_payment','processing','supplier_ordered')) AS orders_awaiting_fulfillment,
-                (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_type = 'physical' AND sourcing_type = 'in_stock' AND status != 'archived' AND stock_quantity <= 5) AS low_stock_products"
+                (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_type = 'physical' AND sourcing_type = 'in_stock' AND status != 'archived' AND stock_quantity <= 5) AS low_stock_products,
+                (SELECT COUNT(*) FROM payment_records WHERE status = 'awaiting_verification') AS payments_awaiting_verification,
+                (SELECT COUNT(*) FROM refunds WHERE status = 'requested') AS refunds_requested,
+                (SELECT COUNT(*) FROM product_reviews WHERE status = 'pending') AS pending_reviews"
         )->fetch();
 
         // Separate, best-effort query: content_views (migration 011) may not
@@ -61,9 +64,12 @@ class DashboardController
                 ];
             }, $activity),
             'notifications_summary' => [
-                'pending_comments'            => (int) $stats['pending_comments'],
-                'orders_awaiting_fulfillment' => (int) $stats['orders_awaiting_fulfillment'],
-                'low_stock_products'          => (int) $stats['low_stock_products'],
+                'pending_comments'               => (int) $stats['pending_comments'],
+                'orders_awaiting_fulfillment'    => (int) $stats['orders_awaiting_fulfillment'],
+                'low_stock_products'             => (int) $stats['low_stock_products'],
+                'payments_awaiting_verification' => (int) $stats['payments_awaiting_verification'],
+                'refunds_requested'              => (int) $stats['refunds_requested'],
+                'pending_reviews'                => (int) $stats['pending_reviews'],
             ],
             'drafts_count' => (int) $stats['drafts'],
         ]);

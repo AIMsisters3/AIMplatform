@@ -33,7 +33,8 @@ export default function Dashboard() {
 
   const stats = summary?.stats;
   const notif = summary?.notifications_summary;
-  const noNotifications = notif && notif.pending_comments === 0 && notif.orders_awaiting_fulfillment === 0 && notif.low_stock_products === 0;
+  const noNotifications = notif && notif.pending_comments === 0 && notif.orders_awaiting_fulfillment === 0 && notif.low_stock_products === 0
+    && notif.payments_awaiting_verification === 0 && notif.refunds_requested === 0 && notif.pending_reviews === 0;
 
   return (
     <div className="space-y-6">
@@ -101,6 +102,27 @@ export default function Dashboard() {
               {notif.low_stock_products > 0 && (
                 <li className="flex gap-2">
                   <span>⚠️</span> Low stock on {notif.low_stock_products} product{notif.low_stock_products === 1 ? '' : 's'}
+                </li>
+              )}
+              {notif.payments_awaiting_verification > 0 && (
+                <li className="flex gap-2">
+                  <Link to="/admin/payments" className="flex gap-2 hover:text-secondary">
+                    <span>💳</span> {notif.payments_awaiting_verification} payment{notif.payments_awaiting_verification === 1 ? '' : 's'} awaiting verification
+                  </Link>
+                </li>
+              )}
+              {notif.refunds_requested > 0 && (
+                <li className="flex gap-2">
+                  <Link to="/admin/orders" className="flex gap-2 hover:text-secondary">
+                    <span>↩️</span> {notif.refunds_requested} refund{notif.refunds_requested === 1 ? '' : 's'} requested
+                  </Link>
+                </li>
+              )}
+              {notif.pending_reviews > 0 && (
+                <li className="flex gap-2">
+                  <Link to="/admin/reviews" className="flex gap-2 hover:text-secondary">
+                    <span>📝</span> {notif.pending_reviews} review{notif.pending_reviews === 1 ? '' : 's'} pending moderation
+                  </Link>
                 </li>
               )}
             </ul>
