@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Heart, Check, Minus, Plus, Truck, MapPin, Package, ShieldCheck,
-  ChevronRight, AlertCircle,
+  ChevronRight, AlertCircle, Star, Loader2,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import { useCart } from '../context/CartContext.jsx';
@@ -23,6 +23,142 @@ const AVAILABILITY_META = {
   on_order: { label: 'Available On Order', className: 'text-sky-600 bg-sky-50' },
   out_of_stock: { label: 'Out of Stock', className: 'text-red-600 bg-red-50' },
 };
+
+function Stars({ value, size = 'w-4 h-4' }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star key={n} className={`${size} ${n <= Math.round(value) ? 'fill-amber-400 text-amber-400' : 'text-ink/15'}`} />
+      ))}
+    </div>
+  );
+}
+
+function ReviewForm({ productId, onSubmitted }) {
+  const [rating, setRating] = useState(5);
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await api.post(`/products/${productId}/reviews`, { rating, review: text.trim() || undefined });
+      onSubmitted();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not submit your review.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="glass-card p-5 space-y-3">
+      <p className="text-sm font-semibold">Rate this product</p>
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} stars`}>
+            <Star className={`w-6 h-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : 'text-ink/20'}`} />
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Share your experience with this product (optional)"
+        rows={3}
+        maxLength={2000}
+        className="w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm resize-none"
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <button
+        type="submit"
+        disabled={submitting}
+        className="px-4 py-2 rounded-xl2 bg-brand-gradient text-white text-xs font-semibold shadow-glass disabled:opacity-60 flex items-center gap-1.5"
+      >
+        {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Submit Review
+      </button>
+    </form>
+  );
+}
+
+function ProductReviews({ productId, user }) {
+  const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState({ count: 0, average: 0 });
+  const [eligibility, setEligibility] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [justSubmitted, setJustSubmitted] = useState(false);
+
+  function load() {
+    api.get(`/products/${productId}/reviews`)
+      .then((r) => {
+        setItems(r.data.data.items || []);
+        setSummary(r.data.data.summary || { count: 0, average: 0 });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, [productId]);
+
+  useEffect(() => {
+    if (!user) { setEligibility(null); return; }
+    api.get(`/products/${productId}/reviews/eligibility`).then((r) => setEligibility(r.data.data)).catch(() => setEligibility(null));
+  }, [productId, user]);
+
+  if (loading) return null;
+
+  return (
+    <div className="mt-16">
+      <div className="flex items-center gap-3 mb-6">
+        <h2 className="text-lg font-display font-bold text-ink">Reviews</h2>
+        {summary.count > 0 && (
+          <>
+            <Stars value={summary.average} />
+            <span className="text-sm text-ink/50">{summary.average.toFixed(1)} · {summary.count} review{summary.count === 1 ? '' : 's'}</span>
+          </>
+        )}
+      </div>
+
+      {user && eligibility?.eligible && !justSubmitted && (
+        <div className="mb-6">
+          <ReviewForm productId={productId} onSubmitted={() => { setJustSubmitted(true); load(); }} />
+        </div>
+      )}
+      {justSubmitted && (
+        <p className="mb-6 text-sm text-emerald-600">Thanks! Your review has been submitted and will appear once approved.</p>
+      )}
+      {user && eligibility && !eligibility.eligible && eligibility.reason === 'no_verified_purchase' && (
+        <p className="mb-6 text-xs text-ink/40">Only customers who have completed a paid purchase of this product can leave a review.</p>
+      )}
+
+      {items.length === 0 ? (
+        <p className="text-sm text-ink/40">No reviews yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {items.map((r) => (
+            <div key={r.id} className="glass-card p-5">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="font-semibold text-sm">{r.user_name}</p>
+                <Stars value={r.rating} />
+              </div>
+              <p className="text-xs text-ink/40 mb-2">{new Date(r.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              {r.review && <p className="text-sm text-ink/70">{r.review}</p>}
+              {r.admin_response && (
+                <div className="mt-3 pl-4 border-l-2 border-secondary/30">
+                  <p className="text-xs font-semibold text-secondary mb-1">Response from AIMsisters</p>
+                  <p className="text-sm text-ink/60">{r.admin_response}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -312,6 +448,8 @@ export default function ProductDetail() {
           )}
         </div>
       </div>
+
+      <ProductReviews productId={product.id} user={user} />
 
       {related.length > 0 && (
         <div className="mt-16">

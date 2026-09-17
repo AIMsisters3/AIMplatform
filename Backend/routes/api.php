@@ -27,6 +27,9 @@ require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
 require_once __DIR__ . '/../controllers/CronController.php';
 require_once __DIR__ . '/../controllers/PaymentController.php';
+require_once __DIR__ . '/../controllers/SettingController.php';
+require_once __DIR__ . '/../controllers/RefundController.php';
+require_once __DIR__ . '/../controllers/ReviewController.php';
 require_once __DIR__ . '/../controllers/WishlistController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -111,6 +114,10 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'stock' && $method === 'POST') return $ctrl->adjustStock((int) $id);
         if ($id !== null && $action === 'stock-movements' && $method === 'GET') return $ctrl->stockMovements((int) $id);
 
+        if ($id !== null && $action === 'reviews' && $subId === 'eligibility' && $method === 'GET') return (new ReviewController())->eligibility((int) $id);
+        if ($id !== null && $action === 'reviews' && $method === 'GET') return (new ReviewController())->forProduct((int) $id);
+        if ($id !== null && $action === 'reviews' && $method === 'POST') return (new ReviewController())->store((int) $id);
+
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
         if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
@@ -184,9 +191,34 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'item-procurement' && $subId !== null && $method === 'POST') return $ctrl->updateItemProcurement((int) $id, (int) $subId);
         if ($id !== null && $action === 'payments' && $method === 'POST') return (new PaymentController())->submit((int) $id);
         if ($id !== null && $action === 'payments' && $method === 'GET') return (new PaymentController())->forOrder((int) $id);
+        if ($id !== null && $action === 'refunds' && $method === 'POST') return (new RefundController())->request((int) $id);
+        if ($id !== null && $action === 'refunds' && $method === 'GET') return (new RefundController())->forOrder((int) $id);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show((int) $id);
 
         json_error('Order route not found.', 404);
+    }
+
+    // ---------- REVIEWS (moderation) ----------
+    if ($resource === 'reviews') {
+        $ctrl = new ReviewController();
+
+        if ($id === 'moderation' && $method === 'GET') return $ctrl->moderationQueue();
+        if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
+        if ($id !== null && $action === 'respond' && $method === 'POST') return $ctrl->respond((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Review route not found.', 404);
+    }
+
+    // ---------- REFUNDS ----------
+    if ($resource === 'refunds') {
+        $ctrl = new RefundController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $action === 'decide' && $method === 'POST') return $ctrl->decide((int) $id);
+        if ($id !== null && $action === 'process' && $method === 'POST') return $ctrl->process((int) $id);
+
+        json_error('Refund route not found.', 404);
     }
 
     // ---------- PAYMENTS (verification queue) ----------
@@ -308,6 +340,16 @@ function route(string $method, string $path)
         if ($id !== null && $method === 'POST') return $ctrl->toggle((int) $id);
 
         json_error('Wishlist route not found.', 404);
+    }
+
+    // ---------- SETTINGS ----------
+    if ($resource === 'settings') {
+        $ctrl = new SettingController();
+
+        if ($id === 'shop' && $method === 'GET') return $ctrl->shop();
+        if ($id === 'shop' && $method === 'PUT') return $ctrl->updateShop();
+
+        json_error('Settings route not found.', 404);
     }
 
     // ---------- CRON (shared-secret auth, not a user session — see CronController) ----------

@@ -82,6 +82,13 @@ class PaymentController
             $this->setAwaitingVerification($orderId);
         }
 
+        require_once __DIR__ . '/../helpers/shop_notify.php';
+        notify_shop_admins_event(
+            'Payment awaiting verification',
+            "A payment of N$" . number_format($amount, 2) . " was submitted for order {$order['order_number']} and needs verification.",
+            'order', '/admin/payments'
+        );
+
         json_created(['id' => $paymentId], 'Payment submitted — we will verify it shortly.');
     }
 
@@ -147,6 +154,17 @@ class PaymentController
             json_error('This payment has already been decided.', 409);
             return;
         }
+
+        $order = $this->orderModel->find((int) $record['order_id']);
+        if ($order && $order['user_id']) {
+            require_once __DIR__ . '/../helpers/shop_notify.php';
+            notify_shop_event(
+                (int) $order['user_id'], 'Payment could not be verified',
+                "We could not verify a payment of N$" . number_format((float) $record['amount'], 2) . " for order {$order['order_number']}. Reason: {$reason}. Please check the details and submit again, or contact us.",
+                'order', 'Payment Rejected'
+            );
+        }
+
         json_ok(null, 'Payment rejected.');
     }
 

@@ -64,15 +64,15 @@ class CronController
         $stmt->execute();
         $due = $stmt->fetchAll();
 
-        require_once __DIR__ . '/../models/Notification.php';
+        require_once __DIR__ . '/../helpers/shop_notify.php';
         foreach ($due as $row) {
             $db->prepare('UPDATE orders SET deposit_reminder_sent_at = NOW() WHERE id = :id')->execute(['id' => $row['id']]);
             if ($row['user_id']) {
-                (new Notification())->create(
+                notify_shop_event(
                     (int) $row['user_id'], 'Deposit due soon',
                     "Order {$row['order_number']}: your deposit of N$" . number_format((float) $row['deposit_amount'], 2)
                         . ' is due by ' . date('j F Y, H:i', strtotime($row['deposit_deadline_at'])) . '.',
-                    'order', '/orders'
+                    'order', 'Deposit Reminder'
                 );
             }
         }

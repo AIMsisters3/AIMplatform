@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { Package, Clock, Truck, Link2, Upload, Loader2, Eye, CheckCircle2, XCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Package, Clock, Truck, Link2, Upload, Loader2, Eye, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import api from '../api/axios.js';
+
+const DOCUMENT_LINKS = [
+  { type: 'confirmation', label: 'Order Confirmation' },
+  { type: 'invoice', label: 'Invoice' },
+  { type: 'payment_instructions', label: 'Payment Instructions' },
+  { type: 'receipt', label: 'Receipt' },
+  { type: 'deposit_receipt', label: 'Deposit Receipt' },
+  { type: 'balance_statement', label: 'Balance Statement' },
+  { type: 'packing_slip', label: 'Packing Slip' },
+  { type: 'delivery_note', label: 'Delivery Note' },
+  { type: 'pickup_confirmation', label: 'Pickup Confirmation' },
+  { type: 'credit_note', label: 'Refund / Credit Note' },
+];
 
 const STATUS_BADGE = {
   awaiting_approval: 'bg-amber-100 text-amber-700',
@@ -290,6 +304,34 @@ export default function MyOrders() {
                           <Truck className="w-3.5 h-3.5" /> {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}
                           {o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''}
                         </p>
+
+                        <div className="pt-2 border-t border-ink/10">
+                          <p className="text-xs font-semibold text-ink/40 mb-1.5 flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5" /> Documents
+                          </p>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1">
+                            {DOCUMENT_LINKS.filter(({ type }) => {
+                              if (type === 'payment_instructions' && o.payment_state === 'paid') return false;
+                              if (type === 'receipt' && !['paid', 'partially_paid', 'partially_refunded', 'refunded'].includes(o.payment_state)) return false;
+                              if (type === 'deposit_receipt' && !o.deposit_paid_at) return false;
+                              if (type === 'balance_statement' && balanceDue <= 0.005) return false;
+                              if ((type === 'packing_slip' || type === 'delivery_note') && o.fulfillment_type !== 'delivery') return false;
+                              if (type === 'pickup_confirmation' && o.fulfillment_type !== 'pickup') return false;
+                              if (type === 'credit_note' && !['refunded', 'partially_refunded'].includes(o.payment_state)) return false;
+                              return true;
+                            }).map(({ type, label: docLabel }) => (
+                              <Link
+                                key={type}
+                                to={`/orders/${o.id}/document?type=${type}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-secondary hover:underline"
+                              >
+                                {docLabel}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
                       </>
                     ) : (
                       <p className="text-ink/40">Loading items...</p>

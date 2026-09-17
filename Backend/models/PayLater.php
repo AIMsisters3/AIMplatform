@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/Product.php';
-require_once __DIR__ . '/Notification.php';
+require_once __DIR__ . '/../helpers/shop_notify.php';
 
 /**
  * Pay Later lifecycle (migration 016's pay_later_details table extends a
@@ -138,12 +138,12 @@ class PayLater
         }
 
         if ($order['user_id']) {
-            (new Notification())->create(
+            notify_shop_event(
                 (int) $order['user_id'],
                 'Pay Later request approved',
                 "Your Pay Later order {$order['order_number']} is approved. Payment is due by " . date('j F Y, H:i', strtotime($dueAt)) . '.',
                 'pay_later',
-                '/orders'
+                'Pay Later Approved'
             );
         }
     }
@@ -164,12 +164,12 @@ class PayLater
         )->execute(['reason' => $reason ?: 'Pay Later request declined.', 'id' => $orderId]);
 
         if ($order['user_id']) {
-            (new Notification())->create(
+            notify_shop_event(
                 (int) $order['user_id'],
                 'Pay Later request declined',
                 "Your Pay Later request for order {$order['order_number']} was declined." . ($reason ? " Reason: $reason" : ''),
                 'pay_later',
-                '/orders'
+                'Pay Later Declined'
             );
         }
     }
@@ -205,12 +205,12 @@ class PayLater
         foreach ($due as $row) {
             $this->db->prepare('UPDATE pay_later_details SET reminder_sent_at = NOW() WHERE order_id = :id')->execute(['id' => $row['order_id']]);
             if ($row['user_id']) {
-                (new Notification())->create(
+                notify_shop_event(
                     (int) $row['user_id'],
                     'Pay Later payment due soon',
                     "Your Pay Later order {$row['order_number']} is due by " . date('j F Y, H:i', strtotime($row['due_at'])) . '. Please complete payment to avoid cancellation.',
                     'pay_later',
-                    '/orders'
+                    'Payment Reminder'
                 );
             }
         }
@@ -266,12 +266,12 @@ class PayLater
             }
 
             if ($row['user_id']) {
-                (new Notification())->create(
+                notify_shop_event(
                     (int) $row['user_id'],
                     'Pay Later order cancelled',
                     "Your Pay Later order {$row['order_number']} was cancelled because payment wasn't received by the deadline.",
                     'pay_later',
-                    '/orders'
+                    'Order Cancelled'
                 );
             }
         }

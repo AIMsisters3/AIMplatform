@@ -1,9 +1,28 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Clock, Link2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Clock, Link2, FileText } from 'lucide-react';
 import api from '../../api/axios.js';
 
 const STATUSES = ['', 'awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered', 'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'];
 const ORDER_KINDS = ['', 'standard', 'pay_later', 'on_order'];
+const DOCUMENT_LINKS = [
+  { type: 'confirmation', label: 'Confirmation' },
+  { type: 'invoice', label: 'Invoice' },
+  { type: 'payment_instructions', label: 'Payment Instructions' },
+  { type: 'receipt', label: 'Receipt' },
+  { type: 'deposit_receipt', label: 'Deposit Receipt' },
+  { type: 'balance_statement', label: 'Balance Statement' },
+  { type: 'packing_slip', label: 'Packing Slip' },
+  { type: 'delivery_note', label: 'Delivery Note' },
+  { type: 'pickup_confirmation', label: 'Pickup Confirmation' },
+  { type: 'credit_note', label: 'Credit Note' },
+];
+const REFUND_STATUS_BADGE = {
+  requested: 'bg-amber-100 text-amber-700',
+  approved: 'bg-sky-100 text-sky-700',
+  rejected: 'bg-red-100 text-red-600',
+  processed: 'bg-emerald-100 text-emerald-700',
+};
 const STATUS_BADGE = {
   awaiting_approval: 'bg-amber-100 text-amber-700',
   awaiting_payment: 'bg-amber-100 text-amber-700',
@@ -30,6 +49,9 @@ export default function ManageOrders() {
   const [tracking, setTracking] = useState({});
   const [depositForm, setDepositForm] = useState({}); // orderId -> {percent, deadline}
   const [message, setMessage] = useState('');
+  const [refunds, setRefunds] = useState({}); // orderId -> refund[]
+  const [refundForm, setRefundForm] = useState({}); // orderId -> {amount, reason}
+  const [processForm, setProcessForm] = useState({}); // refundId -> {method, notes}
 
   const load = useCallback(() => {
     setLoading(true);
@@ -45,10 +67,55 @@ export default function ManageOrders() {
     return api.get(`/orders/${orderId}`).then((r) => setDetails((d) => ({ ...d, [orderId]: r.data.data.item })));
   }
 
+  function refreshRefunds(orderId) {
+    return api.get(`/orders/${orderId}/refunds`).then((r) => setRefunds((rf) => ({ ...rf, [orderId]: r.data.data.items || [] })));
+  }
+
   function toggleExpand(orderId) {
     if (expanded === orderId) { setExpanded(null); return; }
     setExpanded(orderId);
     if (!details[orderId]) refreshDetail(orderId);
+    if (!refunds[orderId]) refreshRefunds(orderId);
+  }
+
+  async function requestRefund(orderId) {
+    const form = refundForm[orderId] || {};
+    if (!form.amount || Number(form.amount) <= 0) {
+      setMessage('Enter a refund amount first.');
+      return;
+    }
+    try {
+      await api.post(`/orders/${orderId}/refunds`, { amount: Number(form.amount), reason: form.reason || undefined });
+      setRefundForm((f) => ({ ...f, [orderId]: { amount: '', reason: '' } }));
+      refreshRefunds(orderId);
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Could not request refund.');
+    }
+  }
+
+  async function decideRefund(refundId, orderId, decision) {
+    try {
+      await api.post(`/refunds/${refundId}/decide`, { decision });
+      refreshRefunds(orderId);
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Could not record decision.');
+    }
+  }
+
+  async function processRefund(refundId, orderId) {
+    const form = processForm[refundId] || {};
+    if (!form.method) {
+      setMessage('Specify how the refund was sent before marking it processed.');
+      return;
+    }
+    try {
+      await api.post(`/refunds/${refundId}/process`, { method: form.method, notes: form.notes || undefined });
+      refreshRefunds(orderId);
+      refreshDetail(orderId);
+      load();
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Could not process refund.');
+    }
   }
 
   async function updateStatus(orderId, newStatus) {
@@ -239,6 +306,72 @@ export default function ManageOrders() {
                       >
                         Save
                       </button>
+                    </div>
+
+                    <div className="pt-3 border-t border-ink/10">
+                      <p className="text-xs font-semibold text-ink/40 mb-1.5 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5" /> Documents
+                      </p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {DOCUMENT_LINKS.map(({ type, label: docLabel }) => (
+                          <Link key={type} to={`/orders/${o.id}/document?type=${type}`} target="_blank" rel="noopener noreferrer" className="text-xs text-secondary hover:underline">
+                            {docLabel}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-ink/10 space-y-2">
+                      <p className="text-xs font-semibold text-ink/40">Refunds</p>
+                      {(refunds[o.id] || []).map((r) => (
+                        <div key={r.id} className="bg-surface/60 rounded-xl2 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="text-ink/70">
+                            N$ {Number(r.amount).toFixed(2)}{r.reason ? ` — ${r.reason}` : ''}
+                            {r.method ? ` · via ${label(r.method)}` : ''}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full font-bold ${REFUND_STATUS_BADGE[r.status] || 'bg-ink/10'}`}>{label(r.status)}</span>
+                            {r.status === 'requested' && (
+                              <>
+                                <button onClick={() => decideRefund(r.id, o.id, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white font-semibold">Approve</button>
+                                <button onClick={() => decideRefund(r.id, o.id, 'rejected')} className="px-2.5 py-1 rounded-lg bg-red-500 text-white font-semibold">Reject</button>
+                              </>
+                            )}
+                            {r.status === 'approved' && (
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={processForm[r.id]?.method || ''}
+                                  onChange={(e) => setProcessForm((f) => ({ ...f, [r.id]: { ...f[r.id], method: e.target.value } }))}
+                                  className="px-2 py-1 rounded-lg border border-ink/10"
+                                >
+                                  <option value="">Sent via...</option>
+                                  <option value="bank_transfer">Bank Transfer</option>
+                                  <option value="mobile_wallet">Mobile Wallet</option>
+                                  <option value="cash">Cash</option>
+                                  <option value="other">Other</option>
+                                </select>
+                                <button onClick={() => processRefund(r.id, o.id)} className="px-2.5 py-1 rounded-lg bg-brand-gradient text-white font-semibold">Mark Processed</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={refundForm[o.id]?.amount || ''}
+                          onChange={(e) => setRefundForm((f) => ({ ...f, [o.id]: { ...f[o.id], amount: e.target.value } }))}
+                          placeholder="Refund amount (N$)"
+                          className="px-3 py-1.5 rounded-xl2 border border-ink/10 text-xs w-36"
+                        />
+                        <input
+                          value={refundForm[o.id]?.reason || ''}
+                          onChange={(e) => setRefundForm((f) => ({ ...f, [o.id]: { ...f[o.id], reason: e.target.value } }))}
+                          placeholder="Reason (optional)"
+                          className="px-3 py-1.5 rounded-xl2 border border-ink/10 text-xs flex-1 min-w-[10rem]"
+                        />
+                        <button onClick={() => requestRefund(o.id)} className="px-3 py-1.5 rounded-xl2 bg-ink text-white text-xs font-semibold">Request Refund</button>
+                      </div>
                     </div>
                   </div>
                 )}

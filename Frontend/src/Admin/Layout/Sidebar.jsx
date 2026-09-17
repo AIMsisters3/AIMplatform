@@ -11,6 +11,8 @@ const items = [
   { to: '/admin/orders', label: 'Orders', icon: '📦' },
   { to: '/admin/delivery-areas', label: 'Delivery & Pickup', icon: '🚚' },
   { to: '/admin/payments', label: 'Payment Verification', icon: '💳' },
+  { to: '/admin/shop-settings', label: 'Shop Settings', icon: '⚙️' },
+  { to: '/admin/reviews', label: 'Product Reviews', icon: '📝' },
   { to: '/admin/comments', label: 'Comments', icon: '💬' },
   { to: '/admin/newsletter', label: 'Newsletter', icon: '✉️' },
   { to: '/admin/roles', label: 'Roles & Users', icon: '👥' },

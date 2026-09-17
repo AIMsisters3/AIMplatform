@@ -26,6 +26,7 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null); // { orders, split }
+  const [shopSettings, setShopSettings] = useState({});
 
   useEffect(() => {
     if (!user) {
@@ -46,6 +47,7 @@ export default function Checkout() {
       })
       .catch(() => setMethods(['manual_bank']));
     api.get('/delivery-areas').then((r) => setDeliveryAreas(r.data?.data?.items || [])).catch(() => setDeliveryAreas([]));
+    api.get('/settings/shop').then((r) => setShopSettings(r.data?.data?.items || {})).catch(() => setShopSettings({}));
   }, []);
 
   const deliveryOptions = deliveryAreas.filter((a) => !a.is_pickup);
@@ -120,11 +122,20 @@ export default function Checkout() {
               <p className="text-sm text-ink/60">
                 {o.order_kind === 'pay_later' && "We'll notify you once your Pay Later request is approved, with your exact payment deadline."}
                 {o.order_kind === 'on_order' && "Our team will confirm a deposit amount and deadline shortly — we'll notify you."}
-                {o.order_kind === 'standard' && 'Payment instructions will be sent to your account shortly.'}
+                {o.order_kind === 'standard' && 'Please complete payment using the instructions below, then submit your payment reference/proof from My Orders.'}
               </p>
             </div>
           ))}
         </div>
+
+        {paymentMethod !== 'pay_later' && (shopSettings[`shop.payment_instructions_${paymentMethod === 'manual_mobile_wallet' ? 'mobile_wallet' : 'bank'}`]) && (
+          <div className="glass-card p-5 text-left mb-8">
+            <h3 className="font-display font-semibold mb-2">{METHOD_LABELS[paymentMethod]} Instructions</h3>
+            <p className="text-sm text-ink/70 whitespace-pre-line">
+              {shopSettings[`shop.payment_instructions_${paymentMethod === 'manual_mobile_wallet' ? 'mobile_wallet' : 'bank'}`]}
+            </p>
+          </div>
+        )}
         <div className="flex gap-3 justify-center">
           <Link to="/orders" className="px-6 py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
             View My Orders

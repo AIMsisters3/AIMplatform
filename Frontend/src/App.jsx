@@ -30,6 +30,7 @@ const Wishlist = lazy(() => import('./Pages/Wishlist.jsx'));
 const Cart = lazy(() => import('./Pages/Cart.jsx'));
 const Checkout = lazy(() => import('./Pages/Checkout.jsx'));
 const MyOrders = lazy(() => import('./Pages/MyOrders.jsx'));
+const OrderDocument = lazy(() => import('./Pages/OrderDocument.jsx'));
 const MyBookmarks = lazy(() => import('./Pages/MyBookmarks.jsx'));
 const SearchResults = lazy(() => import('./Pages/SearchResults.jsx'));
 const About = lazy(() => import('./Pages/About.jsx'));
@@ -47,6 +48,8 @@ const ManageSeries = lazy(() => import('./Admin/Pages/ManageSeries.jsx'));
 const ManageOrders = lazy(() => import('./Admin/Pages/ManageOrders.jsx'));
 const ManageDeliveryAreas = lazy(() => import('./Admin/Pages/ManageDeliveryAreas.jsx'));
 const PaymentVerification = lazy(() => import('./Admin/Pages/PaymentVerification.jsx'));
+const ShopSettings = lazy(() => import('./Admin/Pages/ShopSettings.jsx'));
+const ManageReviews = lazy(() => import('./Admin/Pages/ManageReviews.jsx'));
 const ModerateComments = lazy(() => import('./Admin/Pages/ModerateComments.jsx'));
 const ManageNewsletter = lazy(() => import('./Admin/Pages/ManageNewsletter.jsx'));
 const ManageRoles = lazy(() => import('./Admin/Pages/ManageRoles.jsx'));
@@ -105,6 +108,7 @@ export default function App() {
             <Route path="/cart" element={<PublicLayout><Cart /></PublicLayout>} />
             <Route path="/checkout" element={<PublicLayout><Checkout /></PublicLayout>} />
             <Route path="/orders" element={<PublicLayout><RequireAuth><MyOrders /></RequireAuth></PublicLayout>} />
+            <Route path="/orders/:id/document" element={<RequireAuth><OrderDocument /></RequireAuth>} />
             <Route path="/bookmarks" element={<PublicLayout><RequireAuth><MyBookmarks /></RequireAuth></PublicLayout>} />
             <Route path="/search" element={<PublicLayout><SearchResults /></PublicLayout>} />
             <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
@@ -130,6 +134,8 @@ export default function App() {
               <Route path="orders" element={<ManageOrders />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />
               <Route path="payments" element={<PaymentVerification />} />
+              <Route path="shop-settings" element={<ShopSettings />} />
+              <Route path="reviews" element={<ManageReviews />} />
               <Route path="comments" element={<ModerateComments />} />
               <Route path="newsletter" element={<ManageNewsletter />} />
               <Route path="roles" element={<ManageRoles />} />

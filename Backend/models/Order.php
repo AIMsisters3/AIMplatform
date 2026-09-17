@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/Product.php';
 require_once __DIR__ . '/PayLater.php';
 require_once __DIR__ . '/DeliveryArea.php';
-require_once __DIR__ . '/Notification.php';
+require_once __DIR__ . '/../helpers/shop_notify.php';
 require_once __DIR__ . '/../lib/Payments/PaymentGatewayFactory.php';
 
 use AIMsisters\Payments\PaymentGatewayFactory;
@@ -165,7 +165,17 @@ class Order
             throw $e;
         }
 
-        return ['orders' => array_map(fn ($o) => $this->find($o['id']), $createdOrders), 'split' => $splitGroupId !== null];
+        $fullOrders = array_map(fn ($o) => $this->find($o['id']), $createdOrders);
+
+        foreach ($fullOrders as $o) {
+            notify_shop_admins_event(
+                'New order placed',
+                "Order {$o['order_number']} was just placed (N$" . number_format((float) $o['grand_total'], 2) . ").",
+                'order', '/admin/orders'
+            );
+        }
+
+        return ['orders' => $fullOrders, 'split' => $splitGroupId !== null];
     }
 
     /** Locks the product (and variant, if any) row and returns validated line data — throws if unavailable. */
@@ -268,13 +278,13 @@ class Order
             }
         }
 
-        (new Notification())->create(
+        notify_shop_event(
             $userId, 'Order received',
             $isPayLater
                 ? "Your Pay Later request {$orderNumber} has been submitted and is awaiting approval."
                 : "Your order {$orderNumber} has been received and is being processed.",
             $isPayLater ? 'pay_later' : 'order',
-            '/orders'
+            $isPayLater ? 'Pay Later' : 'Order Placed'
         );
 
         return ['id' => $orderId];
@@ -304,10 +314,10 @@ class Order
 
         $this->insertLineItems($orderId, $lines, 'pending');
 
-        (new Notification())->create(
+        notify_shop_event(
             $userId, 'On-order request received',
             "Your order {$orderNumber} for on-order item(s) has been received. We'll confirm a deposit amount and supplier timeline shortly.",
-            'order', '/orders'
+            'order', 'On-Order Item'
         );
 
         return ['id' => $orderId];
@@ -360,7 +370,11 @@ class Order
 
     public function find(int $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM orders WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare(
+            'SELECT o.*, u.name AS customer_name, u.email AS customer_email
+             FROM orders o LEFT JOIN users u ON u.id = o.user_id
+             WHERE o.id = :id LIMIT 1'
+        );
         $stmt->execute(['id' => $id]);
         $order = $stmt->fetch();
         if (!$order) {
@@ -466,10 +480,10 @@ class Order
 
         $order = $this->find($id);
         if ($ok && $order && $order['user_id']) {
-            (new Notification())->create(
+            notify_shop_event(
                 (int) $order['user_id'], 'Order update',
                 "Your order {$order['order_number']} is now: " . ucwords(str_replace('_', ' ', $status)) . '.',
-                'order', '/orders'
+                'order', 'Order Update'
             );
         }
         return $ok;
@@ -504,11 +518,11 @@ class Order
         )->execute(['percent' => $percent, 'amount' => $depositAmount, 'deadline' => $deadlineAt, 'id' => $id]);
 
         if ($order['user_id']) {
-            (new Notification())->create(
+            notify_shop_event(
                 (int) $order['user_id'], 'Deposit required to proceed',
                 "Order {$order['order_number']}: a {$percent}% deposit of N$" . number_format($depositAmount, 2)
                     . ' is due by ' . date('j F Y, H:i', strtotime($deadlineAt)) . ' to confirm your order with our supplier.',
-                'order', '/orders'
+                'order', 'Deposit Required'
             );
         }
     }
@@ -535,11 +549,11 @@ class Order
             if ($order && !in_array($order['status'], ['arrived', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'], true)) {
                 $this->db->prepare("UPDATE orders SET status = 'arrived' WHERE id = :id")->execute(['id' => $orderId]);
                 if ($order['user_id']) {
-                    (new Notification())->create(
+                    notify_shop_event(
                         (int) $order['user_id'], 'Your order has arrived',
                         "All items for order {$order['order_number']} have arrived from our supplier. "
                             . ($order['fulfillment_type'] === 'pickup' ? 'It will be ready for pickup once any remaining balance is paid.' : 'It will be prepared for delivery once any remaining balance is paid.'),
-                        'order', '/orders'
+                        'order', 'Order Arrived'
                     );
                 }
             }
@@ -605,13 +619,13 @@ class Order
 
         $order = $this->find($orderId);
         if ($order['user_id']) {
-            (new Notification())->create(
+            notify_shop_event(
                 (int) $order['user_id'],
                 $paymentState === 'paid' ? 'Payment confirmed' : 'Payment received',
                 $paymentState === 'paid'
                     ? "Payment for order {$order['order_number']} has been fully verified. Thank you!"
                     : "A payment of N$" . number_format($amount, 2) . " for order {$order['order_number']} has been verified. Remaining balance: N$" . number_format($due - $newAmountPaid, 2) . '.',
-                'order', '/orders'
+                'order', 'Payment Verified'
             );
         }
         return $order;
