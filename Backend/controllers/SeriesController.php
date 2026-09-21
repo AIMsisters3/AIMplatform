@@ -16,12 +16,19 @@ class SeriesController
         $this->model = new Series();
     }
 
-    /** GET /api/series?category_id=&search=&status= */
+    /** GET /api/series?category_id=&search=&status=&section= */
     public function index(): void
     {
         $page  = max(1, (int) ($_GET['page'] ?? 1));
         $limit = min(50, (int) ($_GET['limit'] ?? 12));
-        $filters = ['category_id' => $_GET['category_id'] ?? null, 'search' => $_GET['search'] ?? null];
+        $filters = [
+            'category_id' => $_GET['category_id'] ?? null,
+            'search'      => $_GET['search'] ?? null,
+            // e.g. ?section=bible_study - lets Bible Studies surface only
+            // series flagged as belonging there, while the main Series
+            // page (no filter) keeps showing every series as before.
+            'section'     => $_GET['section'] ?? null,
+        ];
 
         if (!empty($_GET['status'])) {
             $payload = optional_auth();
@@ -108,5 +115,16 @@ class SeriesController
         }
 
         json_ok(null, 'Episode attached to series.');
+    }
+
+    /** DELETE /api/series/{id}/episodes/{contentId} (requires content.edit) — detaches an episode without deleting the underlying content item. */
+    public function detachEpisode(int $seriesId, int $contentId): void
+    {
+        require_permission('content.edit');
+        if (!$this->model->find($seriesId)) {
+            json_error('Series not found.', 404);
+        }
+        $this->model->setEpisodePosition($contentId, null, null, null);
+        json_ok(null, 'Episode removed from series.');
     }
 }

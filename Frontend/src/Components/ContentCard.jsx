@@ -6,6 +6,7 @@ const KIND_ICON = {
   video: PlayCircle,
   pdf: FileText,
   audio: Headphones,
+  article: FileText,
 };
 
 export default function ContentCard({ item, onClick }) {

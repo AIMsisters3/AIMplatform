@@ -1,17 +1,43 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Calendar, BookOpen, FileText, Eye } from 'lucide-react';
+import api from '../api/axios.js';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
 import DownloadButton from './DownloadButton.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
 
+// How often to re-check whether a broadcast a viewer already has open is
+// still actually live — see LiveNowStrip.jsx's matching comment: there's
+// no real streaming-provider webhook, so polling while the modal is open
+// is the most reliable supported way to clear a stale LIVE badge without
+// making the viewer close and reopen the item themselves.
+const LIVE_POLL_INTERVAL_MS = 30_000;
+
 export default function ContentViewerModal({ item, onClose }) {
+  // liveOverride: null = trust item.is_live as originally fetched; once a
+  // poll actually runs, it always wins (even to flip live -> not live).
+  const [liveOverride, setLiveOverride] = useState(null);
+
+  useEffect(() => {
+    setLiveOverride(null);
+    if (!item || !isLive(item)) return undefined;
+    const interval = setInterval(() => {
+      api.get(`/content/${item.id}`)
+        .then((r) => {
+          const fresh = r.data?.data?.item;
+          if (fresh) setLiveOverride(isLive(fresh));
+        })
+        .catch(() => {});
+    }, LIVE_POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [item]);
+
   if (!item) return null;
   const kind = getItemKind(item);
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
-  const live = isLive(item);
+  const live = liveOverride !== null ? liveOverride : isLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
 
   return (
@@ -69,8 +95,24 @@ export default function ContentViewerModal({ item, onClose }) {
             </div>
           )}
 
+          {/* A broadcast that just ended may still hold its original
+              live-stream link (e.g. a Facebook Live watch URL) in
+              media_url rather than a real playable file - there's no
+              provider integration to tell the two apart, so a raw
+              <video src> would just fail silently on a link like that.
+              Only attempt <video> once the URL actually looks like a
+              direct file; otherwise offer the same link a viewer can open
+              to check whether a replay is available there. */}
           {kind === 'video' && !youtubeSrc && !live && item.media_url && (
-            <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} />
+            /\.(mp4|webm|ogg|mov)(\?|$)/i.test(item.media_url) ? (
+              <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} />
+            ) : (
+              <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
+                <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
+                  Watch Recording
+                </a>
+              </div>
+            )
           )}
 
           {kind === 'pdf' && (

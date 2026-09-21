@@ -274,6 +274,8 @@ function route(string $method, string $path)
     if ($resource === 'notes') {
         $ctrl = new NoteController();
 
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show((int) $id);
         if ($id !== null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $method === 'DELETE') return $ctrl->destroy((int) $id);
 
@@ -286,7 +288,8 @@ function route(string $method, string $path)
 
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
-        if ($id !== null && $action === 'episodes' && $method === 'POST') return $ctrl->attachEpisode((int) $id);
+        if ($id !== null && $action === 'episodes' && $subId === null && $method === 'POST') return $ctrl->attachEpisode((int) $id);
+        if ($id !== null && $action === 'episodes' && $subId !== null && $method === 'DELETE') return $ctrl->detachEpisode((int) $id, (int) $subId);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
         if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
@@ -382,6 +385,14 @@ function route(string $method, string $path)
     // section rather than a parallel Kids-specific backend.
     if ($resource === 'kids' && $method === 'GET') {
         $_GET['section'] = 'kids';
+        return (new ContentController())->index();
+    }
+
+    // ---------- SONGS (alias into ContentController, filtered by section) ----------
+    // Same pattern as Kids above - a dedicated destination, still backed by
+    // the shared content table rather than a parallel model.
+    if ($resource === 'songs' && $method === 'GET') {
+        $_GET['section'] = 'songs';
         return (new ContentController())->index();
     }
 

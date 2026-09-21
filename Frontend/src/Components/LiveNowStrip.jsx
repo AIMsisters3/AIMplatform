@@ -3,6 +3,14 @@ import { Link } from 'react-router-dom';
 import { Radio } from 'lucide-react';
 import api from '../api/axios.js';
 
+// How often to re-check whether anything is still actually live. There's
+// no real streaming-provider webhook wired up (see live_url's docblock in
+// migration 014) - is_live is a plain admin-toggled column - so this is
+// the most reliable supported way to keep a visitor's screen from showing
+// a stale "Live Now" banner well after a broadcast has actually ended:
+// poll rather than fetch once on mount and never again.
+const POLL_INTERVAL_MS = 45_000;
+
 /**
  * Small "Live Now" banner shown above a listing page when at least one
  * item in that section currently has is_live=1. Reused by Content.jsx
@@ -15,10 +23,14 @@ export default function LiveNowStrip({ endpoint, onItemClick, itemHref }) {
 
   useEffect(() => {
     let active = true;
-    api.get(endpoint, { params: { live: 1, limit: 6 } })
-      .then((r) => { if (active) setItems(r.data?.data?.items || []); })
-      .catch(() => { if (active) setItems([]); });
-    return () => { active = false; };
+    function fetchLive() {
+      api.get(endpoint, { params: { live: 1, limit: 6 } })
+        .then((r) => { if (active) setItems(r.data?.data?.items || []); })
+        .catch(() => { if (active) setItems([]); });
+    }
+    fetchLive();
+    const interval = setInterval(fetchLive, POLL_INTERVAL_MS);
+    return () => { active = false; clearInterval(interval); };
   }, [endpoint]);
 
   if (items.length === 0) return null;

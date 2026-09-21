@@ -22,38 +22,53 @@ class ContentController
     private const SECTION_MEDIA_TYPES = [
         // 'panel' and 'podcast' deliberately live under Bible Study only, not
         // here - those formats belong to structured study material, not
-        // general media library content.
-        'media_library' => [
-            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon',
-            'interview', 'documentary', 'audio', 'music', 'pdf', 'image', 'article',
-        ],
+        // general media library content. Movie/Cartoon/Animation, Sermon,
+        // Documentary, Article, and PDF are deliberately absent here too:
+        // Sermon/Documentary now live only under Bible Studies; Article
+        // lives only under News/Bible Studies/Devotions; PDF/Notes lives
+        // only under News/Bible Studies; Movie/Cartoon/Animation are
+        // removed from the general Content feed entirely (Cartoon remains
+        // available under Kids, unchanged, for children's content).
+        'media_library' => ['video', 'short_film', 'interview', 'audio', 'music', 'image'],
         // News isn't always a written article - an admin can instead post a
-        // video or a PDF under News, same as Media Library's video/pdf types.
+        // video or a PDF under News, same as Media Library's video type.
         'news'        => ['news_article', 'video', 'pdf'],
         'gallery'     => ['photo_gallery'],
         // Devotions isn't always a written article either - an admin can
         // instead post a video or audio recording of the devotion.
         'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004, extended by migration 012 for 'podcast', and
-        // migration 013 for 'interview') - keep these in sync with that column.
+        // value (migration 004, extended by migration 012 for 'podcast',
+        // migration 013 for 'interview', and migration 018 for 'article' -
+        // "Articles, where supported" per spec) - keep in sync with that column.
         'bible_study' => [
             'short_film', 'video', 'sermon', 'panel', 'audio', 'animated',
-            'documentary', 'pdf_notes', 'podcast', 'interview',
+            'documentary', 'pdf_notes', 'podcast', 'interview', 'article',
         ],
         // Kids is its own dedicated, safe section (migration 014) - not just
         // another category - with its own age-appropriate vocabulary.
         'kids' => ['bible_lesson', 'bible_story', 'cartoon', 'song', 'activity', 'other'],
+        // Songs is a dedicated destination (migration 018), separate from
+        // Kids' own embedded 'song' type above - this is general worship
+        // music/audio for every visitor, not children's content.
+        'songs' => ['song'],
     ];
 
     /**
-     * Media types whose primary content IS substantial written text
-     * (news articles, devotions, written articles) - only these show the
-     * Body field by default. Everything else is media-first (video,
-     * audio, gallery, ...) and gets an optional Transcript/Notes field
-     * instead.
+     * Media types allowed to carry a Body value at all - everything else
+     * gets it stripped back to null in normalizeClassification() below, so
+     * a stray value from an older client/section-switch never lingers.
+     * Despite the name, this isn't "body is mandatory" (that's the
+     * frontend's validate() call) - 'pdf'/'pdf_notes' are included so an
+     * admin can type notes instead of uploading a file (spec: "support
+     * typed notes/text where PDF/Notes content is allowed"), while still
+     * being free to upload a real file instead, in which case body stays
+     * null. The rest (news articles, devotions, written articles, kids
+     * bible lessons) genuinely do require body - enforced in validate()
+     * on the frontend, since the backend has always left "is this
+     * actually filled in" to the client's publish-time validation.
      */
-    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson', 'pdf', 'pdf_notes'];
 
     /**
      * content_type keeps its original 6-value ENUM and is still what

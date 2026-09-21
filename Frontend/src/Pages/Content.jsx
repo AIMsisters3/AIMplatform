@@ -2,33 +2,38 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Search, ArrowRight, BookOpen, Baby, HeartPulse, Shirt, Music, Users,
-  ScrollText, Eye, PlayCircle, FileText, Headphones, Inbox, Globe, Wand2,
-  Sparkles, Film, Mic, Camera, FileType, Image as ImageIcon, Layers,
+  Search, ArrowRight, Baby, HeartPulse, Shirt, Music, Users,
+  ScrollText, PlayCircle, FileText, Headphones, Inbox, Globe,
+  Sparkles, Film, Image as ImageIcon, Layers, Loader2,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { getItemKind } from '../utils/mediaKind.js';
+import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
 
-// Display order + icon/color per category. Bible Studies deliberately
-// excluded — it has its own dedicated page. Sabbath School content now
-// belongs under Bible Study, not here - excluded below rather than
-// deleted as a category outright, since the same category can still be
-// applied to a Bible Study upload (category_id is shared across sections).
+// Display order + icon/color per category, matched to the categories
+// actually seeded in the database (Backend/database/schema.sql +
+// migration 018's three Reforms categories) rather than aspirational
+// names that were never seeded. Bible Studies deliberately excluded — it
+// has its own dedicated page. Sabbath School content now belongs under
+// Bible Study, not here - excluded below rather than deleted as a
+// category outright, since the same category can still be applied to a
+// Bible Study upload (category_id is shared across sections).
 const CATEGORY_META = {
-  'Children Ministry': { icon: Baby, tagline: 'Fun & Faith for Children', bg: 'bg-violet-100', text: 'text-violet-600' },
+  'Children':         { icon: Baby, tagline: 'Fun & Faith for Children', bg: 'bg-violet-100', text: 'text-violet-600' },
   'Health Reform':     { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
+  'Spiritual Reform':  { icon: Sparkles, tagline: 'Renewal in Christ', bg: 'bg-purple-100', text: 'text-purple-600' },
   'Dress Reform':      { icon: Shirt, tagline: 'Modesty & Godly Life', bg: 'bg-orange-100', text: 'text-orange-600' },
-  'Animations':        { icon: Wand2, tagline: 'Fun & Creative Visuals', bg: 'bg-purple-100', text: 'text-purple-600' },
+  'Health':            { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
   'Music':             { icon: Music, tagline: 'Uplifting Gospel Sounds', bg: 'bg-blue-100', text: 'text-blue-600' },
   'Prophecy':          { icon: ScrollText, tagline: 'Bible Wisdom for Today', bg: 'bg-rose-100', text: 'text-rose-600' },
-  'Youth Ministry':    { icon: Users, tagline: 'Growing Strong in Christ', bg: 'bg-sky-100', text: 'text-sky-600' },
+  'Youth':             { icon: Users, tagline: 'Growing Strong in Christ', bg: 'bg-sky-100', text: 'text-sky-600' },
 };
 
-const CATEGORY_ORDER = ['Children Ministry', 'Health Reform', 'Dress Reform', 'Animations', 'Music', 'Prophecy', 'Youth Ministry'];
+const CATEGORY_ORDER = ['Children', 'Health Reform', 'Spiritual Reform', 'Dress Reform', 'Health', 'Music', 'Prophecy', 'Youth'];
 const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies', 'sabbath school'];
 
 // Categories are admin-managed, so their exact names can't be relied on to
@@ -68,24 +73,19 @@ const KIND_ICON = { video: PlayCircle, pdf: FileText, audio: Headphones };
 const KIND_LABEL = { video: 'Watch', pdf: 'Read', audio: 'Listen', article: 'Read' };
 
 // "Browse by Type" chips. Values map to content.media_type — a value can be
-// a comma-separated group (e.g. "animation,cartoon") since the backend now
-// accepts either a single media_type or an IN-list of several, letting a
-// couple of raw media_type values read as one intuitive option for visitors
-// (cartoons and animations are the same kind of watching experience to a
-// visitor, even though the admin tags them with two distinct types).
+// a comma-separated group since the backend accepts either a single
+// media_type or an IN-list of several. Mirrors
+// ContentController::SECTION_MEDIA_TYPES['media_library'] exactly — Movie/
+// Cartoon/Animation/Sermon/Documentary/Article/PDF no longer belong to the
+// general Content feed (Sermon/Documentary moved to Bible Studies only;
+// Article/PDF moved to News/Bible Studies/Devotions only).
 const TYPE_FILTERS = [
   { value: '', label: 'All Types', icon: Sparkles },
-  { value: 'movie', label: 'Movies', icon: Film },
-  { value: 'animation,cartoon', label: 'Animations & Cartoons', icon: Wand2 },
-  { value: 'short_film', label: 'Short Films', icon: Film },
   { value: 'video', label: 'Videos', icon: PlayCircle },
-  { value: 'sermon', label: 'Sermons', icon: Mic },
+  { value: 'short_film', label: 'Short Films', icon: Film },
   { value: 'interview', label: 'Interviews', icon: Users },
-  { value: 'documentary', label: 'Documentaries', icon: Camera },
   { value: 'audio,music', label: 'Music & Audio', icon: Headphones },
-  { value: 'article', label: 'Articles', icon: FileText },
   { value: 'image', label: 'Photos', icon: ImageIcon },
-  { value: 'pdf', label: 'Documents', icon: FileType },
 ];
 
 const fadeUp = {
@@ -211,7 +211,6 @@ function SeriesStrip({ series }) {
 export default function Content() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [languageOptions, setLanguageOptions] = useState([]);
   const [series, setSeries] = useState([]);
@@ -219,8 +218,25 @@ export default function Content() {
   const [categoryId, setCategoryId] = useState('');
   const [language, setLanguage] = useState('');
   const [mediaType, setMediaType] = useState('');
-  const [loading, setLoading] = useState(true);
   const [activeItem, setActiveItem] = useState(null);
+
+  const [featuredItems, setFeaturedItems] = useState([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
+
+  // Every eligible published item — media_library section only (Bible
+  // Studies/Devotions/News/Gallery/Kids/Songs each have their own
+  // dedicated destination and shouldn't also duplicate into this feed).
+  // Real server-side pagination via usePaginatedList, same pattern as
+  // Gallery/News/Devotions - resets to page 1 whenever a filter changes,
+  // so a filter change can never show a stale/duplicated page of results.
+  const feedParams = useMemo(() => ({
+    section: 'media_library',
+    search: search || undefined,
+    category_id: categoryId || undefined,
+    language: language || undefined,
+    media_type: mediaType || undefined,
+  }), [search, categoryId, language, mediaType]);
+  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/content', feedParams, 24);
 
   useEffect(() => {
     api.get('/categories', { params: { type: 'content' } })
@@ -229,27 +245,23 @@ export default function Content() {
     api.get('/languages')
       .then((r) => setLanguageOptions(r.data?.data?.items || []))
       .catch(() => setLanguageOptions([]));
-    api.get('/series', { params: { limit: 8 } })
+    api.get('/series', { params: { section: 'media_library', limit: 8 } })
       .then((r) => setSeries(r.data?.data?.items || []))
       .catch(() => setSeries([]));
   }, []);
 
+  // Featured Content is its own real server query (never derived from
+  // whatever happens to be on the current feed page) - only items an
+  // admin explicitly marked is_featured=1 ever appear here, and if none
+  // match the active filters, the section simply doesn't render (no
+  // fallback to showing non-featured items).
   useEffect(() => {
-    setLoading(true);
-    api
-      .get('/content', {
-        params: {
-          search: search || undefined,
-          category_id: categoryId || undefined,
-          language: language || undefined,
-          media_type: mediaType || undefined,
-          limit: 24,
-        },
-      })
-      .then((r) => setItems(r.data?.data?.items || []))
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  }, [search, categoryId, language, mediaType]);
+    setFeaturedLoading(true);
+    api.get('/content', { params: { ...feedParams, featured: 1, limit: 4 } })
+      .then((r) => setFeaturedItems(r.data?.data?.items || []))
+      .catch(() => setFeaturedItems([]))
+      .finally(() => setFeaturedLoading(false));
+  }, [feedParams]);
 
   useEffect(() => {
     const slug = searchParams.get('item');
@@ -260,23 +272,9 @@ export default function Content() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The server now filters by language (see the /content call above) - this
-  // is just a defensive fallback in case any item without the right
-  // language slips through, not the primary filtering mechanism anymore.
-  const filteredItems = useMemo(() => {
-    let list = Array.isArray(items) ? items : [];
-    if (language) list = list.filter((item) => item.language === language);
-    return list;
-  }, [items, language]);
-
-  const featuredItems = useMemo(() => {
-    const featured = filteredItems.filter((i) => Number(i.is_featured) === 1);
-    return (featured.length > 0 ? featured : filteredItems).slice(0, 4);
-  }, [filteredItems]);
-
   const popularItems = useMemo(() => {
-    return [...filteredItems].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 6);
-  }, [filteredItems]);
+    return [...items].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 6);
+  }, [items]);
 
   function openItem(item) {
     setActiveItem(item);
@@ -447,7 +445,7 @@ export default function Content() {
               </div>
             ))}
           </div>
-        ) : filteredItems.length === 0 ? (
+        ) : items.length === 0 ? (
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col items-center text-center py-20">
             <div className="w-16 h-16 rounded-full bg-brand-gradient-soft flex items-center justify-center mb-4">
               <Inbox className="w-7 h-7 text-secondary" />
@@ -463,21 +461,25 @@ export default function Content() {
           </motion.div>
         ) : (
           <>
-            {/* Featured Content */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-display font-bold text-ink">Featured Content</h2>
+            {/* Featured Content — only ever items an admin explicitly marked
+                Featured; the whole section is omitted (not filled in with
+                non-featured items) when none match. */}
+            {!featuredLoading && featuredItems.length > 0 && (
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-display font-bold text-ink">Featured Content</h2>
+                </div>
+                <motion.div
+                  key={`featured-${search}-${categoryId}-${language}-${mediaType}`}
+                  className="grid grid-cols-2 md:grid-cols-4 gap-5"
+                  initial="hidden" animate="visible" variants={staggerContainer}
+                >
+                  {featuredItems.map((item) => (
+                    <FeaturedCard key={item.id} item={item} onClick={() => openItem(item)} />
+                  ))}
+                </motion.div>
               </div>
-              <motion.div
-                key={`featured-${search}-${categoryId}-${language}-${mediaType}`}
-                className="grid grid-cols-2 md:grid-cols-4 gap-5"
-                initial="hidden" animate="visible" variants={staggerContainer}
-              >
-                {featuredItems.map((item) => (
-                  <FeaturedCard key={item.id} item={item} onClick={() => openItem(item)} />
-                ))}
-              </motion.div>
-            </div>
+            )}
 
             {/* Popular This Week */}
             <div className="mb-10">
@@ -486,9 +488,6 @@ export default function Content() {
                   <h2 className="text-lg font-display font-bold text-ink">Popular This Week</h2>
                   <p className="text-xs text-ink/45">See what others are watching and enjoying.</p>
                 </div>
-                <button className="flex items-center gap-1 text-xs font-semibold text-secondary">
-                  View All <ArrowRight className="w-3.5 h-3.5" />
-                </button>
               </div>
               <motion.div
                 key={`popular-${search}-${categoryId}-${language}-${mediaType}`}
@@ -499,6 +498,37 @@ export default function Content() {
                   <PopularItem key={item.id} item={item} rank={i + 1} onClick={() => openItem(item)} />
                 ))}
               </motion.div>
+            </div>
+
+            {/* Latest Content — the actual browsable, paginated feed: latest
+                published first, every filter/search combination narrows this
+                same list, and Load More fetches the next real page from the
+                server rather than ever re-deriving/duplicating what's shown
+                above. */}
+            <div className="mb-10">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-display font-bold text-ink">Latest Content</h2>
+              </div>
+              <motion.div
+                className="grid grid-cols-2 md:grid-cols-4 gap-5"
+                initial="hidden" animate="visible" variants={staggerContainer}
+              >
+                {items.map((item) => (
+                  <FeaturedCard key={item.id} item={item} onClick={() => openItem(item)} />
+                ))}
+              </motion.div>
+              {hasMore && (
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="px-6 py-3 rounded-full glass-card font-semibold text-sm disabled:opacity-60 flex items-center gap-2"
+                  >
+                    {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {loadingMore ? 'Loading...' : 'Load More'}
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}

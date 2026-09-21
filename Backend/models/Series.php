@@ -27,6 +27,10 @@ class Series
             $where[] = 's.category_id = :category_id';
             $params['category_id'] = $filters['category_id'];
         }
+        if (!empty($filters['section'])) {
+            $where[] = 's.section = :section';
+            $params['section'] = $filters['section'];
+        }
         if (!empty($filters['search'])) {
             $where[] = 's.title LIKE :search';
             $params['search'] = '%' . $filters['search'] . '%';
@@ -79,8 +83,8 @@ class Series
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO series (title, slug, description, cover_image, category_id, language, status)
-             VALUES (:title, :slug, :description, :cover_image, :category_id, :language, :status)'
+            'INSERT INTO series (title, slug, description, cover_image, category_id, section, language, status)
+             VALUES (:title, :slug, :description, :cover_image, :category_id, :section, :language, :status)'
         );
         $stmt->execute([
             'title'       => $data['title'],
@@ -88,6 +92,7 @@ class Series
             'description' => $data['description'] ?? null,
             'cover_image' => $data['cover_image'] ?? null,
             'category_id' => $data['category_id'] ?? null,
+            'section'     => $data['section'] ?? 'media_library',
             'language'    => $data['language'] ?? 'English',
             'status'      => $data['status'] ?? 'draft',
         ]);
@@ -98,7 +103,7 @@ class Series
     {
         $fields = [];
         $params = ['id' => $id];
-        foreach (['title', 'slug', 'description', 'cover_image', 'category_id', 'language', 'status'] as $field) {
+        foreach (['title', 'slug', 'description', 'cover_image', 'category_id', 'section', 'language', 'status'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "$field = :$field";
                 $params[$field] = $data[$field];

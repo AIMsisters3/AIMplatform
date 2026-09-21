@@ -104,20 +104,23 @@ class BibleStudyController
         json_ok(['items' => $this->model->notesFor((int) $payload['sub'], $contentId)]);
     }
 
-    /** POST /api/bible-studies/{id}/notes (auth) body: {body} */
+    /** POST /api/bible-studies/{id}/notes (auth) body: {body, title?} */
     public function createNote(int $contentId): void
     {
         $payload = require_auth();
-        $body = trim((get_json_body())['body'] ?? '');
+        $requestBody = get_json_body();
+        $body = trim($requestBody['body'] ?? '');
 
         if ($body === '') {
             json_error('Note text is required.', 422);
         }
-        if (mb_strlen($body) > 5000) {
-            json_error('Note is too long (max 5000 characters).', 422);
+        if (mb_strlen($body) > 20000) {
+            json_error('Note is too long (max 20,000 characters).', 422);
         }
 
-        $id = $this->model->createNote((int) $payload['sub'], $contentId, $body);
+        $title = trim((string) ($requestBody['title'] ?? '')) ?: null;
+
+        $id = $this->model->createNote((int) $payload['sub'], $contentId, $body, $title);
         json_created(['id' => $id], 'Note saved.');
     }
 }

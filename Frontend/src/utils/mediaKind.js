@@ -10,7 +10,22 @@ export function getYouTubeEmbed(url = '') {
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;
 }
 
+// Written-content media types never have a real media file — media_url is
+// always null for these (see ContentController::normalizeClassification()),
+// so inferring kind from a URL's file extension always fell through to
+// whatever the *thumbnail's* extension happened to be (almost always an
+// image), misclassifying every article/devotion/news article as 'image'.
+// Checked first, before any URL-extension inference, so this can never
+// happen regardless of what the thumbnail looks like.
+const ARTICLE_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
+
 export function getItemKind(item) {
+  if (ARTICLE_MEDIA_TYPES.includes(item.media_type)) return 'article';
+  // PDF/Notes typed directly as text instead of uploaded as a file (spec:
+  // "support typed notes/text where PDF/Notes content is allowed") — no
+  // media_url, but real body content.
+  if (!item.media_url && item.body) return 'article';
+
   const url = item.media_url || item.thumbnail || '';
   if (getYouTubeEmbed(url)) return 'video';
   const ext = url.split('.').pop()?.split('?')[0]?.toLowerCase();

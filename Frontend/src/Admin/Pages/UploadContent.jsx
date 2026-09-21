@@ -6,10 +6,10 @@ import RichTextEditor from '../Components/upload/RichTextEditor.jsx';
 import TagInput from '../Components/upload/TagInput.jsx';
 import { uploadFileChunked, cancelChunkedUpload } from '../utils/chunkedUpload.js';
 import {
-  Video, Film, Mic, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
-  Clapperboard, Palette, Wand2, MessageSquare, Camera, Music2,
+  Video, Film, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
+  Palette, MessageSquare, Music2,
   Newspaper, BookHeart, Images, ChevronDown, ChevronUp, Loader2, CheckCircle2,
-  AlertCircle, Sparkles, ArrowLeft, Library, Baby, Radio, RotateCcw, X,
+  AlertCircle, Sparkles, ArrowLeft, Library, Baby, Radio, RotateCcw, X, Upload,
 } from 'lucide-react';
 
 // Where the admin explicitly says this upload will appear — chosen first,
@@ -24,12 +24,16 @@ const SECTIONS = [
   { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
   { key: 'devotions', label: 'Devotion', icon: BookHeart },
   { key: 'kids', label: 'Children', icon: Baby },
+  { key: 'songs', label: 'Songs', icon: Music2 },
   { key: 'gallery', label: 'Gallery', icon: Images },
   { key: 'news', label: 'News', icon: Newspaper },
 ];
 
+// Gallery and Songs are each a single fixed media_type - no further "what
+// type is this" choice is needed once the section itself is picked.
 const SINGLETON_MEDIA_TYPE = {
   gallery: 'photo_gallery',
+  songs: 'song',
 };
 
 // The default type-card key to pre-select when switching into a section that
@@ -75,31 +79,28 @@ const KIDS_TYPES = [
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN the "Content / Media Library" section only —
-// Bible Study/Devotion/Gallery/News each have their own way of picking a
-// type instead (see above). Each card maps directly onto a media_type as
-// validated server-side in ContentController::SECTION_MEDIA_TYPES['media_library'].
-// Panel Discussion and Podcast deliberately live under Bible Study only —
-// see BIBLE_STUDY_TYPES below.
+// Bible Study/Devotion/Gallery/News/Songs each have their own way of
+// picking a type instead (see above/below). Each card maps directly onto a
+// media_type as validated server-side in
+// ContentController::SECTION_MEDIA_TYPES['media_library']. Movie/Cartoon/
+// Animation are removed here (Cartoon remains available under Kids only,
+// for children's content). Sermon and Documentary now live only under
+// Bible Study — see BIBLE_STUDY_TYPES below. Article and PDF now live only
+// under News/Bible Study/Devotions — not here.
 // ---------------------------------------------------------------------
 const CONTENT_TYPES = [
   { key: 'video', label: 'Video', icon: Video, media_type: 'video', group: 'primary' },
   { key: 'short_film', label: 'Short Film', icon: Film, media_type: 'short_film', group: 'primary' },
-  { key: 'sermon', label: 'Sermon', icon: Mic, media_type: 'sermon', group: 'primary' },
   { key: 'audio', label: 'Audio', icon: Headphones, media_type: 'audio', group: 'primary' },
-  { key: 'article', label: 'Article', icon: FileText, media_type: 'article', group: 'primary' },
   { key: 'image', label: 'Image', icon: ImageIcon, media_type: 'image', group: 'primary' },
-  { key: 'pdf', label: 'PDF', icon: FileType, media_type: 'pdf', group: 'primary' },
 
-  { key: 'movie', label: 'Movie', icon: Clapperboard, media_type: 'movie', group: 'more' },
-  { key: 'cartoon', label: 'Cartoon', icon: Palette, media_type: 'cartoon', group: 'more' },
-  { key: 'animation', label: 'Animation', icon: Wand2, media_type: 'animation', group: 'more' },
   { key: 'interview', label: 'Interview', icon: MessageSquare, media_type: 'interview', group: 'more' },
-  { key: 'documentary', label: 'Documentary', icon: Camera, media_type: 'documentary', group: 'more' },
   { key: 'music', label: 'Music', icon: Music2, media_type: 'music', group: 'more' },
 ];
 
 // Interview is available here too (in addition to Content/Media Library
-// above) - it's the one media type meant to work in both sections.
+// above) - it's the one media type meant to work in both sections. Article
+// was added (migration 018) per spec: "Articles, where supported."
 const BIBLE_STUDY_TYPES = [
   { value: 'short_film', label: 'Short Film' },
   { value: 'video', label: 'Video' },
@@ -110,11 +111,20 @@ const BIBLE_STUDY_TYPES = [
   { value: 'interview', label: 'Interview' },
   { value: 'animated', label: 'Animated' },
   { value: 'documentary', label: 'Documentary' },
+  { value: 'article', label: 'Article' },
   { value: 'pdf_notes', label: 'PDF / Notes' },
 ];
 
 // Mirrors ContentController::BODY_REQUIRED_MEDIA_TYPES exactly.
 const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
+
+// PDF/Notes types support EITHER an uploaded file OR typed text, chosen by
+// the admin (spec: "support typed notes/text ... rather than requiring
+// every document to be uploaded as a file") — these get their own
+// mediaKind ('document_or_text') with a toggle, rather than being folded
+// into BODY_REQUIRED_MEDIA_TYPES (which would remove the file option) or
+// plain 'document' (which would remove the typed-text option).
+const TEXT_OPTIONAL_MEDIA_TYPES = ['pdf', 'pdf_notes'];
 
 // What kind of main-media control to show for a given media_type. `null`
 // means "no separate main file" — Article/News/Devotional use the rich
@@ -124,9 +134,10 @@ const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bib
 // is treated as a printable document (worksheet/coloring page), and Song
 // as audio, same reasoning as the rest of this list.
 function mediaKindFor(mediaType) {
+  if (TEXT_OPTIONAL_MEDIA_TYPES.includes(mediaType)) return 'document_or_text';
   if (BODY_REQUIRED_MEDIA_TYPES.includes(mediaType)) return 'article';
   if (mediaType === 'photo_gallery' || mediaType === 'image') return null;
-  if (mediaType === 'pdf' || mediaType === 'pdf_notes' || mediaType === 'activity') return 'document';
+  if (mediaType === 'activity') return 'document';
   if (['audio', 'music', 'podcast', 'song'].includes(mediaType)) return 'audio';
   return 'video';
 }
@@ -161,6 +172,7 @@ const SECTION_DESTINATION = {
   bible_study: 'Bible Study',
   devotions: 'Devotions',
   kids: 'Children',
+  songs: 'Songs',
 };
 
 // Live is only offered for sections where "a stream is happening right
@@ -181,6 +193,7 @@ const DEFAULT_FORM = {
   series_id: '', season_number: '1', episode_number: '',
   media_type_bible_study: 'video',
   is_live: false, live_url: '',
+  notes_mode: 'file', // 'file' | 'text' — see TEXT_OPTIONAL_MEDIA_TYPES
 };
 
 function Toggle({ checked, onChange, label }) {
@@ -314,6 +327,8 @@ export default function UploadContent() {
     : (SINGLETON_MEDIA_TYPE[section] || selectedType.media_type);
   const mediaKind = mediaKindFor(mediaType);
   const requiresBody = mediaKind === 'article';
+  const isDocumentOrText = mediaKind === 'document_or_text';
+  const isTextNotes = isDocumentOrText && form.notes_mode === 'text';
   const showSeries = mediaKind === 'video' || mediaKind === 'audio';
   const isLiveEligible = LIVE_ELIGIBLE_SECTIONS.includes(section) && mediaKind === 'video';
   const isLive = isLiveEligible && form.is_live;
@@ -506,10 +521,13 @@ export default function UploadContent() {
       if (requiresBody) {
         const plain = form.body.replace(/<[^>]*>/g, '').trim();
         if (!plain) next.body = 'Please write the article body.';
+      } else if (isTextNotes) {
+        const plain = form.body.replace(/<[^>]*>/g, '').trim();
+        if (!plain) next.body = 'Please type the notes, or switch to uploading a file.';
       } else if (isLive) {
         if (!form.live_url.trim()) next.media = 'Please enter the live stream URL.';
       } else if (mediaKind && !media.uploadedUrl) {
-        const label = mediaKind === 'video' ? 'a video' : mediaKind === 'audio' ? 'an audio file' : mediaKind === 'document' ? 'a PDF' : 'an image';
+        const label = mediaKind === 'video' ? 'a video' : mediaKind === 'audio' ? 'an audio file' : (mediaKind === 'document' || mediaKind === 'document_or_text') ? 'a PDF' : 'an image';
         next.media = `Please upload ${label}.`;
       }
 
@@ -555,9 +573,11 @@ export default function UploadContent() {
         ? (thumbnail.uploadedUrl || null)
         : isLive
           ? (form.live_url.trim() || null)
-          : (media.uploadedUrl || null),
-      body: requiresBody ? form.body : null,
-      transcript: !requiresBody && mediaKind ? (form.transcript.trim() || null) : null,
+          : isTextNotes
+            ? null
+            : (media.uploadedUrl || null),
+      body: requiresBody || isTextNotes ? form.body : null,
+      transcript: !requiresBody && !isTextNotes && mediaKind ? (form.transcript.trim() || null) : null,
     };
 
     if (isBibleStudy) {
@@ -578,6 +598,7 @@ export default function UploadContent() {
       case 'gallery': return '/gallery';
       case 'devotions': return '/devotions';
       case 'kids': return `/kids?item=${slug}`;
+      case 'songs': return `/songs?item=${slug}`;
       default: return '/content';
     }
   }
@@ -818,6 +839,44 @@ export default function UploadContent() {
                   placeholder="Write the full article..."
                 />
               </Field>
+            ) : isDocumentOrText ? (
+              <Field
+                ref={form.notes_mode === 'text' ? (el) => { fieldRefs.current.body = el; } : undefined}
+                label="PDF / Notes Content"
+                required
+                error={errors.body}
+                hint="Upload a PDF, or type the notes directly instead."
+              >
+                <div className="inline-flex rounded-xl2 border border-ink/10 p-1 bg-surface/60 mb-3">
+                  <button
+                    type="button"
+                    aria-pressed={form.notes_mode === 'file'}
+                    onClick={() => update('notes_mode', 'file')}
+                    className={`px-4 py-1.5 rounded-xl2 text-xs font-semibold transition flex items-center gap-1.5 ${
+                      form.notes_mode === 'file' ? 'bg-brand-gradient text-white shadow-glass' : 'text-ink/60 hover:text-ink'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload a File
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={form.notes_mode === 'text'}
+                    onClick={() => update('notes_mode', 'text')}
+                    className={`px-4 py-1.5 rounded-xl2 text-xs font-semibold transition flex items-center gap-1.5 ${
+                      form.notes_mode === 'text' ? 'bg-brand-gradient text-white shadow-glass' : 'text-ink/60 hover:text-ink'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Type Notes
+                  </button>
+                </div>
+                {form.notes_mode === 'text' && (
+                  <RichTextEditor
+                    value={form.body}
+                    onChange={(v) => update('body', v)}
+                    placeholder="Type the notes directly..."
+                  />
+                )}
+              </Field>
             ) : mediaKind ? (
               <Field label="Transcript / Notes (optional)" hint="The uploaded media is the primary content — this is just an optional transcript or study notes.">
                 <textarea
@@ -915,51 +974,54 @@ export default function UploadContent() {
               </div>
             )}
 
-            {mediaKind && mediaKind !== 'article' && (
-              <Field
-                ref={(el) => { fieldRefs.current.media = el; }}
-                label={isLive ? 'Live Stream URL' : mediaKind === 'video' ? 'Upload Video' : mediaKind === 'audio' ? 'Audio File' : 'Document'}
-                required
-                error={errors.media}
-              >
-                {isLive ? (
-                  <>
-                    <input
-                      value={form.live_url}
-                      onChange={(e) => update('live_url', e.target.value)}
-                      placeholder="https://youtube.com/watch?v=... or Facebook Live URL"
-                      className={inputClass(errors.media)}
-                    />
-                    <p className="text-[11px] text-ink/35 mt-2">
-                      Paste the YouTube/Facebook Live URL. It goes live on the site with a "LIVE" badge as soon as you publish.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Dropzone
-                      icon={MEDIA_KIND_ICON[mediaKind]}
-                      title={mediaKind === 'video' ? 'video' : mediaKind === 'audio' ? 'audio' : mediaKind === 'document' ? 'PDF' : 'image'}
-                      acceptHint={`${MEDIA_RULES[mediaKind].label} · up to ${formatSizeLimit(maxSizeMb)}`}
-                      accept={MEDIA_RULES[mediaKind].accept}
-                      kind={mediaKind}
-                      file={media.file}
-                      previewUrl={media.previewUrl}
-                      uploadedUrl={media.uploadedUrl}
-                      uploading={media.uploading}
-                      progress={media.progress}
-                      error={media.error}
-                      onSelect={(f) => validateAndPick(f, MEDIA_RULES[mediaKind], setMedia, true)}
-                      onRemove={removeMedia}
-                    />
-                    {mediaKind === 'video' && (
+            {mediaKind && mediaKind !== 'article' && !isTextNotes && (() => {
+              const effectiveMediaKind = mediaKind === 'document_or_text' ? 'document' : mediaKind;
+              return (
+                <Field
+                  ref={(el) => { fieldRefs.current.media = el; }}
+                  label={isLive ? 'Live Stream URL' : effectiveMediaKind === 'video' ? 'Upload Video' : effectiveMediaKind === 'audio' ? 'Audio File' : 'Document'}
+                  required
+                  error={errors.media}
+                >
+                  {isLive ? (
+                    <>
+                      <input
+                        value={form.live_url}
+                        onChange={(e) => update('live_url', e.target.value)}
+                        placeholder="https://youtube.com/watch?v=... or Facebook Live URL"
+                        className={inputClass(errors.media)}
+                      />
                       <p className="text-[11px] text-ink/35 mt-2">
-                        A full-length video (an hour or more) can take a while to upload depending on your connection. It uploads in small pieces, so if it's interrupted, picking the same file again will resume instead of starting over.
+                        Paste the YouTube/Facebook Live URL. It goes live on the site with a "LIVE" badge as soon as you publish.
                       </p>
-                    )}
-                  </>
-                )}
-              </Field>
-            )}
+                    </>
+                  ) : (
+                    <>
+                      <Dropzone
+                        icon={MEDIA_KIND_ICON[effectiveMediaKind]}
+                        title={effectiveMediaKind === 'video' ? 'video' : effectiveMediaKind === 'audio' ? 'audio' : effectiveMediaKind === 'document' ? 'PDF' : 'image'}
+                        acceptHint={`${MEDIA_RULES[effectiveMediaKind].label} · up to ${formatSizeLimit(maxSizeMb)}`}
+                        accept={MEDIA_RULES[effectiveMediaKind].accept}
+                        kind={effectiveMediaKind}
+                        file={media.file}
+                        previewUrl={media.previewUrl}
+                        uploadedUrl={media.uploadedUrl}
+                        uploading={media.uploading}
+                        progress={media.progress}
+                        error={media.error}
+                        onSelect={(f) => validateAndPick(f, MEDIA_RULES[effectiveMediaKind], setMedia, true)}
+                        onRemove={removeMedia}
+                      />
+                      {effectiveMediaKind === 'video' && (
+                        <p className="text-[11px] text-ink/35 mt-2">
+                          A full-length video (an hour or more) can take a while to upload depending on your connection. It uploads in small pieces, so if it's interrupted, picking the same file again will resume instead of starting over.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </Field>
+              );
+            })()}
           </div>
 
           {/* Series */}
@@ -1080,6 +1142,7 @@ export default function UploadContent() {
             media={media}
             mediaKind={mediaKind}
             requiresBody={requiresBody}
+            isTextNotes={isTextNotes}
             isLive={isLive}
           />
         </div>
@@ -1161,7 +1224,7 @@ function SectionCard({ sectionOption, active, onClick }) {
   );
 }
 
-function PreviewPanel({ form, section, category, language, thumbnail, media, mediaKind, requiresBody, isLive }) {
+function PreviewPanel({ form, section, category, language, thumbnail, media, mediaKind, requiresBody, isTextNotes, isLive }) {
   const cover = thumbnail.previewUrl || thumbnail.uploadedUrl;
 
   return (
@@ -1200,14 +1263,14 @@ function PreviewPanel({ form, section, category, language, thumbnail, media, med
         {form.description || 'A short description will appear here.'}
       </p>
 
-      {requiresBody && form.body && (
+      {(requiresBody || isTextNotes) && form.body && (
         <div
           className="prose prose-sm max-w-none mt-3 pt-3 border-t border-ink/10 text-ink/70 line-clamp-6"
           dangerouslySetInnerHTML={{ __html: form.body }}
         />
       )}
 
-      {mediaKind === 'document' && media.uploadedUrl && (
+      {(mediaKind === 'document' || mediaKind === 'document_or_text') && media.uploadedUrl && (
         <a href={media.uploadedUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-secondary">
           <FileType className="w-3.5 h-3.5" /> Open document
         </a>

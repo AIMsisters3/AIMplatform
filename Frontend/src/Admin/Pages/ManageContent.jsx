@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios.js';
 import { isLive } from '../../utils/mediaKind.js';
 
@@ -10,6 +10,7 @@ const SECTIONS = [
   { value: 'bible_study', label: 'Bible Study' },
   { value: 'devotions', label: 'Devotions' },
   { value: 'kids', label: 'Children' },
+  { value: 'songs', label: 'Songs' },
 ];
 
 const STATUS_BADGE = {
@@ -33,16 +34,35 @@ export default function ManageContent() {
   const [selected, setSelected] = useState([]);
   const [message, setMessage] = useState('');
 
-  const load = useCallback(() => {
+  // A search/section change must always start back at page 1 - otherwise
+  // changing filters while on page 2+ would silently re-request that same
+  // page number against the new, narrower result set, which can show an
+  // empty or skipped page until the admin manually navigates back. Tracked
+  // via a ref (rather than a second effect keyed on [search, section])
+  // so the corrected page=1 request fires immediately, in the same effect
+  // run that detects the filter change, instead of one render late.
+  const prevFiltersRef = useRef({ search, section });
+
+  const load = useCallback((pageToLoad) => {
     setLoading(true);
     api
-      .get('/content', { params: { search: search || undefined, section: section || undefined, status: 'all', page, limit: 12 } })
+      .get('/content', { params: { search: search || undefined, section: section || undefined, status: 'all', page: pageToLoad, limit: 12 } })
       .then((r) => setItems(r.data.data.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [search, section, page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, section]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const filtersChanged = prevFiltersRef.current.search !== search || prevFiltersRef.current.section !== section;
+    prevFiltersRef.current = { search, section };
+    const effectivePage = filtersChanged ? 1 : page;
+    if (filtersChanged && page !== 1) {
+      setPage(1);
+    }
+    load(effectivePage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, section, page, load]);
 
   function toggleSelect(id) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));

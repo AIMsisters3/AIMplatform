@@ -22,6 +22,7 @@ const SeriesList = lazy(() => import('./Pages/Series.jsx'));
 const SeriesDetail = lazy(() => import('./Pages/SeriesDetail.jsx'));
 const Devotions = lazy(() => import('./Pages/Devotions.jsx'));
 const Kids = lazy(() => import('./Pages/Kids.jsx'));
+const Songs = lazy(() => import('./Pages/Songs.jsx'));
 const News = lazy(() => import('./Pages/News.jsx'));
 const Gallery = lazy(() => import('./Pages/Gallery.jsx'));
 const Shop = lazy(() => import('./Pages/Shop.jsx'));
@@ -32,6 +33,8 @@ const Checkout = lazy(() => import('./Pages/Checkout.jsx'));
 const MyOrders = lazy(() => import('./Pages/MyOrders.jsx'));
 const OrderDocument = lazy(() => import('./Pages/OrderDocument.jsx'));
 const MyBookmarks = lazy(() => import('./Pages/MyBookmarks.jsx'));
+const MyNotes = lazy(() => import('./Pages/MyNotes.jsx'));
+const NoteDetail = lazy(() => import('./Pages/NoteDetail.jsx'));
 const SearchResults = lazy(() => import('./Pages/SearchResults.jsx'));
 const About = lazy(() => import('./Pages/About.jsx'));
 const Contact = lazy(() => import('./Pages/Contact.jsx'));
@@ -100,6 +103,7 @@ export default function App() {
             <Route path="/series/:slugOrId" element={<PublicLayout><SeriesDetail /></PublicLayout>} />
             <Route path="/devotions" element={<PublicLayout><Devotions /></PublicLayout>} />
             <Route path="/kids" element={<PublicLayout><Kids /></PublicLayout>} />
+            <Route path="/songs" element={<PublicLayout><Songs /></PublicLayout>} />
             <Route path="/news" element={<PublicLayout><News /></PublicLayout>} />
             <Route path="/gallery" element={<PublicLayout><Gallery /></PublicLayout>} />
             <Route path="/shop" element={<PublicLayout><Shop /></PublicLayout>} />
@@ -110,6 +114,8 @@ export default function App() {
             <Route path="/orders" element={<PublicLayout><RequireAuth><MyOrders /></RequireAuth></PublicLayout>} />
             <Route path="/orders/:id/document" element={<RequireAuth><OrderDocument /></RequireAuth>} />
             <Route path="/bookmarks" element={<PublicLayout><RequireAuth><MyBookmarks /></RequireAuth></PublicLayout>} />
+            <Route path="/notes" element={<PublicLayout><RequireAuth><MyNotes /></RequireAuth></PublicLayout>} />
+            <Route path="/notes/:id" element={<RequireAuth><NoteDetail /></RequireAuth>} />
             <Route path="/search" element={<PublicLayout><SearchResults /></PublicLayout>} />
             <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
             <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil } from 'lucide-react';
+import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil, NotebookText, Check, Loader2 } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
@@ -8,6 +8,14 @@ import CommentsSection from '../Components/CommentsSection.jsx';
 import ShareButton from '../Components/ShareButton.jsx';
 import DownloadButton from '../Components/DownloadButton.jsx';
 import ErrorBoundary from '../Components/ErrorBoundary.jsx';
+
+// Grows a textarea to fit its content as the user types, instead of a
+// fixed-height box that forces scrolling inside itself.
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 const FORMAT_LABELS = {
   short_film: 'Short Film', video: 'Video', sermon: 'Sermon', panel: 'Panel Discussion',
@@ -23,10 +31,14 @@ export default function BibleStudyDetail() {
   const [loading, setLoading] = useState(true);
   const [bookmarked, setBookmarked] = useState(false);
   const [notes, setNotes] = useState([]);
+  const [noteTitle, setNoteTitle] = useState('');
   const [noteText, setNoteText] = useState('');
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const [editingText, setEditingText] = useState('');
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
   const savedPositionRef = useRef(0);
+  const autosaveTimerRef = useRef(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -74,16 +86,45 @@ export default function BibleStudyDetail() {
   async function addNote(e) {
     e.preventDefault();
     if (!noteText.trim()) return;
-    const { data } = await api.post(`/bible-studies/${item.id}/notes`, { body: noteText });
-    setNotes((prev) => [{ id: data.data.id, body: noteText, created_at: new Date().toISOString() }, ...prev]);
+    const { data } = await api.post(`/bible-studies/${item.id}/notes`, { body: noteText, title: noteTitle.trim() || undefined });
+    setNotes((prev) => [{ id: data.data.id, title: noteTitle.trim() || null, body: noteText, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...prev]);
+    setNoteTitle('');
     setNoteText('');
     if (!progress || progress.status === 'not_started') saveProgress('in_progress', progress?.progress_percent || 10);
   }
 
-  async function saveNoteEdit(id) {
-    await api.put(`/notes/${id}`, { body: editingText });
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, body: editingText } : n)));
+  function startEditingNote(n) {
+    setEditingNoteId(n.id);
+    setEditingTitle(n.title || '');
+    setEditingText(n.body);
+    setSaveStatus('idle');
+  }
+
+  async function persistNoteEdit(id, title, body) {
+    if (!body.trim()) return;
+    setSaveStatus('saving');
+    try {
+      await api.put(`/notes/${id}`, { body, title: title.trim() || '' });
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, title: title.trim() || null, body } : n)));
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('idle');
+    }
+  }
+
+  // Debounced autosave while editing — waits for a pause in typing, so an
+  // accidental tab-close or navigation mid-edit doesn't lose recent
+  // changes; the explicit Save button (below) still exists for an
+  // immediate, deliberate save with the same status feedback.
+  function queueAutosave(id, title, body) {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => persistNoteEdit(id, title, body), 1500);
+  }
+
+  function finishEditingNote() {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     setEditingNoteId(null);
+    setSaveStatus('idle');
   }
 
   async function deleteNote(id) {
@@ -221,16 +262,25 @@ export default function BibleStudyDetail() {
       {user && (
         <div className="glass-card p-6 mb-8">
           <h3 className="font-display font-semibold mb-4">My Notes <span className="text-ink/40 font-normal">(private — only you can see these)</span></h3>
-          <form onSubmit={addNote} className="flex gap-3 mb-5">
+          <form onSubmit={addNote} className="space-y-2 mb-5">
             <input
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Write a note on this study..."
-              className="flex-1 px-4 py-2.5 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+              value={noteTitle}
+              onChange={(e) => setNoteTitle(e.target.value)}
+              placeholder="Note title (optional)"
+              className="w-full px-4 py-2 rounded-full border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
             />
-            <button className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass hover:opacity-90 transition">
-              Add
-            </button>
+            <textarea
+              value={noteText}
+              onChange={(e) => { setNoteText(e.target.value); autoGrow(e.target); }}
+              placeholder="Write a note on this study..."
+              rows={2}
+              className="w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary resize-none overflow-hidden"
+            />
+            <div className="flex justify-end">
+              <button className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass hover:opacity-90 transition">
+                Add Note
+              </button>
+            </div>
           </form>
 
           {notes.length === 0 ? (
@@ -240,20 +290,42 @@ export default function BibleStudyDetail() {
               {notes.map((n) => (
                 <li key={n.id} className="bg-surface rounded-2xl px-4 py-3">
                   {editingNoteId === n.id ? (
-                    <div className="flex gap-2">
+                    <div className="space-y-2">
                       <input
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        className="flex-1 px-3 py-1.5 rounded-full border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                        value={editingTitle}
+                        onChange={(e) => { setEditingTitle(e.target.value); queueAutosave(n.id, e.target.value, editingText); }}
+                        placeholder="Note title (optional)"
+                        className="w-full px-3 py-1.5 rounded-full border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
                       />
-                      <button onClick={() => saveNoteEdit(n.id)} className="text-xs font-semibold text-secondary">Save</button>
-                      <button onClick={() => setEditingNoteId(null)} className="text-xs font-semibold text-ink/40">Cancel</button>
+                      <textarea
+                        value={editingText}
+                        onChange={(e) => { setEditingText(e.target.value); autoGrow(e.target); queueAutosave(n.id, editingTitle, e.target.value); }}
+                        rows={2}
+                        autoFocus
+                        className="w-full px-3 py-1.5 rounded-2xl border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary resize-none overflow-hidden"
+                      />
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-xs text-ink/40">
+                          {saveStatus === 'saving' && <><Loader2 className="w-3 h-3 animate-spin" /> Saving...</>}
+                          {saveStatus === 'saved' && <><Check className="w-3 h-3 text-emerald-500" /> Saved</>}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => persistNoteEdit(n.id, editingTitle, editingText)} className="text-xs font-semibold text-secondary">Save</button>
+                          <button onClick={finishEditingNote} className="text-xs font-semibold text-ink/40">Done</button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm text-ink/80">{n.body}</p>
+                      <Link to={`/notes/${n.id}`} className="min-w-0 group">
+                        {n.title && <p className="text-sm font-semibold text-ink group-hover:text-secondary transition-colors mb-0.5">{n.title}</p>}
+                        <p className="text-sm text-ink/80 line-clamp-3">{n.body}</p>
+                      </Link>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => { setEditingNoteId(n.id); setEditingText(n.body); }} aria-label="Edit note">
+                        <Link to={`/notes/${n.id}`} aria-label="Open notebook view">
+                          <NotebookText className="w-3.5 h-3.5 text-ink/40 hover:text-secondary" />
+                        </Link>
+                        <button onClick={() => startEditingNote(n)} aria-label="Edit note">
                           <Pencil className="w-3.5 h-3.5 text-ink/40 hover:text-secondary" />
                         </button>
                         <button onClick={() => deleteNote(n.id)} aria-label="Delete note">
