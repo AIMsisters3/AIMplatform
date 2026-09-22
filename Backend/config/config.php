@@ -71,6 +71,16 @@ define('CHUNK_UPLOAD_DIR', __DIR__ . '/../storage/chunk_uploads/');
 // customer document and must never be reachable by a guessed URL, only
 // through PaymentController's own auth-checked download endpoint.
 define('PROOF_OF_PAYMENT_DIR', __DIR__ . '/../storage/proof_of_payment/');
+// Rate-limit counters (helpers/rate_limit.php). Deliberately NOT
+// sys_get_temp_dir() - some shared hosts (confirmed on at least one
+// ProFreeHost/InfinityFree-family server) run PHP with an open_basedir
+// restriction whose allow-list doesn't include wherever the OS temp dir
+// actually resolves to there, which made every rate-limited request emit
+// a PHP warning (and, worse, corrupt the JSON response body with that
+// warning's HTML). Backend/storage/ is always inside the app's own
+// already-allowed path on any host, same reasoning as the two constants
+// above, and already .htaccess-blocked from direct web access.
+define('RATE_LIMIT_DIR', __DIR__ . '/../storage/ratelimit/');
 
 // Allowed frontend origins (Vite dev server + production domain).
 // Add production domains via ALLOWED_ORIGINS_EXTRA="https://aimsisters.org,https://www.aimsisters.org"
