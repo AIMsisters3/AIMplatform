@@ -1,7 +1,11 @@
 # Defense in depth: this directory only ever holds media/document files
 # saved by UploadController (which enforces an extension + MIME-type
-# whitelist and always renames to a server-generated filename). Even so,
-# never execute anything here as a script.
+# whitelist and always renames to a server-generated filename), so this
+# is a backup layer, not the primary defense. Kept deliberately minimal
+# (no Options, no caching headers) - some very restrictive shared hosts
+# reject a .htaccess file entirely (500 error on every file in this
+# folder) if it uses a directive type outside a narrow allowed set, and
+# this bare FilesMatch block is the one thing worth risking that on.
 <IfModule mod_php.c>
     php_flag engine off
 </IfModule>
@@ -15,26 +19,4 @@
         Order allow,deny
         Deny from all
     </FilesMatch>
-</IfModule>
-Options -ExecCGI -Indexes
-
-# Uploaded media/thumbnails never change in place — UploadController always
-# writes a fresh, server-generated filename rather than overwriting an
-# existing one — so a long, immutable cache lifetime is safe here and cuts
-# repeat-visit bandwidth/load time considerably for image/video-heavy pages.
-<IfModule mod_expires.c>
-    ExpiresActive On
-    ExpiresByType image/jpeg "access plus 1 year"
-    ExpiresByType image/png "access plus 1 year"
-    ExpiresByType image/gif "access plus 1 year"
-    ExpiresByType image/webp "access plus 1 year"
-    ExpiresByType video/mp4 "access plus 1 year"
-    ExpiresByType video/webm "access plus 1 year"
-    ExpiresByType audio/mpeg "access plus 1 year"
-    ExpiresByType audio/wav "access plus 1 year"
-    ExpiresByType audio/ogg "access plus 1 year"
-    ExpiresByType application/pdf "access plus 1 year"
-</IfModule>
-<IfModule mod_headers.c>
-    Header set Cache-Control "public, max-age=31536000, immutable"
 </IfModule>
