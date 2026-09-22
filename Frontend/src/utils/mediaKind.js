@@ -19,18 +19,28 @@ export function getYouTubeEmbed(url = '') {
 // happen regardless of what the thumbnail looks like.
 const ARTICLE_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
 
+// Media types that are unambiguously audio, straight from the backend
+// (Backend/controllers/ContentController.php's SECTION_MEDIA_TYPES) —
+// checked before any file-extension guessing below. Extension sniffing
+// alone previously misclassified a .ogg audio upload as video, since
+// .ogg also appears in the video-extension list a few lines down (Ogg
+// is a real container for both); media_type is already known and
+// authoritative, so there's no need to guess for these.
+const AUDIO_MEDIA_TYPES = ['audio', 'music', 'song'];
+
 export function getItemKind(item) {
   if (ARTICLE_MEDIA_TYPES.includes(item.media_type)) return 'article';
   // PDF/Notes typed directly as text instead of uploaded as a file (spec:
   // "support typed notes/text where PDF/Notes content is allowed") — no
   // media_url, but real body content.
   if (!item.media_url && item.body) return 'article';
+  if (AUDIO_MEDIA_TYPES.includes(item.media_type)) return 'audio';
 
   const url = item.media_url || item.thumbnail || '';
   if (getYouTubeEmbed(url)) return 'video';
   const ext = url.split('.').pop()?.split('?')[0]?.toLowerCase();
-  if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return 'video';
-  if (['mp3', 'wav', 'm4a'].includes(ext)) return 'audio';
+  if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) return 'audio';
+  if (['mp4', 'webm', 'mov'].includes(ext)) return 'video';
   if (ext === 'pdf') return 'pdf';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
   // Gallery items store their photo as media_url/thumbnail with a plain

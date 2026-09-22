@@ -1404,3 +1404,19 @@ ALTER TABLE series
 -- the UI falls back to "Untitled Note" for those, never invents one). ----
 ALTER TABLE bible_study_notes
   ADD COLUMN title VARCHAR(200) DEFAULT NULL AFTER content_id;
+
+-- =========================================================
+-- Migration 019: Reforms-only content categories
+--
+-- Per explicit request: the entire system should only offer these three
+-- content categories going forward - Health Reform, Spiritual Reform,
+-- Dress Reform (all three already exist as of migration 018). Every
+-- other type='content' category row is removed. type='product'
+-- categories (Shop) are untouched. No content is deleted -
+-- content.category_id has ON DELETE SET NULL (schema.sql), so a content
+-- item tagged with a removed category simply loses that label.
+-- =========================================================
+
+DELETE FROM categories
+WHERE type = 'content'
+  AND slug NOT IN ('health-reform', 'spiritual-reform', 'dress-reform');

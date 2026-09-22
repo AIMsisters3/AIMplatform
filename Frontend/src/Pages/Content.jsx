@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, ArrowRight, Baby, HeartPulse, Shirt, Music, Users,
+  Search, ArrowRight, HeartPulse, Shirt,
   ScrollText, PlayCircle, FileText, Headphones, Inbox, Globe,
-  Sparkles, Film, Image as ImageIcon, Layers, Loader2,
+  Sparkles, Image as ImageIcon, Layers, Loader2, X,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
@@ -13,28 +13,19 @@ import { getItemKind } from '../utils/mediaKind.js';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
+import logo from '../assets/lg.png';
 
-// Display order + icon/color per category, matched to the categories
-// actually seeded in the database (Backend/database/schema.sql +
-// migration 018's three Reforms categories) rather than aspirational
-// names that were never seeded. Bible Studies deliberately excluded — it
-// has its own dedicated page. Sabbath School content now belongs under
-// Bible Study, not here - excluded below rather than deleted as a
-// category outright, since the same category can still be applied to a
-// Bible Study upload (category_id is shared across sections).
+// The system only ever offers these three content categories (migration
+// 019 removes every other type='content' row) — matched here by name so
+// each gets its own icon/color rather than the generic fallback.
 const CATEGORY_META = {
-  'Children':         { icon: Baby, tagline: 'Fun & Faith for Children', bg: 'bg-violet-100', text: 'text-violet-600' },
-  'Health Reform':     { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
+  'Health Reform':    { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
   'Spiritual Reform':  { icon: Sparkles, tagline: 'Renewal in Christ', bg: 'bg-purple-100', text: 'text-purple-600' },
   'Dress Reform':      { icon: Shirt, tagline: 'Modesty & Godly Life', bg: 'bg-orange-100', text: 'text-orange-600' },
-  'Health':            { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
-  'Music':             { icon: Music, tagline: 'Uplifting Gospel Sounds', bg: 'bg-blue-100', text: 'text-blue-600' },
-  'Prophecy':          { icon: ScrollText, tagline: 'Bible Wisdom for Today', bg: 'bg-rose-100', text: 'text-rose-600' },
-  'Youth':             { icon: Users, tagline: 'Growing Strong in Christ', bg: 'bg-sky-100', text: 'text-sky-600' },
 };
 
-const CATEGORY_ORDER = ['Children', 'Health Reform', 'Spiritual Reform', 'Dress Reform', 'Health', 'Music', 'Prophecy', 'Youth'];
-const EXCLUDED_CATEGORIES = ['bible studies', 'bible study', 'devotions', 'gallery', 'news', 'testimonies', 'sabbath school'];
+const CATEGORY_ORDER = ['Health Reform', 'Spiritual Reform', 'Dress Reform'];
+const EXCLUDED_CATEGORIES = [];
 
 // Categories are admin-managed, so their exact names can't be relied on to
 // match CATEGORY_META above (an admin can rename "Children Ministry" to
@@ -56,6 +47,40 @@ function fallbackMetaFor(cat) {
   return { icon: ScrollText, tagline: '', ...FALLBACK_PALETTE[cat.id % FALLBACK_PALETTE.length] };
 }
 
+// Drives how many "Latest Content" cards render before the Popular This
+// Week strip: exactly one full row on each breakpoint (spec: "after at
+// least 1 row" on desktop, "after 1-2 rows" on mobile) — a single fixed
+// item count can't satisfy both, since mobile shows 1 card per row and
+// desktop shows 4, so this actually has to know the current breakpoint
+// rather than just slicing the same array length for everyone.
+function useIsMobile(breakpointPx = 640) {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < breakpointPx
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpointPx - 1}px)`);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [breakpointPx]);
+  return isMobile;
+}
+
+function LogoSpinner({ label = 'Loading...' }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-16">
+      <img
+        src={logo}
+        alt=""
+        className="w-14 h-14 rounded-full object-cover shadow-glass animate-spin"
+        style={{ animationDuration: '1.1s' }}
+      />
+      <p className="text-xs text-ink/40 font-medium">{label}</p>
+    </div>
+  );
+}
+
 function sortCategories(categories) {
   return [...categories]
     .filter((c) => !EXCLUDED_CATEGORIES.includes(c.name.trim().toLowerCase()))
@@ -72,20 +97,17 @@ function sortCategories(categories) {
 const KIND_ICON = { video: PlayCircle, pdf: FileText, audio: Headphones };
 const KIND_LABEL = { video: 'Watch', pdf: 'Read', audio: 'Listen', article: 'Read' };
 
-// "Browse by Type" chips. Values map to content.media_type — a value can be
-// a comma-separated group since the backend accepts either a single
-// media_type or an IN-list of several. Mirrors
-// ContentController::SECTION_MEDIA_TYPES['media_library'] exactly — Movie/
-// Cartoon/Animation/Sermon/Documentary/Article/PDF no longer belong to the
-// general Content feed (Sermon/Documentary moved to Bible Studies only;
-// Article/PDF moved to News/Bible Studies/Devotions only).
+// "Browse by Type" chips — per spec, the only content types displayed
+// and used for filtering on this page are Video, Poster, and Audio.
+// 'Poster' maps to media_type 'image' (a single cover image, no separate
+// video/audio file) - other media_library types (short_film, interview,
+// music) still exist and remain visible/playable, just without their
+// own dedicated filter chip; clicking an already-active chip clears it,
+// same as before, so no separate "All" option is needed.
 const TYPE_FILTERS = [
-  { value: '', label: 'All Types', icon: Sparkles },
-  { value: 'video', label: 'Videos', icon: PlayCircle },
-  { value: 'short_film', label: 'Short Films', icon: Film },
-  { value: 'interview', label: 'Interviews', icon: Users },
-  { value: 'audio,music', label: 'Music & Audio', icon: Headphones },
-  { value: 'image', label: 'Photos', icon: ImageIcon },
+  { value: 'video', label: 'Video', icon: PlayCircle },
+  { value: 'image', label: 'Poster', icon: ImageIcon },
+  { value: 'audio,music', label: 'Audio', icon: Headphones },
 ];
 
 const fadeUp = {
@@ -102,7 +124,6 @@ const dateVal = (d) => (d ? new Date(d).getTime() : 0);
 function FeaturedCard({ item, onClick }) {
   const kind = getItemKind(item);
   const KindIcon = KIND_ICON[kind] || FileText;
-  const meta = CATEGORY_META[item.category_name] || { bg: 'bg-surface', text: 'text-secondary' };
 
   return (
     <motion.div
@@ -121,11 +142,6 @@ function FeaturedCard({ item, onClick }) {
         )}
       </div>
       <div className="p-4">
-        {item.category_name && (
-          <span className={`inline-block text-[11px] font-semibold px-2.5 py-1 rounded-full mb-2 ${meta.bg} ${meta.text}`}>
-            {item.category_name}
-          </span>
-        )}
         <h3 className="font-display font-semibold text-sm leading-snug mb-1 line-clamp-1">{item.title}</h3>
         <p className="text-xs text-ink/50 line-clamp-2 mb-3">{item.description}</p>
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-gradient px-3 py-1.5 rounded-full">
@@ -158,7 +174,6 @@ function PopularItem({ item, rank, onClick }) {
         )}
       </div>
       <p className="text-xs font-semibold text-ink mt-2 line-clamp-1">{item.title}</p>
-      {item.category_name && <p className="text-[11px] text-ink/45">{item.category_name}</p>}
     </motion.div>
   );
 }
@@ -222,6 +237,9 @@ export default function Content() {
 
   const [featuredItems, setFeaturedItems] = useState([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [popularItems, setPopularItems] = useState([]);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Every eligible published item — media_library section only (Bible
   // Studies/Devotions/News/Gallery/Kids/Songs each have their own
@@ -248,6 +266,16 @@ export default function Content() {
     api.get('/series', { params: { section: 'media_library', limit: 8 } })
       .then((r) => setSeries(r.data?.data?.items || []))
       .catch(() => setSeries([]));
+    // Popular This Week reflects genuine site-wide activity (real,
+    // deduplicated views in the last 7 days, min. 10 - see
+    // Content::popularThisWeek()) rather than whatever the visitor
+    // happens to currently be filtering by, so it's fetched once, not
+    // re-fetched on every filter change. Stays empty (section hidden)
+    // when nothing has reached the threshold yet - never backfilled
+    // with lower-view items to avoid showing an empty/misleading list.
+    api.get('/content/popular', { params: { section: 'media_library', limit: 12 } })
+      .then((r) => setPopularItems(r.data?.data?.items || []))
+      .catch(() => setPopularItems([]));
   }, []);
 
   // Featured Content is its own real server query (never derived from
@@ -272,9 +300,12 @@ export default function Content() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const popularItems = useMemo(() => {
-    return [...items].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 6);
-  }, [items]);
+  // Popular This Week must appear after at least one row of regular
+  // content, never at the very top — mobile shows 1 card/row (spec:
+  // show it after 1-2 rows), desktop shows 4 cards/row (after 1 row).
+  const popularLeadCount = isMobile ? 2 : 4;
+  const leadItems = items.slice(0, popularLeadCount);
+  const restItems = items.slice(popularLeadCount);
 
   function openItem(item) {
     setActiveItem(item);
@@ -328,14 +359,17 @@ export default function Content() {
     </motion.div>
   </div>
 
-  {/* Search bar: normal full-width block on phones/tablets, absolute-positioned beside the girl on large screens */}
+  {/* Search: desktop keeps the field visible/usable at all times.
+      Mobile shows just an icon that expands into the same field, with
+      a way to collapse it again, rather than forcing the full-width bar
+      onto small screens. */}
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: 0.25, duration: 0.5 }}
     className="relative mt-6 px-6 max-w-7xl mx-auto lg:mt-0 lg:px-0 lg:max-w-none lg:mx-0 lg:absolute lg:z-20 lg:left-10 lg:right-52 lg:bottom-0"
   >
-    <form onSubmit={(e) => e.preventDefault()} className="relative w-full">
+    <form onSubmit={(e) => e.preventDefault()} className="hidden lg:block relative w-full">
       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
       <input
         value={search}
@@ -350,6 +384,53 @@ export default function Content() {
         <Search className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Search</span>
       </button>
     </form>
+
+    <div className="lg:hidden flex justify-end">
+      <AnimatePresence mode="wait" initial={false}>
+        {mobileSearchOpen ? (
+          <motion.form
+            key="expanded"
+            onSubmit={(e) => e.preventDefault()}
+            initial={{ width: 44, opacity: 0 }}
+            animate={{ width: '100%', opacity: 1 }}
+            exit={{ width: 44, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="relative w-full overflow-hidden"
+          >
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onBlur={() => { if (!search) setMobileSearchOpen(false); }}
+              placeholder="Search content..."
+              className="w-full pl-11 pr-11 py-3 rounded-full border-0 bg-white shadow-glass focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setMobileSearchOpen(false); }}
+              aria-label="Close search"
+              className="absolute right-1.5 top-1.5 bottom-1.5 w-8 rounded-full bg-surface flex items-center justify-center text-ink/50"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.form>
+        ) : (
+          <motion.button
+            key="icon"
+            type="button"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileSearchOpen(true)}
+            aria-label="Open search"
+            className="w-11 h-11 rounded-full bg-white shadow-glass flex items-center justify-center text-secondary shrink-0"
+          >
+            <Search className="w-5 h-5" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </div>
   </motion.div>
 </section>
 
@@ -371,9 +452,63 @@ export default function Content() {
           </div>
         </motion.div>
 
-        {/* Browse by Type */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-8">
-          <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Type</h2>
+        {/* Browse navigation area — on desktop, Video/Poster/Audio and
+            Browse by Category sit together in one horizontal area
+            (spec). On small screens, only category browsing shows here
+            (the type row is hidden entirely, not squeezed in above it),
+            keeping the mobile nav area to one simple row of chips. */}
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+            <div className="hidden lg:block">
+              <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Type</h2>
+              <div className="flex gap-2.5 flex-wrap">
+                {TYPE_FILTERS.map((t) => {
+                  const active = mediaType === t.value;
+                  return (
+                    <button
+                      key={t.label}
+                      onClick={() => setMediaType(active ? '' : t.value)}
+                      className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                        active ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
+                      }`}
+                    >
+                      <t.icon className="w-3.5 h-3.5" />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex-1 lg:max-w-md">
+              <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Category</h2>
+              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none lg:flex-wrap lg:overflow-visible">
+                {categories.map((cat) => {
+                  const meta = CATEGORY_META[cat.name] || fallbackMetaFor(cat);
+                  const Icon = meta.icon;
+                  const active = categoryId === String(cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setCategoryId(active ? '' : String(cat.id))}
+                      className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                        active ? 'bg-brand-gradient text-white shadow-glass' : `${meta.bg} ${meta.text} hover:shadow-glass`
+                      }`}
+                    >
+                      <Icon className={`w-3.5 h-3.5 ${active ? 'text-white' : ''}`} />
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Type filters shown separately on mobile too — spec keeps them
+            usable for filtering everywhere, just not sharing the mobile
+            category nav's row - here below it, out of the way. */}
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="lg:hidden mb-8">
           <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
             {TYPE_FILTERS.map((t) => {
               const active = mediaType === t.value;
@@ -395,56 +530,8 @@ export default function Content() {
 
         <SeriesStrip series={series} />
 
-        {/* Browse by Category */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }} className="mb-10">
-          <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Category</h2>
-          <motion.div
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3"
-            initial="hidden" animate="visible" variants={staggerContainer}
-          >
-           {categories.map((cat) => {
-              const meta = CATEGORY_META[cat.name] || fallbackMetaFor(cat);
-              const Icon = meta.icon;
-              const active = categoryId === String(cat.id);
-              return (
-                <motion.button
-                  key={cat.id}
-                  variants={fadeUp}
-                  whileHover={{ y: -3 }}
-                  onClick={() => setCategoryId(active ? '' : String(cat.id))}
-                  className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl text-center transition ${
-                    active ? 'bg-brand-gradient shadow-glass' : `${meta.bg} hover:shadow-glass`
-                  }`}
-                >
-                  <span className={`w-10 h-10 rounded-full flex items-center justify-center mb-1 ${active ? 'bg-white/20' : 'bg-white'}`}>
-                    <Icon className={`w-5 h-5 ${active ? 'text-white' : meta.text}`} />
-                  </span>
-                  <span className={`text-xs font-bold ${active ? 'text-white' : 'text-ink'}`}>
-                    {cat.name}
-                  </span>
-                  {meta.tagline && (
-                    <span className={`text-[10px] leading-tight ${active ? 'text-white/75' : 'text-ink/45'}`}>
-                      {meta.tagline}
-                    </span>
-                  )}
-                </motion.button>
-              );
-            })}
-          </motion.div>
-        </motion.div>
-
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-10">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-2xl overflow-hidden bg-white/70 shadow-glass animate-pulse">
-                <div className="h-36 bg-ink/10" />
-                <div className="p-4 space-y-2">
-                  <div className="h-3 w-1/2 bg-ink/10 rounded-full" />
-                  <div className="h-4 w-4/5 bg-ink/10 rounded-full" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <LogoSpinner label="Loading content..." />
         ) : items.length === 0 ? (
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col items-center text-center py-20">
             <div className="w-16 h-16 rounded-full bg-brand-gradient-soft flex items-center justify-center mb-4">
@@ -471,7 +558,7 @@ export default function Content() {
                 </div>
                 <motion.div
                   key={`featured-${search}-${categoryId}-${language}-${mediaType}`}
-                  className="grid grid-cols-2 md:grid-cols-4 gap-5"
+                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5"
                   initial="hidden" animate="visible" variants={staggerContainer}
                 >
                   {featuredItems.map((item) => (
@@ -481,55 +568,74 @@ export default function Content() {
               </div>
             )}
 
-            {/* Popular This Week */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-lg font-display font-bold text-ink">Popular This Week</h2>
-                  <p className="text-xs text-ink/45">See what others are watching and enjoying.</p>
-                </div>
-              </div>
-              <motion.div
-                key={`popular-${search}-${categoryId}-${language}-${mediaType}`}
-                className="flex gap-4 overflow-x-auto pb-2 scrollbar-none"
-                initial="hidden" animate="visible" variants={staggerContainer}
-              >
-                {popularItems.map((item, i) => (
-                  <PopularItem key={item.id} item={item} rank={i + 1} onClick={() => openItem(item)} />
-                ))}
-              </motion.div>
-            </div>
-
             {/* Latest Content — the actual browsable, paginated feed: latest
                 published first, every filter/search combination narrows this
                 same list, and Load More fetches the next real page from the
                 server rather than ever re-deriving/duplicating what's shown
-                above. */}
+                above. Split into a lead row + the rest so Popular This Week
+                (below) never appears at the very top of the page. */}
             <div className="mb-10">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-display font-bold text-ink">Latest Content</h2>
               </div>
               <motion.div
-                className="grid grid-cols-2 md:grid-cols-4 gap-5"
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5"
                 initial="hidden" animate="visible" variants={staggerContainer}
               >
-                {items.map((item) => (
+                {leadItems.map((item) => (
                   <FeaturedCard key={item.id} item={item} onClick={() => openItem(item)} />
                 ))}
               </motion.div>
-              {hasMore && (
-                <div className="flex justify-center mt-8">
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="px-6 py-3 rounded-full glass-card font-semibold text-sm disabled:opacity-60 flex items-center gap-2"
-                  >
-                    {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                    {loadingMore ? 'Loading...' : 'Load More'}
-                  </button>
-                </div>
-              )}
             </div>
+
+            {/* Popular This Week — only real qualifying items (>=10
+                genuine views in the last 7 days, see popular() on the
+                backend); the section is simply omitted when nothing
+                qualifies yet, never shown empty or backfilled. */}
+            {popularItems.length > 0 && (
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-display font-bold text-ink">Popular This Week</h2>
+                    <p className="text-xs text-ink/45">See what others are watching and enjoying.</p>
+                  </div>
+                </div>
+                <motion.div
+                  className="flex gap-4 overflow-x-auto pb-2 scrollbar-none"
+                  initial="hidden" animate="visible" variants={staggerContainer}
+                >
+                  {popularItems.map((item, i) => (
+                    <PopularItem key={item.id} item={item} rank={i + 1} onClick={() => openItem(item)} />
+                  ))}
+                </motion.div>
+              </div>
+            )}
+
+            {restItems.length > 0 && (
+              <div className="mb-10">
+                <motion.div
+                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5"
+                  initial="hidden" animate="visible" variants={staggerContainer}
+                >
+                  {restItems.map((item) => (
+                    <FeaturedCard key={item.id} item={item} onClick={() => openItem(item)} />
+                  ))}
+                </motion.div>
+              </div>
+            )}
+
+            {hasMore && (
+              <div className="flex justify-center mt-2 mb-10">
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-6 py-3 rounded-full glass-card font-semibold text-sm disabled:opacity-60 flex items-center gap-2"
+                >
+                  {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                </button>
+              </div>
+            )}
           </>
         )}
 

@@ -271,4 +271,43 @@ class Content
         $stmt->execute(['type' => $type]);
         return (int) $stmt->fetchColumn();
     }
+
+    /**
+     * "Popular This Week": published items with at least $minViews
+     * genuinely deduplicated views (content_views - one row per visitor
+     * per day, see migration 011) in the last $days days, ordered by
+     * that week's view count descending. An item with plenty of
+     * lifetime views but nothing recent does NOT qualify - this counts
+     * views from content_views directly rather than the lifetime
+     * content.views counter, so it reflects actual recent activity.
+     */
+    public function popularThisWeek(?string $section, int $minViews, int $days, int $limit): array
+    {
+        $where = ["c.deleted_at IS NULL", "c.status = 'published'", 'cv.viewed_at >= (NOW() - INTERVAL :days DAY)'];
+        $params = ['days' => $days, 'min_views' => $minViews];
+
+        if ($section) {
+            $where[] = 'c.section = :section';
+            $params['section'] = $section;
+        }
+
+        $sql = 'SELECT c.*, cat.name AS category_name, COUNT(*) AS week_views
+                FROM content_views cv
+                JOIN content c ON c.id = cv.content_id
+                LEFT JOIN categories cat ON cat.id = c.category_id
+                WHERE ' . implode(' AND ', $where) . '
+                GROUP BY c.id
+                HAVING week_views >= :min_views
+                ORDER BY week_views DESC
+                LIMIT :limit';
+
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, PDO::PARAM_INT);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
 }

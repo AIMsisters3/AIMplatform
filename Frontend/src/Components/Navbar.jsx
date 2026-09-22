@@ -6,6 +6,7 @@ import logo from '../assets/lg.png';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
 import NotificationsBell from './NotificationsBell.jsx';
+import api from '../api/axios.js';
 
 // Every destination lives under one of these three top-level slots, plus a
 // plain Home and Shop link. Explore groups everything content-related so
@@ -298,6 +299,7 @@ function MobileGroup({ label, links, currentPath, onNavigate }) {
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [categoryLinks, setCategoryLinks] = useState([]);
   const { user } = useAuth();
   const { count } = useCart();
   const location = useLocation();
@@ -306,6 +308,19 @@ export default function Navbar() {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // The system only ever offers a small, curated set of content
+  // categories (the three Reforms - see migration 019) — fetched rather
+  // than hardcoded so the nav always reflects whatever's actually in the
+  // database instead of drifting out of sync with it.
+  useEffect(() => {
+    api.get('/categories', { params: { type: 'content' } })
+      .then((r) => {
+        const items = r.data?.data?.items || [];
+        setCategoryLinks(items.map((c) => ({ to: `/content?category_id=${c.id}`, label: c.name })));
+      })
+      .catch(() => setCategoryLinks([]));
   }, []);
 
   // Closing the mobile menu on every route change avoids it staying open
@@ -357,6 +372,10 @@ export default function Navbar() {
           </NavLink>
 
           <NavDropdown label="Explore" links={EXPLORE_LINKS} currentPath={location.pathname} />
+
+          {categoryLinks.length > 0 && (
+            <NavDropdown label="Categories" links={categoryLinks} currentPath={location.pathname} />
+          )}
 
           <NavLink to="/shop" className="relative px-3 py-2">
             {({ isActive }) => (
@@ -441,6 +460,10 @@ export default function Navbar() {
               </NavLink>
 
               <MobileGroup label="Explore" links={EXPLORE_LINKS} currentPath={location.pathname} onNavigate={() => setOpen(false)} />
+
+              {categoryLinks.length > 0 && (
+                <MobileGroup label="Categories" links={categoryLinks} currentPath={location.pathname} onNavigate={() => setOpen(false)} />
+              )}
 
               <NavLink
                 to="/shop"

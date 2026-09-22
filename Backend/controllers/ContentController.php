@@ -168,6 +168,23 @@ class ContentController
         json_ok(['items' => $items, 'page' => $page, 'limit' => $limit]);
     }
 
+    /**
+     * GET /api/content/popular?section=&limit= — "Popular This Week":
+     * published items with at least 10 deduplicated views (real
+     * visitors, not page refreshes — see content_views/migration 011)
+     * in the last 7 days, ordered by that week's view count descending.
+     * Returns an empty items array (never a fabricated/fallback list)
+     * when nothing has reached the threshold yet.
+     */
+    public function popular(): void
+    {
+        $section = $_GET['section'] ?? null;
+        $limit = min(24, max(1, (int) ($_GET['limit'] ?? 12)));
+
+        $items = $this->model->popularThisWeek($section, 10, 7, $limit);
+        json_ok(['items' => $items]);
+    }
+
     /** GET /api/content/{slug} */
     public function show(string $slugOrId): void
     {

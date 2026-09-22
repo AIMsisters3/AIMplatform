@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { CartProvider } from './context/CartContext.jsx';
+import logo from './assets/lg.png';
 
 // Navbar/Footer/AdminLayout are part of the shell on every page, so they
 // stay in the main bundle. Every actual page is code-split below — this
@@ -83,7 +84,12 @@ function RequireAuth({ children }) {
 function RouteFallback() {
   return (
     <div className="min-h-[40vh] flex items-center justify-center">
-      <div className="w-8 h-8 rounded-full border-2 border-secondary/20 border-t-secondary animate-spin" />
+      <img
+        src={logo}
+        alt="Loading"
+        className="w-12 h-12 rounded-full object-cover shadow-glass animate-spin"
+        style={{ animationDuration: '1.1s' }}
+      />
     </div>
   );
 }

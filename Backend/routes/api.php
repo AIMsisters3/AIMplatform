@@ -67,6 +67,9 @@ function route(string $method, string $path)
         $ctrl = new ContentController();
 
         if ($id === 'bulk' && $method === 'POST') return $ctrl->bulk();
+        // Checked before the generic show()/{slug} rule below, or "popular"
+        // would be looked up as a literal slug and 404.
+        if ($id === 'popular' && $method === 'GET') return $ctrl->popular();
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $action === 'duplicate' && $method === 'POST') return $ctrl->duplicate((int) $id);
