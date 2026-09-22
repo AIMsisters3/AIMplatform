@@ -5,7 +5,7 @@ require_once __DIR__ . '/../models/Product.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
-require_once __DIR__ . '/../helpers/rate_limit.php';
+require_once __DIR__ . '/../helpers/rate_limit_v2.php';
 
 class ReviewController
 {
