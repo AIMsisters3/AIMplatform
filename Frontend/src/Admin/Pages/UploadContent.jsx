@@ -340,6 +340,11 @@ export default function UploadContent() {
   const section = selectedSection;
   const isBibleStudy = section === 'bible_study';
   const isGallery = section === 'gallery';
+  const isSongs = section === 'songs';
+  // Neither Gallery nor Songs offers a Category choice (spec) - Gallery
+  // never did (it reuses Language's "Not applicable" pattern below);
+  // Songs is being simplified the same way here.
+  const isNoCategory = isGallery || isSongs;
   const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : section === 'kids' ? KIDS_TYPES : CONTENT_TYPES;
   const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
@@ -349,7 +354,10 @@ export default function UploadContent() {
   const requiresBody = mediaKind === 'article';
   const isDocumentOrText = mediaKind === 'document_or_text';
   const isTextNotes = isDocumentOrText && form.notes_mode === 'text';
-  const showSeries = mediaKind === 'video' || mediaKind === 'audio';
+  // Songs has no Series functionality (spec: "remove all Series
+  // functionality from Songs") - excluded here even though its media_type
+  // ('song') maps to the 'audio' mediaKind that would otherwise show it.
+  const showSeries = (mediaKind === 'video' || mediaKind === 'audio') && !isSongs;
   const isLiveEligible = LIVE_ELIGIBLE_SECTIONS.includes(section) && mediaKind === 'video';
   const isLive = isLiveEligible && form.is_live;
 
@@ -538,7 +546,7 @@ export default function UploadContent() {
     if (!form.title.trim()) next.title = 'Please enter a title.';
 
     if (forPublish) {
-      if (!form.category_id) next.category_id = 'Please select a category.';
+      if (!isNoCategory && !form.category_id) next.category_id = 'Please select a category.';
       if (!isGallery && !form.language) next.language = 'Please select a language.';
 
       if (requiresBody) {
@@ -582,7 +590,7 @@ export default function UploadContent() {
       description: form.description.trim() || null,
       section,
       media_type: mediaType,
-      category_id: form.category_id || null,
+      category_id: isNoCategory ? null : (form.category_id || null),
       language: isGallery ? null : (form.language || null),
       tags: form.tags || null,
       seo_keywords: form.seo_keywords.trim() || null,
@@ -915,12 +923,18 @@ export default function UploadContent() {
             ) : null}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field ref={(el) => { fieldRefs.current.category_id = el; }} label="Category" required error={errors.category_id}>
-                <select value={form.category_id} onChange={(e) => update('category_id', e.target.value)} className={inputClass(errors.category_id)}>
-                  <option value="">Select category...</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </Field>
+              {isNoCategory ? (
+                <Field label="Category">
+                  <input disabled value="Not applicable" readOnly className={inputClass(false) + ' bg-ink/5 text-ink/40'} />
+                </Field>
+              ) : (
+                <Field ref={(el) => { fieldRefs.current.category_id = el; }} label="Category" required error={errors.category_id}>
+                  <select value={form.category_id} onChange={(e) => update('category_id', e.target.value)} className={inputClass(errors.category_id)}>
+                    <option value="">Select category...</option>
+                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </Field>
+              )}
 
               {isGallery ? (
                 <Field label="Language">
@@ -1172,8 +1186,8 @@ export default function UploadContent() {
           <PreviewPanel
             form={form}
             section={section}
-            category={categories.find((c) => String(c.id) === String(form.category_id))?.name}
-            language={languages.find((l) => l.code === form.language)?.name}
+            category={isNoCategory ? null : categories.find((c) => String(c.id) === String(form.category_id))?.name}
+            language={isGallery ? null : languages.find((l) => l.code === form.language)?.name}
             thumbnail={thumbnail}
             media={media}
             mediaKind={mediaKind}

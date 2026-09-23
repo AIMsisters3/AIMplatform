@@ -228,13 +228,16 @@ export default function ManageSeries() {
                   <div className="flex flex-wrap gap-2 items-end">
                     <label className="block">
                       <span className="text-xs font-semibold text-ink/50">Content item</span>
+                      {/* Songs has no Series functionality (spec) - excluded
+                          here so a song can never end up attached as an
+                          episode even via this general-purpose picker. */}
                       <select
                         value={attachForm[s.id]?.content_id || ''}
                         onChange={(e) => setAttachForm((a) => ({ ...a, [s.id]: { ...a[s.id], content_id: e.target.value } }))}
                         className="mt-1 px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
                       >
                         <option value="">Select content...</option>
-                        {content.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                        {content.filter((c) => c.section !== 'songs').map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                       </select>
                     </label>
                     <label className="block">

@@ -1,41 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 
+// Gallery deliberately has no category filter (spec) and no language
+// filter (gallery items always store language: null by design) — a
+// simple, uncategorized wall of photos.
 export default function Gallery() {
-  const [categories, setCategories] = useState([]);
-  const [categoryId, setCategoryId] = useState('');
   const [activeItem, setActiveItem] = useState(null);
 
-  useEffect(() => {
-    api.get('/categories', { params: { type: 'content' } })
-      .then((r) => setCategories(r.data?.data?.items || []))
-      .catch(() => setCategories([]));
-  }, []);
-
-  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList(
-    '/gallery',
-    { category_id: categoryId || undefined },
-    40
-  );
+  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/gallery', {}, 40);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-14">
       <h1 className="text-3xl font-bold mb-2">Gallery</h1>
       <p className="text-ink/60 mb-8">Moments captured from ministry events, services, and outreach.</p>
-
-      <div className="mb-8">
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
-        >
-          <option value="">All Categories</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
 
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
