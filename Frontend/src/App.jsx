@@ -17,6 +17,7 @@ import AdminLayout from './Admin/Layout/AdminLayout.jsx';
 // ---------- Public pages ----------
 const Home = lazy(() => import('./Pages/Home.jsx'));
 const Content = lazy(() => import('./Pages/Content.jsx'));
+const CategoryPage = lazy(() => import('./Pages/CategoryPage.jsx'));
 const BibleStudies = lazy(() => import('./Pages/BibleStudies.jsx'));
 const BibleStudyDetail = lazy(() => import('./Pages/BibleStudyDetail.jsx'));
 const SeriesList = lazy(() => import('./Pages/Series.jsx'));
@@ -103,6 +104,7 @@ export default function App() {
             {/* ---------- Public site ---------- */}
             <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
             <Route path="/content" element={<PublicLayout><Content /></PublicLayout>} />
+            <Route path="/category/:id" element={<PublicLayout><CategoryPage /></PublicLayout>} />
             <Route path="/bible-studies" element={<PublicLayout><BibleStudies /></PublicLayout>} />
             <Route path="/bible-studies/:slugOrId" element={<PublicLayout><BibleStudyDetail /></PublicLayout>} />
             <Route path="/series" element={<PublicLayout><SeriesList /></PublicLayout>} />

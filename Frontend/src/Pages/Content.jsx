@@ -15,16 +15,18 @@ import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
 import logo from '../assets/lg.png';
 
-// The system only ever offers these three content categories (migration
-// 019 removes every other type='content' row) — matched here by name so
-// each gets its own icon/color rather than the generic fallback.
+// The system only ever offers these four content categories (migration
+// 019 narrowed it to the three Reforms; migration 020 re-added Prophecy)
+// — matched here by name so each gets its own icon/color rather than
+// the generic fallback.
 const CATEGORY_META = {
-  'Health Reform':    { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
-  'Spiritual Reform':  { icon: Sparkles, tagline: 'Renewal in Christ', bg: 'bg-purple-100', text: 'text-purple-600' },
   'Dress Reform':      { icon: Shirt, tagline: 'Modesty & Godly Life', bg: 'bg-orange-100', text: 'text-orange-600' },
+  'Health Reform':     { icon: HeartPulse, tagline: 'Wellness & Godly Living', bg: 'bg-emerald-100', text: 'text-emerald-600' },
+  'Spiritual Reform':  { icon: Sparkles, tagline: 'Renewal in Christ', bg: 'bg-purple-100', text: 'text-purple-600' },
+  'Prophecy':          { icon: ScrollText, tagline: 'Bible Wisdom for Today', bg: 'bg-rose-100', text: 'text-rose-600' },
 };
 
-const CATEGORY_ORDER = ['Health Reform', 'Spiritual Reform', 'Dress Reform'];
+const CATEGORY_ORDER = ['Dress Reform', 'Health Reform', 'Spiritual Reform', 'Prophecy'];
 const EXCLUDED_CATEGORIES = [];
 
 // Categories are admin-managed, so their exact names can't be relied on to

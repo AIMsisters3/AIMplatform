@@ -1420,3 +1420,14 @@ ALTER TABLE bible_study_notes
 DELETE FROM categories
 WHERE type = 'content'
   AND slug NOT IN ('health-reform', 'spiritual-reform', 'dress-reform');
+
+-- =========================================================
+-- Migration 020: Add Prophecy back as a fourth content category
+--
+-- Migration 019 narrowed the system to exactly the three Reforms
+-- categories; this re-adds Prophecy as a fourth, per explicit request
+-- (used by the homepage's four category cards).
+-- =========================================================
+
+INSERT IGNORE INTO categories (name, slug, type) VALUES
+  ('Prophecy', 'prophecy', 'content');
