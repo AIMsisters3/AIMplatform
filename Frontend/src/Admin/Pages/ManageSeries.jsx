@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import api from '../../api/axios.js';
 
 const SECTIONS = [
@@ -6,11 +7,82 @@ const SECTIONS = [
   { value: 'bible_study', label: 'Bible Study' },
 ];
 
+// A series-level image, distinct from any individual episode's own
+// thumbnail — shown on series cards (Series.jsx, BibleStudies.jsx's
+// series strip already render cover_image; this is the only place that
+// was missing an upload control for it). Reuses the same plain
+// POST /upload endpoint the main upload flow's thumbnail field uses,
+// just without that flow's chunking (a cover image is always small).
+function SeriesThumbnailField({ value, onChange }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleFile(file) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      setError('Use JPG, PNG, GIF, or WEBP.');
+      return;
+    }
+    setError('');
+    setUploading(true);
+    const data = new FormData();
+    data.append('file', file);
+    data.append('folder', 'thumbnails');
+    try {
+      const res = await api.post('/upload', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      onChange(res.data.data.url);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <label className="block md:col-span-2">
+      <span className="text-xs font-semibold text-ink/50">Series Thumbnail (shown on series cards, separate from episode thumbnails)</span>
+      <div className="mt-1 flex items-center gap-3">
+        {value ? (
+          <img src={value} alt="" className="w-16 h-16 rounded-xl2 object-cover bg-surface border border-ink/10" />
+        ) : (
+          <div className="w-16 h-16 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center text-secondary">
+            <ImageIcon className="w-6 h-6" />
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="px-4 py-1.5 rounded-full bg-white border border-ink/10 text-xs font-semibold text-secondary shadow-sm disabled:opacity-50"
+          >
+            {uploading ? 'Uploading...' : value ? 'Replace' : 'Upload Image'}
+          </button>
+          {value && (
+            <button type="button" onClick={() => onChange(null)} className="text-xs font-semibold text-ink/40 hover:text-red-500">
+              Remove
+            </button>
+          )}
+          {error && <p className="text-[11px] text-red-500">{error}</p>}
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".jpg,.jpeg,.png,.gif,.webp"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+        />
+      </div>
+    </label>
+  );
+}
+
 export default function ManageSeries() {
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ title: '', description: '', status: 'draft', section: 'media_library' });
+  const [form, setForm] = useState({ title: '', description: '', status: 'draft', section: 'media_library', cover_image: null });
   const [expanded, setExpanded] = useState(null);
   const [episodes, setEpisodes] = useState({});
   const [attachForm, setAttachForm] = useState({});
@@ -39,7 +111,7 @@ export default function ManageSeries() {
     try {
       await api.post('/series', form);
       setMessage('Series created.');
-      setForm({ title: '', description: '', status: 'draft', section: 'media_library' });
+      setForm({ title: '', description: '', status: 'draft', section: 'media_library', cover_image: null });
       load();
     } catch (err) {
       setMessage(err.response?.data?.message || 'Could not create series.');
@@ -54,7 +126,7 @@ export default function ManageSeries() {
 
   function startEditSeries(s) {
     setEditingSeriesId(s.id);
-    setEditForm({ title: s.title, description: s.description || '', status: s.status, section: s.section || 'media_library' });
+    setEditForm({ title: s.title, description: s.description || '', status: s.status, section: s.section || 'media_library', cover_image: s.cover_image || null });
   }
 
   async function saveSeriesEdit(id) {
@@ -130,6 +202,7 @@ export default function ManageSeries() {
           <textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
             className="mt-1 w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
         </label>
+        <SeriesThumbnailField value={form.cover_image} onChange={(url) => setForm({ ...form, cover_image: url })} />
         <label className="block">
           <span className="text-xs font-semibold text-ink/50">Appears Under</span>
           <select value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })}
@@ -166,6 +239,7 @@ export default function ManageSeries() {
                     className="w-full px-4 py-2 rounded-xl2 border border-ink/10 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-secondary" />
                   <textarea rows={2} value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     className="w-full px-4 py-2 rounded-2xl border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  <SeriesThumbnailField value={editForm.cover_image} onChange={(url) => setEditForm({ ...editForm, cover_image: url })} />
                   <div className="flex flex-wrap gap-2">
                     <select value={editForm.section} onChange={(e) => setEditForm({ ...editForm, section: e.target.value })}
                       className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm">
@@ -183,11 +257,20 @@ export default function ManageSeries() {
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-4">
-                  <button onClick={() => toggleExpand(s.id)} className="text-left flex-1">
-                    <p className="font-semibold">{s.title}</p>
-                    <p className="text-xs text-ink/50 capitalize">
-                      {s.status} · {s.episode_count} episodes · {SECTIONS.find((sec) => sec.value === s.section)?.label || 'Content / Media Library'}
-                    </p>
+                  <button onClick={() => toggleExpand(s.id)} className="text-left flex-1 flex items-center gap-3">
+                    {s.cover_image ? (
+                      <img src={s.cover_image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 bg-surface" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-brand-gradient-soft flex items-center justify-center shrink-0 text-secondary">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                    )}
+                    <span>
+                      <p className="font-semibold">{s.title}</p>
+                      <p className="text-xs text-ink/50 capitalize">
+                        {s.status} · {s.episode_count} episodes · {SECTIONS.find((sec) => sec.value === s.section)?.label || 'Content / Media Library'}
+                      </p>
+                    </span>
                   </button>
                   <button onClick={() => startEditSeries(s)} className="text-xs font-semibold text-secondary">Edit</button>
                   <button onClick={() => deleteSeries(s.id)} className="text-xs font-semibold text-red-500">Delete</button>
