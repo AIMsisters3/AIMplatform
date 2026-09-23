@@ -5,28 +5,31 @@ import { ShoppingCart, Search, User, LogOut, Package, Bookmark, Heart, LayoutDas
 import logo from '../assets/lg.png';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
+import { LANGUAGE_OPTIONS } from '../i18n/translations.js';
 import NotificationsBell from './NotificationsBell.jsx';
-import api from '../api/axios.js';
 
 // Every destination lives under one of these three top-level slots, plus a
 // plain Home and Shop link. Explore groups everything content-related so
 // the bar itself only ever shows 4 items, per spec - Reforms deliberately
 // has no entry here (and no page of its own): it's a filter *within*
-// Content and Bible Studies, not a destination.
+// Content and Bible Studies, not a destination. Categories browsing lives
+// on the homepage's own category cards + Content page filters instead of
+// here (removed from the navbar per explicit request).
 const EXPLORE_LINKS = [
-  { to: '/content', label: 'Content' },
-  { to: '/bible-studies', label: 'Bible Studies' },
-  { to: '/series', label: 'Series' },
-  { to: '/devotions', label: 'Devotions' },
-  { to: '/kids', label: 'Children' },
-  { to: '/songs', label: 'Songs' },
-  { to: '/news', label: 'News' },
-  { to: '/gallery', label: 'Gallery' },
+  { to: '/content', labelKey: 'nav_content' },
+  { to: '/bible-studies', labelKey: 'nav_bible_studies' },
+  { to: '/series', labelKey: 'nav_series' },
+  { to: '/devotions', labelKey: 'nav_devotions' },
+  { to: '/kids', labelKey: 'nav_children' },
+  { to: '/songs', labelKey: 'nav_songs' },
+  { to: '/news', labelKey: 'nav_news' },
+  { to: '/gallery', labelKey: 'nav_gallery' },
 ];
 
 const ABOUT_LINKS = [
-  { to: '/about', label: 'About AIMsisters' },
-  { to: '/contact', label: 'Contact' },
+  { to: '/about', labelKey: 'nav_about_full' },
+  { to: '/contact', labelKey: 'nav_contact' },
 ];
 
 // Desktop dropdown for Explore/About — click-toggles (so it's reachable
@@ -34,7 +37,7 @@ const ABOUT_LINKS = [
 // pattern) and also opens on hover for pointer users, which is what
 // visitors expect from a nav dropdown. Closes on Escape, click-outside,
 // or picking a link.
-function NavDropdown({ label, links, currentPath }) {
+function NavDropdown({ label, links, currentPath, t }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const closeTimerRef = useRef(null);
@@ -108,7 +111,7 @@ function NavDropdown({ label, links, currentPath }) {
                   `block px-4 py-2.5 text-sm transition ${isActive ? 'text-secondary font-semibold bg-surface' : 'text-ink/70 hover:bg-surface hover:text-ink'}`
                 }
               >
-                {link.label}
+                {link.labelKey ? t(link.labelKey) : link.label}
               </NavLink>
             ))}
           </motion.div>
@@ -118,7 +121,7 @@ function NavDropdown({ label, links, currentPath }) {
   );
 }
 
-function AccountMenu() {
+function AccountMenu({ t }) {
   const { user, logout, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -140,7 +143,7 @@ function AccountMenu() {
           whileTap={{ scale: 0.97 }}
           className="inline-block px-5 py-2 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass hover:opacity-95 transition-opacity"
         >
-          Login
+          {t('nav_login')}
         </motion.span>
       </Link>
     );
@@ -173,24 +176,24 @@ function AccountMenu() {
               <p className="text-xs text-ink/50 truncate">{user.email}</p>
             </div>
             <button onClick={() => { setOpen(false); navigate('/orders'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <Package className="w-4 h-4" /> My Orders
+              <Package className="w-4 h-4" /> {t('account_my_orders')}
             </button>
             <button onClick={() => { setOpen(false); navigate('/bookmarks'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <Bookmark className="w-4 h-4" /> My Bookmarks
+              <Bookmark className="w-4 h-4" /> {t('account_my_bookmarks')}
             </button>
             <button onClick={() => { setOpen(false); navigate('/notes'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <NotebookText className="w-4 h-4" /> My Notes
+              <NotebookText className="w-4 h-4" /> {t('account_my_notes')}
             </button>
             <button onClick={() => { setOpen(false); navigate('/wishlist'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <Heart className="w-4 h-4" /> My Wishlist
+              <Heart className="w-4 h-4" /> {t('account_my_wishlist')}
             </button>
             {isAdmin && (
               <button onClick={() => { setOpen(false); navigate('/admin'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-                <LayoutDashboard className="w-4 h-4" /> Admin Dashboard
+                <LayoutDashboard className="w-4 h-4" /> {t('account_admin_dashboard')}
               </button>
             )}
             <button onClick={() => { setOpen(false); logout(); navigate('/'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition border-t border-ink/10">
-              <LogOut className="w-4 h-4" /> Log Out
+              <LogOut className="w-4 h-4" /> {t('account_logout')}
             </button>
           </motion.div>
         )}
@@ -199,7 +202,7 @@ function AccountMenu() {
   );
 }
 
-function SearchBox() {
+function SearchBox({ t }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const navigate = useNavigate();
@@ -228,7 +231,7 @@ function SearchBox() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onBlur={() => !q && setOpen(false)}
-              placeholder="Search..."
+              placeholder={t('nav_search_placeholder')}
               className="w-full px-4 py-2 rounded-full border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
             />
           </motion.form>
@@ -237,7 +240,7 @@ function SearchBox() {
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:bg-white hover:shadow-glass transition"
-        aria-label="Search"
+        aria-label={t('nav_search')}
         aria-haspopup="true"
         aria-expanded={open}
       >
@@ -247,11 +250,70 @@ function SearchBox() {
   );
 }
 
+// Flag-icon toggle replacing the old per-page globe-icon language
+// filters (Content/BibleStudies/Devotions/News each had their own,
+// unrelated to this: that filter labels a piece of CONTENT's language,
+// this switches the app's own interface language). Two languages today,
+// so a simple click-to-toggle list is clearer than a wider dropdown.
+function LanguageSwitcher({ language, setLanguage }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const current = LANGUAGE_OPTIONS.find((l) => l.code === language) || LANGUAGE_OPTIONS[0];
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-2.5 h-10 rounded-full text-ink/70 hover:bg-white hover:shadow-glass transition"
+        aria-label="Change language"
+        aria-haspopup="true"
+        aria-expanded={open}
+      >
+        <span className="text-lg leading-none">{current.flag}</span>
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 mt-2 w-44 glass-card bg-white/95 shadow-glass z-50 overflow-hidden py-1.5"
+          >
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.code}
+                role="menuitem"
+                onClick={() => { setLanguage(opt.code); setOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition ${
+                  opt.code === language ? 'text-secondary font-semibold bg-surface' : 'text-ink/70 hover:bg-surface hover:text-ink'
+                }`}
+              >
+                <span className="text-base leading-none">{opt.flag}</span> {opt.name}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // Mobile: Explore/About render as an inline expand-in-place group (a
 // header row that toggles, then its links indented beneath) rather than a
 // floating dropdown - flyout menus are awkward to reach with a thumb, and
 // this keeps the whole mobile menu as one scrollable column.
-function MobileGroup({ label, links, currentPath, onNavigate }) {
+function MobileGroup({ label, links, currentPath, onNavigate, t }) {
   const [expanded, setExpanded] = useState(() => links.some((l) => currentPath === l.to || currentPath.startsWith(l.to + '/')));
   const groupId = useId();
 
@@ -286,7 +348,7 @@ function MobileGroup({ label, links, currentPath, onNavigate }) {
                   `block py-2 text-sm font-medium transition-colors ${isActive ? 'text-secondary' : 'text-ink/60'}`
                 }
               >
-                {link.label}
+                {link.labelKey ? t(link.labelKey) : link.label}
               </NavLink>
             ))}
           </motion.div>
@@ -299,28 +361,15 @@ function MobileGroup({ label, links, currentPath, onNavigate }) {
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [categoryLinks, setCategoryLinks] = useState([]);
   const { user } = useAuth();
   const { count } = useCart();
+  const { language, setLanguage, t } = useLanguage();
   const location = useLocation();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  // The system only ever offers a small, curated set of content
-  // categories (the three Reforms - see migration 019) — fetched rather
-  // than hardcoded so the nav always reflects whatever's actually in the
-  // database instead of drifting out of sync with it.
-  useEffect(() => {
-    api.get('/categories', { params: { type: 'content' } })
-      .then((r) => {
-        const items = r.data?.data?.items || [];
-        setCategoryLinks(items.map((c) => ({ to: `/content?category_id=${c.id}`, label: c.name })));
-      })
-      .catch(() => setCategoryLinks([]));
   }, []);
 
   // Closing the mobile menu on every route change avoids it staying open
@@ -331,12 +380,12 @@ export default function Navbar() {
     <header
       className={`sticky top-0 z-50 backdrop-blur-md border-b transition-all duration-300 ${
         scrolled
-          ? 'bg-white/90 border-ink/10 shadow-[0_4px_24px_rgba(45,42,74,0.08)]'
-          : 'bg-white/70 border-transparent'
+          ? 'bg-white/92 border-ink/10 shadow-[0_4px_24px_rgba(45,42,74,0.08)]'
+          : 'bg-gradient-to-r from-secondary/12 via-white/75 to-accent/12 border-white/40'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between py-2 min-h-16">
-        <Link to="/" className="flex items-center gap-2.5 group">
+      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between gap-4 py-2 min-h-16">
+        <Link to="/" className="flex items-center gap-2.5 group shrink-0">
           <img
             src={logo}
             alt="AIMsisters logo"
@@ -353,12 +402,12 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-1 text-sm font-medium">
+        <nav className="hidden lg:flex items-center justify-center flex-1 gap-6 text-sm font-medium">
           <NavLink to="/" end className="relative px-3 py-2">
             {({ isActive }) => (
               <>
                 <span className={`relative z-10 transition-colors ${isActive ? 'text-secondary' : 'text-ink/70 hover:text-ink'}`}>
-                  Home
+                  {t('nav_home')}
                 </span>
                 {isActive && (
                   <motion.span
@@ -371,17 +420,13 @@ export default function Navbar() {
             )}
           </NavLink>
 
-          <NavDropdown label="Explore" links={EXPLORE_LINKS} currentPath={location.pathname} />
-
-          {categoryLinks.length > 0 && (
-            <NavDropdown label="Categories" links={categoryLinks} currentPath={location.pathname} />
-          )}
+          <NavDropdown label={t('nav_explore')} links={EXPLORE_LINKS} currentPath={location.pathname} t={t} />
 
           <NavLink to="/shop" className="relative px-3 py-2">
             {({ isActive }) => (
               <>
                 <span className={`relative z-10 transition-colors ${isActive ? 'text-secondary' : 'text-ink/70 hover:text-ink'}`}>
-                  Shop
+                  {t('nav_shop')}
                 </span>
                 {isActive && (
                   <motion.span
@@ -394,13 +439,14 @@ export default function Navbar() {
             )}
           </NavLink>
 
-          <NavDropdown label="About" links={ABOUT_LINKS} currentPath={location.pathname} />
+          <NavDropdown label={t('nav_about')} links={ABOUT_LINKS} currentPath={location.pathname} t={t} />
         </nav>
 
-        <div className="hidden lg:flex items-center gap-1">
-          <SearchBox />
+        <div className="hidden lg:flex items-center gap-2 shrink-0">
+          <SearchBox t={t} />
+          <LanguageSwitcher language={language} setLanguage={setLanguage} />
           {user && <NotificationsBell />}
-          <Link to="/cart" className="relative w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:bg-white hover:shadow-glass transition" aria-label="Cart">
+          <Link to="/cart" className="relative w-10 h-10 rounded-full flex items-center justify-center text-ink/70 hover:bg-white hover:shadow-glass transition" aria-label={t('nav_cart')}>
             <ShoppingCart className="w-5 h-5" />
             {count > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
@@ -408,8 +454,8 @@ export default function Navbar() {
               </span>
             )}
           </Link>
-          <span className="ml-2">
-            <AccountMenu />
+          <span className="ml-1">
+            <AccountMenu t={t} />
           </span>
         </div>
 
@@ -456,24 +502,25 @@ export default function Navbar() {
                 onClick={() => setOpen(false)}
                 className={({ isActive }) => `block py-2.5 text-sm font-medium transition-colors ${isActive ? 'text-secondary' : 'text-ink/70'}`}
               >
-                Home
+                {t('nav_home')}
               </NavLink>
 
-              <MobileGroup label="Explore" links={EXPLORE_LINKS} currentPath={location.pathname} onNavigate={() => setOpen(false)} />
-
-              {categoryLinks.length > 0 && (
-                <MobileGroup label="Categories" links={categoryLinks} currentPath={location.pathname} onNavigate={() => setOpen(false)} />
-              )}
+              <MobileGroup label={t('nav_explore')} links={EXPLORE_LINKS} currentPath={location.pathname} onNavigate={() => setOpen(false)} t={t} />
 
               <NavLink
                 to="/shop"
                 onClick={() => setOpen(false)}
                 className={({ isActive }) => `block py-2.5 text-sm font-medium transition-colors ${isActive ? 'text-secondary' : 'text-ink/70'}`}
               >
-                Shop
+                {t('nav_shop')}
               </NavLink>
 
-              <MobileGroup label="About" links={ABOUT_LINKS} currentPath={location.pathname} onNavigate={() => setOpen(false)} />
+              <MobileGroup label={t('nav_about')} links={ABOUT_LINKS} currentPath={location.pathname} onNavigate={() => setOpen(false)} t={t} />
+
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-ink/10">
+                <span className="text-xs font-semibold text-ink/50">Language</span>
+                <LanguageSwitcher language={language} setLanguage={setLanguage} />
+              </div>
 
               <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ink/10">
                 <Link
@@ -481,7 +528,7 @@ export default function Navbar() {
                   onClick={() => setOpen(false)}
                   className="relative flex-1 text-center px-4 py-2.5 rounded-full glass-card text-sm font-semibold flex items-center justify-center gap-2"
                 >
-                  <ShoppingCart className="w-4 h-4" /> Cart {count > 0 && `(${count})`}
+                  <ShoppingCart className="w-4 h-4" /> {t('nav_cart')} {count > 0 && `(${count})`}
                 </Link>
                 {user ? (
                   <Link
@@ -489,7 +536,7 @@ export default function Navbar() {
                     onClick={() => setOpen(false)}
                     className="flex-1 text-center px-4 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass"
                   >
-                    My Account
+                    {t('account_my_orders')}
                   </Link>
                 ) : (
                   <Link
@@ -497,7 +544,7 @@ export default function Navbar() {
                     onClick={() => setOpen(false)}
                     className="flex-1 text-center px-4 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass"
                   >
-                    Login
+                    {t('nav_login')}
                   </Link>
                 )}
               </div>
