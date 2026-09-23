@@ -1480,3 +1480,17 @@ WHERE c.content_type = 'bible_study';
 
 ALTER TABLE bible_studies
   MODIFY COLUMN format ENUM('video','pdf','article','image') NOT NULL DEFAULT 'video';
+
+-- =========================================================
+-- Migration 023: Testimonial rejection reason + archive status
+--
+-- Rejecting a testimony now requires a stored reason (rejection_reason,
+-- a new nullable TEXT column - NULL for existing rejected rows, nothing
+-- backfilled). An approved testimony can now be Archived instead of
+-- only Approved/Rejected/Deleted - a status, not a delete, so it stays
+-- recoverable and simply drops out of the public homepage feed.
+-- =========================================================
+
+ALTER TABLE testimonials
+  ADD COLUMN rejection_reason TEXT NULL AFTER body,
+  MODIFY COLUMN status ENUM('pending','approved','rejected','archived') NOT NULL DEFAULT 'pending';

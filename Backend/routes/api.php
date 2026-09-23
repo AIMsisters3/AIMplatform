@@ -174,6 +174,8 @@ function route(string $method, string $path)
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $action === 'approve' && $method === 'POST') return $ctrl->approve((int) $id);
         if ($id !== null && $action === 'reject' && $method === 'POST') return $ctrl->reject((int) $id);
+        if ($id !== null && $action === 'archive' && $method === 'POST') return $ctrl->archive((int) $id);
+        if ($id !== null && $action === 'restore' && $method === 'POST') return $ctrl->restore((int) $id);
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
 
         json_error('Testimonial route not found.', 404);
