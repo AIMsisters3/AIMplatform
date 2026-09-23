@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, ArrowRight, HeartPulse, Shirt,
-  ScrollText, PlayCircle, FileText, Headphones, Inbox, Globe,
+  ScrollText, PlayCircle, FileText, Headphones, Inbox,
   Sparkles, Image as ImageIcon, Layers, Loader2, X, Eye, MessageCircle, LayoutGrid,
 } from 'lucide-react';
 import api from '../api/axios.js';
@@ -12,6 +12,7 @@ import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { getItemKind } from '../utils/mediaKind.js';
 import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
 import logo from '../assets/lg.png';
@@ -279,13 +280,12 @@ function SeriesStrip({ series }) {
 
 export default function Content() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { language } = useLanguage();
 
   const [categories, setCategories] = useState([]);
-  const [languageOptions, setLanguageOptions] = useState([]);
   const [series, setSeries] = useState([]);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [language, setLanguage] = useState('');
   const [mediaType, setMediaType] = useState('');
   const [activeItem, setActiveItem] = useState(null);
 
@@ -305,7 +305,7 @@ export default function Content() {
     section: 'media_library',
     search: search || undefined,
     category_id: categoryId || undefined,
-    language: language || undefined,
+    language,
     media_type: mediaType || undefined,
   }), [search, categoryId, language, mediaType]);
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/content', feedParams, 24);
@@ -314,9 +314,6 @@ export default function Content() {
     api.get('/categories', { params: { type: 'content' } })
       .then((r) => setCategories(sortCategories(r.data?.data?.items || [])))
       .catch(() => setCategories([]));
-    api.get('/languages')
-      .then((r) => setLanguageOptions(r.data?.data?.items || []))
-      .catch(() => setLanguageOptions([]));
     api.get('/series', { params: { section: 'media_library', limit: 8 } })
       .then((r) => setSeries(r.data?.data?.items || []))
       .catch(() => setSeries([]));
@@ -482,21 +479,6 @@ export default function Content() {
       <div className="max-w-7xl mx-auto px-6 py-10">
         <LiveNowStrip endpoint="/content" onItemClick={openItem} />
 
-        {/* Language filter — small, unobtrusive */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex justify-end mb-2">
-          <div className="relative">
-            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink/40 pointer-events-none" />
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="appearance-none pl-8 pr-7 py-1.5 rounded-full border border-ink/10 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-secondary cursor-pointer"
-            >
-              <option value="">All Languages</option>
-              {languageOptions.map((lang) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
-            </select>
-          </div>
-        </motion.div>
-
         {/* Browse navigation area — on desktop, Video/Poster/Audio and
             Browse by Category sit together in one horizontal area
             (spec). On small screens, only category browsing shows here
@@ -593,7 +575,7 @@ export default function Content() {
             <h3 className="font-display font-semibold text-lg text-ink mb-1">No content found</h3>
             <p className="text-ink/50 text-sm mb-5 max-w-xs">Try a different search, category, type, or language.</p>
             <button
-              onClick={() => { setSearch(''); setCategoryId(''); setLanguage(''); setMediaType(''); }}
+              onClick={() => { setSearch(''); setCategoryId(''); setMediaType(''); }}
               className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass"
             >
               Reset filters

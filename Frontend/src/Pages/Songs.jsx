@@ -7,24 +7,18 @@ import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 export default function Songs() {
   const [searchParams] = useSearchParams();
+  const { language } = useLanguage();
 
-  const [languageOptions, setLanguageOptions] = useState([]);
   const [search, setSearch] = useState('');
-  const [language, setLanguage] = useState('');
   const [activeItem, setActiveItem] = useState(null);
-
-  useEffect(() => {
-    api.get('/languages')
-      .then((r) => setLanguageOptions(r.data?.data?.items || []))
-      .catch(() => setLanguageOptions([]));
-  }, []);
 
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList(
     '/songs',
-    { search: search || undefined, language: language || undefined }
+    { search: search || undefined, language }
   );
 
   useEffect(() => {
@@ -69,17 +63,6 @@ export default function Songs() {
       </section>
 
       <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="flex flex-col sm:flex-row gap-3 mb-10">
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white"
-          >
-            <option value="">All Languages</option>
-            {languageOptions.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
-          </select>
-        </div>
-
         {loading ? (
           <CardGridSkeleton />
         ) : items.length === 0 ? (

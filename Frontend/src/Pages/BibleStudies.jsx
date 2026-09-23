@@ -9,6 +9,7 @@ import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { formatRelativeDate } from '../utils/formatters.js';
 import { getVerseOfDay } from '../utils/verseOfDay.js';
@@ -90,19 +91,18 @@ function SeriesRow({ s }) {
 
 export default function BibleStudies() {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const [continuing, setContinuing] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [languageOptions, setLanguageOptions] = useState([]);
   const [series, setSeries] = useState([]);
   const [format, setFormat] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [language, setLanguage] = useState('');
   const [search, setSearch] = useState('');
 
   const bsParams = useMemo(() => ({
     format: format || undefined,
     category_id: categoryId || undefined,
-    language: language || undefined,
+    language,
     search: search || undefined,
   }), [format, categoryId, language, search]);
 
@@ -119,9 +119,6 @@ export default function BibleStudies() {
     api.get('/categories', { params: { type: 'content' } })
       .then((r) => setCategories(r.data?.data?.items || []))
       .catch(() => setCategories([]));
-    api.get('/languages')
-      .then((r) => setLanguageOptions(r.data?.data?.items || []))
-      .catch(() => setLanguageOptions([]));
     // Recently-updated series first (Series::all()'s own ordering) - a
     // handful is enough for the compact desktop-only strip below.
     api.get('/series', { params: { section: 'bible_study', limit: 5 } })
@@ -244,17 +241,9 @@ export default function BibleStudies() {
             <option value="">All Categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white"
-          >
-            <option value="">All Languages</option>
-            {languageOptions.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
-          </select>
-          {(format || categoryId || language || search) && (
+          {(format || categoryId || search) && (
             <button
-              onClick={() => { setFormat(''); setCategoryId(''); setLanguage(''); setSearch(''); }}
+              onClick={() => { setFormat(''); setCategoryId(''); setSearch(''); }}
               className="px-5 py-3 rounded-full text-sm font-semibold text-ink/50 hover:text-ink"
             >
               Clear filters

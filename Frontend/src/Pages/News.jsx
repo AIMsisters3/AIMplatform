@@ -1,42 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 export default function News() {
-  const [languageOptions, setLanguageOptions] = useState([]);
-  const [language, setLanguage] = useState('');
+  const { language } = useLanguage();
   const [activeItem, setActiveItem] = useState(null);
-
-  useEffect(() => {
-    api.get('/languages')
-      .then((r) => setLanguageOptions(r.data?.data?.items || []))
-      .catch(() => setLanguageOptions([]));
-  }, []);
 
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList(
     '/news',
-    { language: language || undefined }
+    { language }
   );
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-14">
       <h1 className="text-3xl font-bold mb-2">Ministry News</h1>
       <p className="text-ink/60 mb-8">Stay up to date with what God is doing across the ministry.</p>
-
-      <div className="flex flex-col sm:flex-row gap-4 mb-10">
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
-        >
-          <option value="">All Languages</option>
-          {languageOptions.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
-        </select>
-      </div>
 
       {loading ? (
         <CardGridSkeleton />

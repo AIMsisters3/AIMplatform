@@ -5,16 +5,20 @@ import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 // Category and content-type are still set by the admin when publishing
 // (UploadContent.jsx) - this public page just no longer shows them as
 // labels/filters, per spec: devotions are meant to be browsed simply,
-// without that extra classification surfaced to visitors.
+// without that extra classification surfaced to visitors. The language
+// filter is the one exception - it comes from the navbar globally, not
+// a page-level control.
 export default function Devotions() {
   const [activeItem, setActiveItem] = useState(null);
   const reduceMotion = useReducedMotion();
+  const { language } = useLanguage();
 
-  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/devotions', {});
+  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/devotions', { language });
   const [today, ...rest] = items;
 
   // Respects prefers-reduced-motion: entrance transitions collapse to an
