@@ -45,12 +45,23 @@ class Series
             $params['search'] = '%' . $filters['search'] . '%';
         }
 
+        // latest_episode_at backs both the "time/date the latest video was
+        // posted" a series card shows and the "recently updated series
+        // first" ordering (spec) - a series with a brand-new episode
+        // should surface before one that's only old, even if the series
+        // row itself was created earlier. Falls back to the series' own
+        // created_at when it has no published episodes yet, so a fresh,
+        // empty series still sorts somewhere sensible instead of via NULL.
         $sql = "SELECT s.*, cat.name AS category_name,
-                    (SELECT COUNT(*) FROM content c WHERE c.series_id = s.id AND c.deleted_at IS NULL AND c.status = 'published') AS episode_count
+                    (SELECT COUNT(*) FROM content c WHERE c.series_id = s.id AND c.deleted_at IS NULL AND c.status = 'published') AS episode_count,
+                    COALESCE(
+                        (SELECT MAX(COALESCE(c2.publish_date, c2.created_at)) FROM content c2 WHERE c2.series_id = s.id AND c2.deleted_at IS NULL AND c2.status = 'published'),
+                        s.created_at
+                    ) AS latest_episode_at
                 FROM series s
                 LEFT JOIN categories cat ON cat.id = s.category_id
                 WHERE " . implode(' AND ', $where) . '
-                ORDER BY s.created_at DESC
+                ORDER BY latest_episode_at DESC
                 LIMIT :limit OFFSET :offset';
 
         $stmt = $this->db->prepare($sql);

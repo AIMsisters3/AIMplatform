@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
-  Film, Video, Mic, Users, Headphones, Podcast, MessageSquare,
-  Wand2, Camera, FileType, FileText, ArrowRight, BookOpen, Search,
-  HeartPulse, Sparkles, Shirt, Layers, Loader2, Inbox,
+  ArrowRight, BookOpen, Search, HeartPulse, Sparkles, Shirt, ScrollText,
+  Layers, Loader2, Inbox, Quote, Users,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
+import { formatRelativeDate } from '../utils/formatters.js';
+import { getVerseOfDay } from '../utils/verseOfDay.js';
 
 const FORMATS = [
   { value: '', label: 'All Formats' },
@@ -26,97 +28,63 @@ const FORMATS = [
   { value: 'pdf_notes', label: 'PDF / Notes' },
 ];
 
-// Order + icon for the "browse by format" groups shown when nothing is
-// filtered yet — gives the admin's flat, one-list-of-everything data a
-// structure a visitor can actually scan, instead of dumping every format
-// into one undifferentiated grid.
-const FORMAT_GROUPS = [
-  { value: 'sermon', label: 'Sermons', icon: Mic },
-  { value: 'documentary', label: 'Documentaries', icon: Camera },
-  { value: 'panel', label: 'Panel Discussions', icon: Users },
-  { value: 'podcast', label: 'Podcasts', icon: Podcast },
-  { value: 'interview', label: 'Interviews', icon: MessageSquare },
-  { value: 'video', label: 'Videos', icon: Video },
-  { value: 'audio', label: 'Audio', icon: Headphones },
-  { value: 'short_film', label: 'Short Films', icon: Film },
-  { value: 'animated', label: 'Animated', icon: Wand2 },
-  { value: 'article', label: 'Articles', icon: FileText },
-  { value: 'pdf_notes', label: 'PDF & Notes', icon: FileType },
-];
-
-// Reforms categories (migration 018) get their own small icon set so they
-// read as a distinct, recognizable group of filter chips rather than
-// blending into the plain category dropdown.
+// Reforms + Prophecy (migrations 018/019/020) get their own small icon
+// set so they read as a distinct, recognizable group of filter chips
+// rather than blending into the plain category dropdown.
 const REFORM_META = {
-  'Health Reform': { icon: HeartPulse, className: 'bg-emerald-100 text-emerald-700' },
-  'Spiritual Reform': { icon: Sparkles, className: 'bg-purple-100 text-purple-700' },
-  'Dress Reform': { icon: Shirt, className: 'bg-orange-100 text-orange-700' },
+  'Health Reform':    { icon: HeartPulse, className: 'bg-emerald-100 text-emerald-700' },
+  'Spiritual Reform':  { icon: Sparkles, className: 'bg-purple-100 text-purple-700' },
+  'Dress Reform':      { icon: Shirt, className: 'bg-orange-100 text-orange-700' },
+  'Prophecy':          { icon: ScrollText, className: 'bg-rose-100 text-rose-700' },
 };
 
-function RowCard({ item }) {
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+};
+
+function VerseOfDayCard() {
+  const verse = useMemo(() => getVerseOfDay(), []);
   return (
-    <Link
-      to={`/bible-studies/${item.slug}`}
-      className="shrink-0 w-56 glass-card overflow-hidden group hover:-translate-y-1 transition-transform"
+    <motion.div
+      variants={fadeUp}
+      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary p-6 flex flex-col justify-center text-center shadow-glass min-h-[220px]"
     >
-      <div className="h-32 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-2xl brand-gradient-text font-display font-bold">AIM</span>
-        )}
-      </div>
-      <div className="p-3">
-        <p className="text-sm font-semibold text-ink leading-snug line-clamp-2 group-hover:text-secondary transition-colors">
-          {item.title}
-        </p>
-        {item.speaker && <p className="text-xs text-ink/45 mt-1">{item.speaker}</p>}
-      </div>
-    </Link>
+      <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10" />
+      <div className="absolute -bottom-10 -left-10 w-36 h-36 rounded-full bg-black/10" />
+      <Quote className="relative z-10 w-6 h-6 text-white/50 mx-auto mb-3" />
+      <p className="relative z-10 font-display italic text-white text-sm leading-relaxed mb-3 line-clamp-6">
+        "{verse.text}"
+      </p>
+      <p className="relative z-10 text-accent font-semibold text-xs tracking-wide uppercase">
+        {verse.reference}
+      </p>
+      <p className="relative z-10 text-white/50 text-[10px] mt-2 uppercase tracking-wider">Verse of the Day</p>
+    </motion.div>
   );
 }
 
-function SeriesStrip({ series }) {
-  if (series.length === 0) return null;
+function SeriesRow({ s }) {
   return (
-    <div className="mb-12">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="font-display font-semibold text-lg flex items-center gap-2">
-            <Layers className="w-4 h-4 text-secondary" /> Bible Study Series
-          </h2>
-          <p className="text-xs text-ink/45">Multi-part studies, told across episodes.</p>
-        </div>
-        <Link to="/series" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
-          View All <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+    <Link
+      to={`/series/${s.slug}`}
+      className="flex items-center gap-4 glass-card p-3 hover:-translate-y-0.5 transition-transform"
+    >
+      <div className="w-24 h-16 shrink-0 rounded-xl overflow-hidden bg-brand-gradient-soft flex items-center justify-center">
+        {s.cover_image ? (
+          <img src={s.cover_image} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        ) : (
+          <Layers className="w-6 h-6 text-secondary" />
+        )}
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
-        {series.map((s) => (
-          <Link
-            key={s.id}
-            to={`/series/${s.slug}`}
-            className="shrink-0 w-60 glass-card overflow-hidden group hover:-translate-y-1 transition-transform"
-          >
-            <div className="relative h-32 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
-              {s.cover_image ? (
-                <img src={s.cover_image} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              ) : (
-                <Layers className="w-8 h-8 text-secondary" />
-              )}
-              <span className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-brand-gradient text-white text-[11px] font-semibold shadow-glass">
-                {s.episode_count} episodes
-              </span>
-            </div>
-            <div className="p-3.5">
-              <h3 className="font-display font-semibold text-sm leading-snug line-clamp-1 group-hover:text-secondary transition-colors">
-                {s.title}
-              </h3>
-            </div>
-          </Link>
-        ))}
+      <div className="min-w-0">
+        <h3 className="font-display font-bold text-sm text-ink leading-snug line-clamp-1">{s.title}</h3>
+        <p className="text-xs text-ink/50 mt-0.5">{s.episode_count} {Number(s.episode_count) === 1 ? 'video' : 'videos'}</p>
+        {s.latest_episode_at && (
+          <p className="text-[11px] text-ink/40 mt-0.5">Latest: {formatRelativeDate(s.latest_episode_at)}</p>
+        )}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -131,8 +99,6 @@ export default function BibleStudies() {
   const [language, setLanguage] = useState('');
   const [search, setSearch] = useState('');
 
-  const isFiltering = Boolean(format || categoryId || language || search);
-
   const bsParams = useMemo(() => ({
     format: format || undefined,
     category_id: categoryId || undefined,
@@ -140,11 +106,9 @@ export default function BibleStudies() {
     search: search || undefined,
   }), [format, categoryId, language, search]);
 
-  // When browsing unfiltered, pull a wide sample so every format group
-  // below has enough to show; once anything is filtered, switch to a real
-  // paginated page of matching results (Load More), so a filter change
-  // never leaves a stale/duplicated page on screen.
-  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/bible-studies', bsParams, isFiltering ? 24 : 100);
+  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/bible-studies', bsParams, 24);
+  const topItems = items.slice(0, 3);
+  const restItems = items.slice(3);
 
   const reformCategories = useMemo(
     () => categories.filter((c) => Object.prototype.hasOwnProperty.call(REFORM_META, c.name)),
@@ -158,7 +122,9 @@ export default function BibleStudies() {
     api.get('/languages')
       .then((r) => setLanguageOptions(r.data?.data?.items || []))
       .catch(() => setLanguageOptions([]));
-    api.get('/series', { params: { section: 'bible_study', limit: 8 } })
+    // Recently-updated series first (Series::all()'s own ordering) - a
+    // handful is enough for the compact desktop-only strip below.
+    api.get('/series', { params: { section: 'bible_study', limit: 5 } })
       .then((r) => setSeries(r.data?.data?.items || []))
       .catch(() => setSeries([]));
   }, []);
@@ -168,46 +134,42 @@ export default function BibleStudies() {
     api.get('/bible-studies/continue').then((r) => setContinuing(r.data.data.items)).catch(() => setContinuing([]));
   }, [user]);
 
-  const groups = useMemo(() => {
-    if (isFiltering) return [];
-    return FORMAT_GROUPS
-      .map((g) => ({ ...g, items: items.filter((i) => i.format === g.value) }))
-      .filter((g) => g.items.length > 0);
-  }, [items, isFiltering]);
-
   function toggleCategory(id) {
     setCategoryId((current) => (current === String(id) ? '' : String(id)));
   }
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-12 sm:py-16">
+      {/* Hero — exact hierarchy: small label, moderate heading, plain
+          supporting line, italic verse. Kept compact. */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-10 sm:py-12">
+        <motion.div
+          className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/10 blur-2xl pointer-events-none"
+          animate={{ y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
         <div className="relative z-10 max-w-7xl mx-auto px-6">
-          <div className="flex items-center gap-3 sm:gap-4 mb-3">
-            <span className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 shadow-glass">
-              <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-            </span>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-none tracking-tight">
-              Bible{' '}
-              <span className="bg-gradient-to-r from-accent via-pink-300 to-white bg-clip-text text-transparent">
-                Studies
-              </span>
-            </h1>
-          </div>
-          <p className="font-body text-white/70 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl mb-6">
-            Go deeper into God's Word with structured, verse-by-verse study guides — videos, sermons, audio, articles, and more.
-          </p>
-
-          <form onSubmit={(e) => e.preventDefault()} className="relative max-w-xl">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Bible studies by title..."
-              className="w-full pl-11 pr-4 py-3 sm:py-3.5 rounded-full border-0 bg-white shadow-glass focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
-            />
-          </form>
+          <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex items-center gap-2 mb-3">
+            <BookOpen className="w-4 h-4 text-accent" />
+            <span className="text-[18px] font-semibold text-accent tracking-wide">Bible Study</span>
+          </motion.div>
+          <motion.h1
+            initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }}
+            className="text-2xl sm:text-3xl md:text-4xl font-display font-extrabold text-white leading-tight mb-2"
+          >
+            Dig deeper in God's Word
+          </motion.h1>
+          <motion.p
+            initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.1 }}
+            className="font-body text-white/75 text-sm sm:text-base mb-3"
+          >
+            Discover Truth. Grow in Faith. Be transformed.
+          </motion.p>
+          <motion.p
+            initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.15 }}
+            className="italic text-white/60 text-sm"
+          >
+            Psalm 119:105
+          </motion.p>
         </div>
       </section>
 
@@ -231,10 +193,10 @@ export default function BibleStudies() {
           </div>
         )}
 
-        {/* Reforms filter chips */}
+        {/* Reforms + Prophecy filter chips */}
         {reformCategories.length > 0 && (
           <div className="mb-6">
-            <p className="text-xs font-semibold text-ink/40 uppercase mb-2.5">Reforms</p>
+            <p className="text-xs font-semibold text-ink/40 uppercase mb-2.5">Reforms & Prophecy</p>
             <div className="flex flex-wrap gap-2.5">
               {reformCategories.map((c) => {
                 const meta = REFORM_META[c.name];
@@ -256,8 +218,17 @@ export default function BibleStudies() {
           </div>
         )}
 
-        {/* Format / Category / Language filters */}
+        {/* Search + Format / Category / Language filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-10">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search Bible studies by title..."
+              className="w-full pl-11 pr-4 py-3 rounded-full border border-ink/10 bg-white focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
+            />
+          </div>
           <select
             value={format}
             onChange={(e) => setFormat(e.target.value)}
@@ -281,7 +252,7 @@ export default function BibleStudies() {
             <option value="">All Languages</option>
             {languageOptions.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
           </select>
-          {isFiltering && (
+          {(format || categoryId || language || search) && (
             <button
               onClick={() => { setFormat(''); setCategoryId(''); setLanguage(''); setSearch(''); }}
               className="px-5 py-3 rounded-full text-sm font-semibold text-ink/50 hover:text-ink"
@@ -290,8 +261,6 @@ export default function BibleStudies() {
             </button>
           )}
         </div>
-
-        {!isFiltering && <SeriesStrip series={series} />}
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -310,17 +279,44 @@ export default function BibleStudies() {
             <Inbox className="w-8 h-8 text-ink/25 mx-auto mb-3" />
             <p className="text-ink/50">No Bible studies match your filters yet.</p>
           </div>
-        ) : isFiltering ? (
+        ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {items.map((item) => (
-                <Link key={item.id} to={`/bible-studies/${item.slug}`}>
-                  <ContentCard item={item} />
-                </Link>
+            {/* Main content: three cards + a Verse of the Day card in the
+                fourth slot on desktop; mobile stacks everything in one
+                column (grid-cols-1 already achieves this, no separate
+                mobile-only markup needed). */}
+            <motion.div
+              className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-10"
+              initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+            >
+              {topItems.map((item) => (
+                <motion.div key={item.id} variants={fadeUp}>
+                  <Link to={`/bible-studies/${item.slug}`}>
+                    <ContentCard item={item} />
+                  </Link>
+                </motion.div>
               ))}
-            </div>
+              <VerseOfDayCard />
+            </motion.div>
+
+            {restItems.length > 0 && (
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+                initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}
+                variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+              >
+                {restItems.map((item) => (
+                  <motion.div key={item.id} variants={fadeUp}>
+                    <Link to={`/bible-studies/${item.slug}`}>
+                      <ContentCard item={item} />
+                    </Link>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+
             {hasMore && (
-              <div className="flex justify-center mt-8">
+              <div className="flex justify-center mb-12">
                 <button
                   onClick={loadMore}
                   disabled={loadingMore}
@@ -332,32 +328,51 @@ export default function BibleStudies() {
               </div>
             )}
           </>
-        ) : (
-          <div className="space-y-10">
-            {groups.map((g) => (
-              <div key={g.value}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-display font-semibold text-lg flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center">
-                      <g.icon className="w-4 h-4 text-secondary" />
-                    </span>
-                    {g.label}
-                  </h2>
-                  {g.items.length > 4 && (
-                    <button
-                      onClick={() => setFormat(g.value)}
-                      className="text-xs font-semibold text-secondary flex items-center gap-1 hover:gap-1.5 transition-all"
-                    >
-                      See all <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-4 overflow-x-auto scrollbar-none pb-2">
-                  {g.items.slice(0, 8).map((item) => <RowCard key={item.id} item={item} />)}
-                </div>
-              </div>
-            ))}
+        )}
+
+        {/* Bible Study Series — desktop only */}
+        {series.length > 0 && (
+          <div className="hidden lg:block mb-12">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-lg flex items-center gap-2">
+                <Layers className="w-4 h-4 text-secondary" /> Bible Study Series
+              </h2>
+              <Link to="/series" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
+                View All <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+              {series.slice(0, 5).map((s) => <SeriesRow key={s.id} s={s} />)}
+            </div>
           </div>
+        )}
+
+        {/* Join AIMsisters Community — only for visitors who aren't
+            already part of it; no dedicated community page exists yet,
+            so this leads to registration/login, the real destination
+            for "joining" today (comments, testimonies, notes, bookmarks
+            all require an account). */}
+        {!user && (
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-[#3a2a6e] to-secondary p-8 sm:p-10 text-center"
+          >
+            <div className="absolute -top-10 -left-10 w-56 h-56 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-10 -right-10 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none" />
+            <Users className="relative z-10 w-8 h-8 text-accent mx-auto mb-4" />
+            <h2 className="relative z-10 text-2xl sm:text-3xl font-display font-bold text-white mb-2">
+              Join AIMsisters Community
+            </h2>
+            <p className="relative z-10 text-white/70 max-w-md mx-auto mb-6">
+              Track your study progress, save notes, leave comments, and grow alongside believers around the world.
+            </p>
+            <Link
+              to="/login"
+              className="relative z-10 inline-block px-8 py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition"
+            >
+              Join Now
+            </Link>
+          </motion.div>
         )}
       </div>
     </div>
