@@ -20,7 +20,7 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
-        <NotificationsBell />
+        <NotificationsBell variant="admin" />
 
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-brand-gradient flex items-center justify-center text-white font-semibold">

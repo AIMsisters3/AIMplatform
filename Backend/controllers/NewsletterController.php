@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/mailer.php';
 require_once __DIR__ . '/../helpers/rate_limit_v2.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/admin_notify.php';
 require_once __DIR__ . '/../emails/welcome_template.php';
 
 class NewsletterController
@@ -54,6 +55,13 @@ class NewsletterController
             $this->model->create($email, $token, $language);
         }
         error_log("Newsletter: subscribed {$email} (db row saved, status=subscribed)");
+
+        notify_admins_event(
+            'New newsletter subscriber',
+            "{$email} subscribed to the AIMsisters newsletter.",
+            'subscriptions',
+            '/admin/newsletter'
+        );
 
         // A failed send here (e.g. SMTP not configured locally) never
         // blocks the subscription itself — the row above is already

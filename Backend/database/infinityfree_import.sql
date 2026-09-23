@@ -1494,3 +1494,28 @@ ALTER TABLE bible_studies
 ALTER TABLE testimonials
   ADD COLUMN rejection_reason TEXT NULL AFTER body,
   MODIFY COLUMN status ENUM('pending','approved','rejected','archived') NOT NULL DEFAULT 'pending';
+
+-- =========================================================
+-- Migration 024: Separate admin notifications, add Contact messages
+--
+-- notifications.audience decides which bell a row shows in (public
+-- site's bell vs a new admin-only bell); notifications.source is the
+-- human-facing category label ('store', 'contact', 'subscriptions',
+-- 'testimonies', 'content', ...). contact_messages is new - the site's
+-- Contact page never actually submitted anywhere before this migration's
+-- matching code change.
+-- =========================================================
+
+ALTER TABLE notifications
+  ADD COLUMN audience ENUM('user','admin') NOT NULL DEFAULT 'user' AFTER user_id,
+  ADD COLUMN source VARCHAR(30) NULL AFTER type,
+  ADD INDEX idx_notifications_user_audience (user_id, audience);
+
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;

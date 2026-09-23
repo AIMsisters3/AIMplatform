@@ -4,6 +4,7 @@ require_once __DIR__ . '/../models/Testimonial.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/admin_notify.php';
 
 class TestimonialController
 {
@@ -36,6 +37,14 @@ class TestimonialController
         }
 
         $id = $this->model->create((int) $payload['sub'], $text);
+
+        notify_admins_event(
+            'New testimony submitted',
+            'A visitor submitted a testimony awaiting review: "' . mb_substr($text, 0, 140) . (mb_strlen($text) > 140 ? '...' : '') . '"',
+            'testimonies',
+            '/admin/testimonials'
+        );
+
         json_created(['id' => $id], 'Thank you! Your testimony has been submitted for review.');
     }
 

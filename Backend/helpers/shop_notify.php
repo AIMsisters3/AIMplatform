@@ -39,7 +39,7 @@ function notify_shop_event(
     string $buttonLabel = 'View Order'
 ): void {
     try {
-        (new Notification())->create($userId, $title, $message, $type, $linkPath);
+        (new Notification())->create($userId, $title, $message, $type, $linkPath, 'user', 'store');
     } catch (Throwable $e) {
         error_log("Shop in-app notification failed for user {$userId}: " . $e->getMessage());
     }
@@ -83,7 +83,7 @@ function notify_shop_admins_event(string $title, string $message, string $type, 
 
         $notification = new Notification();
         foreach ($adminIds as $adminId) {
-            $notification->create((int) $adminId, $title, $message, $type, $linkPath);
+            $notification->create((int) $adminId, $title, $message, $type, $linkPath, 'admin', 'store');
         }
     } catch (Throwable $e) {
         error_log('Shop admin alert failed: ' . $e->getMessage());

@@ -23,6 +23,7 @@ require_once __DIR__ . '/../controllers/WatchHistoryController.php';
 require_once __DIR__ . '/../controllers/SearchController.php';
 require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../controllers/LanguageController.php';
+require_once __DIR__ . '/../controllers/ContactController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
 require_once __DIR__ . '/../controllers/CronController.php';
@@ -180,6 +181,11 @@ function route(string $method, string $path)
 
         json_error('Testimonial route not found.', 404);
     }
+
+    // ---------- CONTACT ----------
+    if ($resource === 'contact' && $id === null && $method === 'POST') {
+        return (new ContactController())->store();
+    }
     
     // ---------- ORDERS ----------
     if ($resource === 'orders') {
@@ -243,6 +249,8 @@ function route(string $method, string $path)
         $ctrl = new NotificationController();
 
         if ($id === 'read-all' && $method === 'POST') return $ctrl->markAllRead();
+        if ($id === 'admin' && $action === 'read-all' && $method === 'POST') return $ctrl->markAllReadAdmin();
+        if ($id === 'admin' && $method === 'GET') return $ctrl->adminIndex();
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id !== null && $action === 'read' && $method === 'POST') return $ctrl->markRead((int) $id);
 
