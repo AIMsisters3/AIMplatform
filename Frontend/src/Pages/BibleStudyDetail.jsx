@@ -17,9 +17,15 @@ function autoGrow(el) {
   el.style.height = `${el.scrollHeight}px`;
 }
 
+// Simplified (migration 022) to Video/PDF/Article/Poster. Old
+// finer-grained values are included too so an item that hasn't been
+// re-saved since a pre-migration deploy still shows a readable label
+// instead of the raw enum string, until the migration's UPDATE runs.
 const FORMAT_LABELS = {
-  short_film: 'Short Film', video: 'Video', sermon: 'Sermon', panel: 'Panel Discussion',
-  audio: 'Audio', podcast: 'Podcast', animated: 'Animated', documentary: 'Documentary', pdf_notes: 'PDF / Notes',
+  video: 'Video', pdf: 'PDF', article: 'Article', image: 'Poster',
+  short_film: 'Video', sermon: 'Video', panel: 'Video', audio: 'Video',
+  podcast: 'Video', animated: 'Video', documentary: 'Video', interview: 'Video',
+  pdf_notes: 'PDF',
 };
 
 export default function BibleStudyDetail() {

@@ -14,21 +14,6 @@ import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { formatRelativeDate } from '../utils/formatters.js';
 import { getVerseOfDay } from '../utils/verseOfDay.js';
 
-const FORMATS = [
-  { value: '', label: 'All Formats' },
-  { value: 'video', label: 'Video' },
-  { value: 'short_film', label: 'Short Film' },
-  { value: 'sermon', label: 'Sermon' },
-  { value: 'panel', label: 'Panel Discussion' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'podcast', label: 'Podcast' },
-  { value: 'interview', label: 'Interview' },
-  { value: 'animated', label: 'Animated' },
-  { value: 'documentary', label: 'Documentary' },
-  { value: 'article', label: 'Article' },
-  { value: 'pdf_notes', label: 'PDF / Notes' },
-];
-
 // Reforms + Prophecy (migrations 018/019/020) get their own small icon
 // set so they read as a distinct, recognizable group of filter chips
 // rather than blending into the plain category dropdown.
@@ -95,16 +80,14 @@ export default function BibleStudies() {
   const [continuing, setContinuing] = useState([]);
   const [categories, setCategories] = useState([]);
   const [series, setSeries] = useState([]);
-  const [format, setFormat] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [search, setSearch] = useState('');
 
   const bsParams = useMemo(() => ({
-    format: format || undefined,
     category_id: categoryId || undefined,
     language,
     search: search || undefined,
-  }), [format, categoryId, language, search]);
+  }), [categoryId, language, search]);
 
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/bible-studies', bsParams, 24);
   const topItems = items.slice(0, 3);
@@ -163,9 +146,12 @@ export default function BibleStudies() {
           </motion.p>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.15 }}
-            className="italic text-white/60 text-sm"
+            className="italic text-white/70 text-sm sm:text-base max-w-xl"
           >
-            Psalm 119:105
+            "Thy word is a lamp unto my feet, and a light unto my path."
+            <span className="not-italic text-accent font-semibold ml-2 text-xs tracking-wide uppercase align-middle">
+              Psalm 119:105, KJV
+            </span>
           </motion.p>
         </div>
       </section>
@@ -190,11 +176,13 @@ export default function BibleStudies() {
           </div>
         )}
 
-        {/* Reforms + Prophecy filter chips */}
+        {/* Reforms + Prophecy filter chips — one swipeable horizontal line
+            on mobile (no vertical wrap), wraps freely once there's room
+            on larger screens. */}
         {reformCategories.length > 0 && (
           <div className="mb-6">
             <p className="text-xs font-semibold text-ink/40 uppercase mb-2.5">Reforms & Prophecy</p>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1 sm:flex-wrap sm:overflow-visible">
               {reformCategories.map((c) => {
                 const meta = REFORM_META[c.name];
                 const Icon = meta.icon;
@@ -203,7 +191,7 @@ export default function BibleStudies() {
                   <button
                     key={c.id}
                     onClick={() => toggleCategory(c.id)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition ${
+                    className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition ${
                       active ? 'bg-brand-gradient text-white shadow-glass' : `${meta.className} hover:shadow-glass`
                     }`}
                   >
@@ -215,7 +203,10 @@ export default function BibleStudies() {
           </div>
         )}
 
-        {/* Search + Format / Category / Language filters */}
+        {/* Search + Category filter — Format and Language were removed:
+            Format exposed admin-facing upload vocabulary rather than
+            helping discovery (spec), and Language is now the navbar's
+            single site-wide selector, not a per-page control. */}
         <div className="flex flex-col sm:flex-row gap-3 mb-10">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
@@ -227,13 +218,6 @@ export default function BibleStudies() {
             />
           </div>
           <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white"
-          >
-            {FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
-          <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white"
@@ -241,9 +225,9 @@ export default function BibleStudies() {
             <option value="">All Categories</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          {(format || categoryId || search) && (
+          {(categoryId || search) && (
             <button
-              onClick={() => { setFormat(''); setCategoryId(''); setSearch(''); }}
+              onClick={() => { setCategoryId(''); setSearch(''); }}
               className="px-5 py-3 rounded-full text-sm font-semibold text-ink/50 hover:text-ink"
             >
               Clear filters

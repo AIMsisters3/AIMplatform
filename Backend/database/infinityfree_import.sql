@@ -1442,3 +1442,41 @@ INSERT IGNORE INTO categories (name, slug, type) VALUES
 
 ALTER TABLE content
   ADD COLUMN duration_seconds INT UNSIGNED DEFAULT NULL AFTER views;
+
+-- =========================================================
+-- Migration 022: Simplify Bible Study formats to Video/PDF/Article/Poster
+--
+-- Bible Study content types are simplified from 11 finer-grained formats
+-- down to exactly 4 - Video, PDF, Article, Poster. No content is deleted.
+-- Every existing row keeps its file/body/thumbnail exactly as uploaded;
+-- only the `format`/`media_type` classification label is remapped:
+--   short_film, sermon, panel, animated, documentary, interview, podcast,
+--     audio  ->  video   (the actual file's real extension still drives
+--                          which player/badge is shown on the public
+--                          site - see mediaKind.js's getItemKind())
+--   pdf_notes  ->  pdf       (same upload-or-type-text behavior, renamed)
+--   article    ->  article   (unchanged)
+--   (new)      ->  image     (labeled "Poster" in the UI)
+-- =========================================================
+
+ALTER TABLE bible_studies
+  MODIFY COLUMN format ENUM(
+    'short_film','video','sermon','panel','audio','animated','documentary',
+    'pdf_notes','podcast','interview','article','pdf','image'
+  ) NOT NULL DEFAULT 'video';
+
+UPDATE bible_studies
+  SET format = 'video'
+  WHERE format IN ('short_film','sermon','panel','animated','documentary','interview','podcast','audio');
+
+UPDATE bible_studies
+  SET format = 'pdf'
+  WHERE format = 'pdf_notes';
+
+UPDATE content c
+JOIN bible_studies bs ON bs.content_id = c.id
+SET c.media_type = bs.format
+WHERE c.content_type = 'bible_study';
+
+ALTER TABLE bible_studies
+  MODIFY COLUMN format ENUM('video','pdf','article','image') NOT NULL DEFAULT 'video';

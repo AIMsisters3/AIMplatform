@@ -20,15 +20,15 @@ class ContentController
      * DB enum.
      */
     private const SECTION_MEDIA_TYPES = [
-        // 'panel' and 'podcast' deliberately live under Bible Study only, not
-        // here - those formats belong to structured study material, not
-        // general media library content. Movie/Cartoon/Animation, Sermon,
-        // Documentary, Article, and PDF are deliberately absent here too:
-        // Sermon/Documentary now live only under Bible Studies; Article
-        // lives only under News/Bible Studies/Devotions; PDF/Notes lives
-        // only under News/Bible Studies; Movie/Cartoon/Animation are
-        // removed from the general Content feed entirely (Cartoon remains
-        // available under Kids, unchanged, for children's content).
+        // Movie/Cartoon/Animation, Sermon, Documentary, Panel, Podcast,
+        // Article, and PDF are deliberately absent here: those finer-grained
+        // formats were folded into Bible Study's own simplified Video/PDF/
+        // Article/Poster vocabulary (migration 022) rather than duplicated
+        // in the general Content feed too. Article lives under News/Bible
+        // Studies/Devotions; PDF lives under News/Bible Studies;
+        // Movie/Cartoon/Animation are removed from the general Content feed
+        // entirely (Cartoon remains available under Kids, unchanged, for
+        // children's content).
         'media_library' => ['video', 'short_film', 'interview', 'audio', 'music', 'image'],
         // News isn't always a written article - an admin can instead post a
         // video or a PDF under News, same as Media Library's video type.
@@ -38,13 +38,16 @@ class ContentController
         // instead post a video or audio recording of the devotion.
         'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004, extended by migration 012 for 'podcast',
-        // migration 013 for 'interview', and migration 018 for 'article' -
-        // "Articles, where supported" per spec) - keep in sync with that column.
-        'bible_study' => [
-            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated',
-            'documentary', 'pdf_notes', 'podcast', 'interview', 'article',
-        ],
+        // value (migration 004, widened/narrowed by migrations 012/013/018/022).
+        // Migration 022 simplified this down to just 4 values ("Video/PDF/
+        // Article/Poster" per spec) - the many finer-grained formats
+        // (Short Film, Sermon, Panel, Podcast, Interview, Animated,
+        // Documentary) previously lived here as separate values but all
+        // read as "a video" to a visitor, so they're folded into 'video'.
+        // 'image' is labeled "Poster" in the UI (same convention as
+        // media_library/Content.jsx's own Poster type) - keep in sync with
+        // bible_studies.format.
+        'bible_study' => ['video', 'pdf', 'article', 'image'],
         // Kids is its own dedicated, safe section (migration 014) - not just
         // another category - with its own age-appropriate vocabulary.
         'kids' => ['bible_lesson', 'bible_story', 'cartoon', 'song', 'activity', 'other'],
@@ -59,16 +62,16 @@ class ContentController
      * gets it stripped back to null in normalizeClassification() below, so
      * a stray value from an older client/section-switch never lingers.
      * Despite the name, this isn't "body is mandatory" (that's the
-     * frontend's validate() call) - 'pdf'/'pdf_notes' are included so an
-     * admin can type notes instead of uploading a file (spec: "support
-     * typed notes/text where PDF/Notes content is allowed"), while still
-     * being free to upload a real file instead, in which case body stays
-     * null. The rest (news articles, devotions, written articles, kids
-     * bible lessons) genuinely do require body - enforced in validate()
-     * on the frontend, since the backend has always left "is this
-     * actually filled in" to the client's publish-time validation.
+     * frontend's validate() call) - 'pdf' is included so an admin can type
+     * notes instead of uploading a file (spec: "support typed notes/text
+     * where PDF content is allowed"), while still being free to upload a
+     * real file instead, in which case body stays null. The rest (news
+     * articles, devotions, written articles, kids bible lessons) genuinely
+     * do require body - enforced in validate() on the frontend, since the
+     * backend has always left "is this actually filled in" to the client's
+     * publish-time validation.
      */
-    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson', 'pdf', 'pdf_notes'];
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson', 'pdf'];
 
     /**
      * content_type keeps its original 6-value ENUM and is still what

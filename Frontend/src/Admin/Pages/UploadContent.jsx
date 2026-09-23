@@ -98,33 +98,30 @@ const CONTENT_TYPES = [
   { key: 'music', label: 'Music', icon: Music2, media_type: 'music', group: 'more' },
 ];
 
-// Interview is available here too (in addition to Content/Media Library
-// above) - it's the one media type meant to work in both sections. Article
-// was added (migration 018) per spec: "Articles, where supported."
+// Simplified (migration 022) to exactly 4 formats per spec: Video, PDF,
+// Article, Poster. The many finer-grained formats this used to offer
+// (Short Film, Sermon, Panel Discussion, Podcast, Interview, Animated,
+// Documentary) all read as "a video" to a visitor and are folded into
+// Video. 'image' is labeled "Poster" here to match Content.jsx's own
+// Poster type (media_type 'image', a single cover image, no separate
+// upload — see mediaKindFor() below).
 const BIBLE_STUDY_TYPES = [
-  { value: 'short_film', label: 'Short Film' },
   { value: 'video', label: 'Video' },
-  { value: 'sermon', label: 'Sermon' },
-  { value: 'panel', label: 'Panel Discussion' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'podcast', label: 'Podcast' },
-  { value: 'interview', label: 'Interview' },
-  { value: 'animated', label: 'Animated' },
-  { value: 'documentary', label: 'Documentary' },
+  { value: 'pdf', label: 'PDF' },
   { value: 'article', label: 'Article' },
-  { value: 'pdf_notes', label: 'PDF / Notes' },
+  { value: 'image', label: 'Poster' },
 ];
 
 // Mirrors ContentController::BODY_REQUIRED_MEDIA_TYPES exactly.
 const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
 
-// PDF/Notes types support EITHER an uploaded file OR typed text, chosen by
-// the admin (spec: "support typed notes/text ... rather than requiring
-// every document to be uploaded as a file") — these get their own
-// mediaKind ('document_or_text') with a toggle, rather than being folded
-// into BODY_REQUIRED_MEDIA_TYPES (which would remove the file option) or
-// plain 'document' (which would remove the typed-text option).
-const TEXT_OPTIONAL_MEDIA_TYPES = ['pdf', 'pdf_notes'];
+// PDF types support EITHER an uploaded file OR typed text, chosen by the
+// admin (spec: "support typed notes/text ... rather than requiring every
+// document to be uploaded as a file") — these get their own mediaKind
+// ('document_or_text') with a toggle, rather than being folded into
+// BODY_REQUIRED_MEDIA_TYPES (which would remove the file option) or plain
+// 'document' (which would remove the typed-text option).
+const TEXT_OPTIONAL_MEDIA_TYPES = ['pdf'];
 
 // What kind of main-media control to show for a given media_type. `null`
 // means "no separate main file" — Article/News/Devotional use the rich
@@ -138,7 +135,7 @@ function mediaKindFor(mediaType) {
   if (BODY_REQUIRED_MEDIA_TYPES.includes(mediaType)) return 'article';
   if (mediaType === 'photo_gallery' || mediaType === 'image') return null;
   if (mediaType === 'activity') return 'document';
-  if (['audio', 'music', 'podcast', 'song'].includes(mediaType)) return 'audio';
+  if (['audio', 'music', 'song'].includes(mediaType)) return 'audio';
   return 'video';
 }
 
