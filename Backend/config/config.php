@@ -56,8 +56,14 @@ define('JWT_ALGO', 'HS256');
 define('JWT_EXPIRY_SECONDS', 60 * 60 * 24 * 7); // 7 days
 
 // --- App URLs ---
-define('APP_URL', env('APP_URL', 'http://localhost/AIMTech/Backend'));
-define('FRONTEND_URL', env('FRONTEND_URL', 'http://localhost:5173'));
+// rtrim: a hand-edited .env (this project has no admin UI for it — see
+// README) very easily ends up with a trailing slash on APP_URL (e.g.
+// "https://example.com/server/"), which would otherwise double up into
+// ".../server//uploads/..." below and in MAIL_LOGO_URL further down —
+// harmless on some server configs, a genuine 404 on others. Defensive
+// either way, and a no-op for an already-correct value.
+define('APP_URL', rtrim(env('APP_URL', 'http://localhost/AIMTech/Backend'), '/'));
+define('FRONTEND_URL', rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/'));
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');
 define('UPLOAD_URL', APP_URL . '/uploads/');
 // Chunk staging area for large uploads (ChunkUploadController) - deliberately

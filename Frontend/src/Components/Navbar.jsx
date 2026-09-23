@@ -381,7 +381,16 @@ export default function Navbar() {
       className={`sticky top-0 z-50 backdrop-blur-md border-b transition-all duration-300 ${
         scrolled
           ? 'bg-white/92 border-ink/10 shadow-[0_4px_24px_rgba(45,42,74,0.08)]'
-          : 'bg-gradient-to-r from-secondary/12 via-white/75 to-accent/12 border-white/40'
+          // Was bg-white/75 — legible over a light background, but Home.jsx's
+          // own hero photo (a dark purple/indigo night sky, see bg.png) sits
+          // directly behind this bar with nothing else backing it, and
+          // dark ink-colored text over a 75%-transparent bar on a dark photo
+          // was close to unreadable. Raised well above the "scrolled" bar's
+          // own 92% so it's legible against ANY page's background, not just
+          // light ones — still a gradient wash at the edges, not a flat
+          // solid color, so it stays visually distinct from the plain
+          // white scrolled state.
+          : 'bg-gradient-to-r from-secondary/10 via-white/95 to-accent/10 border-white/60 shadow-[0_2px_16px_rgba(45,42,74,0.06)]'
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between gap-4 py-2 min-h-16">
