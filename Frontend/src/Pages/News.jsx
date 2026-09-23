@@ -7,16 +7,11 @@ import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 
 export default function News() {
-  const [categories, setCategories] = useState([]);
   const [languageOptions, setLanguageOptions] = useState([]);
-  const [categoryId, setCategoryId] = useState('');
   const [language, setLanguage] = useState('');
   const [activeItem, setActiveItem] = useState(null);
 
   useEffect(() => {
-    api.get('/categories', { params: { type: 'content' } })
-      .then((r) => setCategories(r.data?.data?.items || []))
-      .catch(() => setCategories([]));
     api.get('/languages')
       .then((r) => setLanguageOptions(r.data?.data?.items || []))
       .catch(() => setLanguageOptions([]));
@@ -24,7 +19,7 @@ export default function News() {
 
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList(
     '/news',
-    { category_id: categoryId || undefined, language: language || undefined }
+    { language: language || undefined }
   );
 
   return (
@@ -33,14 +28,6 @@ export default function News() {
       <p className="text-ink/60 mb-8">Stay up to date with what God is doing across the ministry.</p>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-10">
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
-        >
-          <option value="">All Categories</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}

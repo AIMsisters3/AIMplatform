@@ -11,17 +11,12 @@ import { usePaginatedList } from '../hooks/usePaginatedList.js';
 export default function Songs() {
   const [searchParams] = useSearchParams();
 
-  const [categories, setCategories] = useState([]);
   const [languageOptions, setLanguageOptions] = useState([]);
   const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [language, setLanguage] = useState('');
   const [activeItem, setActiveItem] = useState(null);
 
   useEffect(() => {
-    api.get('/categories', { params: { type: 'content' } })
-      .then((r) => setCategories(r.data?.data?.items || []))
-      .catch(() => setCategories([]));
     api.get('/languages')
       .then((r) => setLanguageOptions(r.data?.data?.items || []))
       .catch(() => setLanguageOptions([]));
@@ -29,7 +24,7 @@ export default function Songs() {
 
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList(
     '/songs',
-    { search: search || undefined, category_id: categoryId || undefined, language: language || undefined }
+    { search: search || undefined, language: language || undefined }
   );
 
   useEffect(() => {
@@ -75,14 +70,6 @@ export default function Songs() {
 
       <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex flex-col sm:flex-row gap-3 mb-10">
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary bg-white"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
