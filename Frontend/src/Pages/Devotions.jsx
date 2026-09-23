@@ -31,7 +31,9 @@ export default function Devotions() {
   return (
     <div className="min-h-screen bg-surface">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-12 sm:py-14">
+      {/* A warm, pink-led "dawn" gradient rather than the site's default
+          purple-led hero (spec: "stop using purple for every hero"). */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-accent via-[#9B5FBF] to-primary py-12 sm:py-14">
         {!reduceMotion && (
           <motion.div
             className="absolute -top-16 -right-10 w-72 h-72 rounded-full bg-accent/20 blur-3xl pointer-events-none"

@@ -122,7 +122,10 @@ export default function BibleStudies() {
     <div className="min-h-screen bg-surface">
       {/* Hero — exact hierarchy: small label, moderate heading, plain
           supporting line, italic verse. Kept compact. */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-10 sm:py-12">
+      {/* A deeper, more contemplative navy-to-blue gradient than the
+          site's default purple-led hero (spec: "stop using purple for
+          every hero") — fitting for a study/reflection page. */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-ink via-[#3D2E6B] to-primary py-10 sm:py-12">
         <motion.div
           className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/10 blur-2xl pointer-events-none"
           animate={{ y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}

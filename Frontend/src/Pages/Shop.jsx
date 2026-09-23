@@ -74,7 +74,10 @@ export default function Shop() {
   return (
     <div className="min-h-screen bg-surface">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-14">
+      {/* Dark-to-blue-to-pink - a more distinctive, premium-feeling
+          gradient than the site's default purple-led hero (spec: "stop
+          using purple for every hero"). */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-ink via-primary to-accent py-14">
         <motion.div
           className="absolute -top-16 -right-10 w-64 h-64 rounded-full bg-accent/20 blur-3xl pointer-events-none"
           animate={{ y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}

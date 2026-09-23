@@ -32,7 +32,10 @@ export default function Songs() {
 
   return (
     <div className="min-h-screen bg-surface">
-      <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-12 sm:py-16">
+      {/* Blue-to-pink, ending dark - a more energetic, less purple-led
+          gradient than the site's default hero (spec: "stop using
+          purple for every hero"). */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary via-accent to-ink py-12 sm:py-16">
         <motion.div
           className="absolute -top-16 -right-10 w-64 h-64 rounded-full bg-accent/20 blur-3xl pointer-events-none"
           animate={{ y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
