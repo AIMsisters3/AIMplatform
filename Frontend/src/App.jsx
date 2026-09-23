@@ -90,7 +90,7 @@ function RouteFallback() {
       <img
         src={logo}
         alt="Loading"
-        className="w-12 h-12 rounded-full object-cover shadow-glass animate-spin"
+        className="w-16 h-16 rounded-full object-cover shadow-glass animate-spin"
         style={{ animationDuration: '1.1s' }}
       />
     </div>

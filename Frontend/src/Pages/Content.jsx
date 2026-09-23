@@ -10,7 +10,7 @@ import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { getItemKind } from '../utils/mediaKind.js';
-import { formatRelativeDate, formatDuration } from '../utils/formatters.js';
+import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import contentBg from '../assets/content_bg.png';
 import heroGirl from '../assets/hero-girl.png';
@@ -76,7 +76,7 @@ function LogoSpinner({ label = 'Loading...' }) {
       <img
         src={logo}
         alt=""
-        className="w-14 h-14 rounded-full object-cover shadow-glass animate-spin"
+        className="w-20 h-20 rounded-full object-cover shadow-glass animate-spin"
         style={{ animationDuration: '1.1s' }}
       />
       <p className="text-xs text-ink/40 font-medium">{label}</p>
@@ -154,6 +154,12 @@ function FeaturedCard({ item, onClick }) {
             <span className="text-3xl brand-gradient-text font-display font-bold">AIM</span>
           </div>
         )}
+        {/* Action/type badge — upper-right corner of the card (spec), not
+            underneath it. */}
+        <span className="absolute top-2 right-2 flex items-center gap-1 pl-1.5 pr-2.5 py-1 rounded-full bg-brand-gradient shadow-glass text-white text-[11px] font-semibold">
+          <KindIcon className="w-3 h-3" />
+          {KIND_LABEL[kind] || 'View'}
+        </span>
         {duration && (
           <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 text-white text-[11px] font-semibold tabular-nums">
             {duration}
@@ -162,20 +168,32 @@ function FeaturedCard({ item, onClick }) {
       </div>
       <div className="p-4">
         <h3 className="font-display font-semibold text-sm leading-snug mb-1 line-clamp-1">{item.title}</h3>
-        <p className="text-xs text-ink/50 line-clamp-2 mb-3">{item.description}</p>
-        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink/45 mb-3">
-          {relativeDate && <span>{relativeDate}</span>}
+        <p className="text-xs text-ink/50 line-clamp-2 mb-1">{item.description}</p>
+        {/* Views • comments • duration, all on one line (spec example:
+            "1.2K views 14 comments 12:45"). */}
+        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-[11px] text-ink/45">
           {item.views !== undefined && (
-            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {item.views}</span>
+            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {formatCount(item.views)} {Number(item.views) === 1 ? 'view' : 'views'}</span>
           )}
           {item.comments_count !== undefined && (
-            <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {item.comments_count}</span>
+            <>
+              {item.views !== undefined && <span className="text-ink/25">&bull;</span>}
+              <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatCount(item.comments_count)} {Number(item.comments_count) === 1 ? 'comment' : 'comments'}</span>
+            </>
+          )}
+          {duration && (
+            <>
+              {(item.views !== undefined || item.comments_count !== undefined) && <span className="text-ink/25">&bull;</span>}
+              <span>{duration}</span>
+            </>
+          )}
+          {relativeDate && (
+            <>
+              {(item.views !== undefined || item.comments_count !== undefined || duration) && <span className="text-ink/25">&bull;</span>}
+              <span>{relativeDate}</span>
+            </>
           )}
         </div>
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-gradient px-3 py-1.5 rounded-full">
-          <KindIcon className="w-3.5 h-3.5" />
-          {KIND_LABEL[kind] || 'View'}
-        </span>
       </div>
     </motion.div>
   );
@@ -495,7 +513,7 @@ export default function Content() {
                     <button
                       key={t.label}
                       onClick={() => setMediaType(active ? '' : t.value)}
-                      className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                      className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
                         active ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
                       }`}
                     >
@@ -512,7 +530,7 @@ export default function Content() {
               <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none lg:flex-wrap lg:overflow-visible">
                 <button
                   onClick={() => setCategoryId('')}
-                  className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                  className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
                     categoryId === '' ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
                   }`}
                 >
@@ -526,7 +544,7 @@ export default function Content() {
                     <button
                       key={cat.id}
                       onClick={() => setCategoryId(active ? '' : String(cat.id))}
-                      className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                      className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
                         active ? 'bg-brand-gradient text-white shadow-glass' : `${meta.bg} ${meta.text} hover:shadow-glass`
                       }`}
                     >
@@ -551,7 +569,7 @@ export default function Content() {
                 <button
                   key={t.label}
                   onClick={() => setMediaType(active ? '' : t.value)}
-                  className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                  className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
                     active ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
                   }`}
                 >

@@ -21,6 +21,15 @@ export function formatRelativeDate(dateStr) {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// YouTube-style compact count: 1234 -> "1.2K", 3400000 -> "3.4M".
+export function formatCount(n) {
+  if (n === null || n === undefined || !Number.isFinite(Number(n))) return null;
+  const num = Number(n);
+  if (num < 1000) return String(num);
+  if (num < 1_000_000) return `${(num / 1000).toFixed(num % 1000 >= 100 ? 1 : 0)}K`;
+  return `${(num / 1_000_000).toFixed(num % 1_000_000 >= 100_000 ? 1 : 0)}M`;
+}
+
 // YouTube-style duration: MM:SS, or H:MM:SS once it reaches an hour.
 export function formatDuration(totalSeconds) {
   if (totalSeconds === null || totalSeconds === undefined || !Number.isFinite(totalSeconds)) return null;

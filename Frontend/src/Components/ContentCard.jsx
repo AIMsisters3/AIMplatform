@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PlayCircle, FileText, Headphones, Eye, MessageCircle } from 'lucide-react';
 import { getItemKind, isLive } from '../utils/mediaKind.js';
-import { formatRelativeDate, formatDuration } from '../utils/formatters.js';
+import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 
 const KIND_ICON = {
   video: PlayCircle,
@@ -9,6 +9,7 @@ const KIND_ICON = {
   audio: Headphones,
   article: FileText,
 };
+const KIND_LABEL = { video: 'Watch', pdf: 'Read', audio: 'Listen', article: 'Read' };
 
 export default function ContentCard({ item, onClick }) {
   const kind = getItemKind(item);
@@ -20,6 +21,16 @@ export default function ContentCard({ item, onClick }) {
   const [thumbnailBroken, setThumbnailBroken] = useState(false);
   const duration = kind === 'video' ? formatDuration(item.duration_seconds) : null;
   const relativeDate = formatRelativeDate(item.publish_date || item.created_at);
+  const viewCount = formatCount(item.views);
+  const commentCount = formatCount(item.comments_count);
+  // One combined "1.2K views • 14 comments • 12:45" line — built as an
+  // array and joined so a missing piece (e.g. no comment count yet)
+  // never leaves a stray separator behind.
+  const metaParts = [
+    viewCount !== null && `${viewCount} ${Number(item.views) === 1 ? 'view' : 'views'}`,
+    commentCount !== null && `${commentCount} ${Number(item.comments_count) === 1 ? 'comment' : 'comments'}`,
+    duration,
+  ].filter(Boolean);
 
   return (
     <article
@@ -46,15 +57,19 @@ export default function ContentCard({ item, onClick }) {
           </span>
         )}
 
+        {/* Action/type badge — upper-right corner, per spec (not below
+            the card). Labeled (Watch/Listen/Read), not icon-only. */}
         {KindIcon && (
-          <span className="absolute top-3 right-3 w-8 h-8 rounded-full bg-brand-gradient shadow-glass flex items-center justify-center">
-            <KindIcon className="w-4 h-4 text-white" />
+          <span className="absolute top-3 right-3 flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full bg-brand-gradient shadow-glass text-white text-xs font-semibold">
+            <KindIcon className="w-3.5 h-3.5" /> {KIND_LABEL[kind] || 'View'}
           </span>
         )}
 
-        {/* YouTube-style duration chip — only ever a real, captured
-            duration (see readVideoDuration() in UploadContent.jsx);
-            omitted entirely for anything uploaded before that existed. */}
+        {/* YouTube-style duration chip on the thumbnail itself (in
+            addition to appearing in the metadata line below) — only
+            ever a real, captured duration (see readVideoDuration() in
+            UploadContent.jsx); omitted entirely for anything uploaded
+            before that existed. */}
         {duration && (
           <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 text-white text-[11px] font-semibold tabular-nums">
             {duration}
@@ -74,18 +89,31 @@ export default function ContentCard({ item, onClick }) {
         {item.description && (
           <p className="text-sm text-ink/60 line-clamp-2 mb-2">{item.description}</p>
         )}
-        <div className="flex items-center gap-3 text-xs text-ink/50">
-          {item.speaker && <span>{item.speaker}</span>}
-          {relativeDate && <span>{relativeDate}</span>}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-ink/40 mt-1.5">
-          {item.views !== undefined && (
-            <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {item.views}</span>
-          )}
-          {item.comments_count !== undefined && (
-            <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {item.comments_count}</span>
-          )}
-        </div>
+        {item.speaker && <p className="text-xs text-ink/50 mb-1">{item.speaker}</p>}
+        {/* Views • comments • duration, all on one line (spec example:
+            "1.2K views 14 comments 12:45") — wraps gracefully only if
+            the screen is genuinely too narrow, never forced onto
+            separate lines otherwise. */}
+        {(metaParts.length > 0 || relativeDate) && (
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink/45">
+            {metaParts.map((part, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span className="text-ink/25">&bull;</span>}
+                <span className="flex items-center gap-1">
+                  {i === 0 && metaParts[0]?.includes('view') && <Eye className="w-3.5 h-3.5" />}
+                  {part.includes('comment') && <MessageCircle className="w-3.5 h-3.5" />}
+                  {part}
+                </span>
+              </React.Fragment>
+            ))}
+            {relativeDate && (
+              <>
+                {metaParts.length > 0 && <span className="text-ink/25">&bull;</span>}
+                <span>{relativeDate}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );
