@@ -1160,8 +1160,18 @@ export default function UploadContent() {
           </div>
         </div>
 
-        {/* Preview */}
-        <div className="lg:sticky lg:top-24">
+        {/* Preview — overflow-anchor: none opts this sticky panel out of
+            the browser's scroll-anchoring: without it, the live body
+            preview's rendered height can shift by a line or two as the
+            admin types (different word-wrapping, an image finishing its
+            layout, etc.), and a sticky element changing size is exactly
+            what scroll anchoring "corrects" for — usually helpfully, but
+            here it was yanking the whole page's scroll position while
+            typing far down the form. See also PreviewPanel's own fixed-
+            height body preview below, which removes the size change at
+            its source rather than just opting out of the browser's
+            reaction to it. */}
+        <div className="lg:sticky lg:top-24" style={{ overflowAnchor: 'none' }}>
           <PreviewPanel
             form={form}
             section={section}
@@ -1292,9 +1302,13 @@ function PreviewPanel({ form, section, category, language, thumbnail, media, med
         {form.description || 'A short description will appear here.'}
       </p>
 
+      {/* Fixed height + overflow-hidden (not line-clamp) so this box's
+          rendered size can never change while typing, regardless of how
+          the live HTML re-wraps — see the sticky wrapper's own comment
+          above for why that mattered. */}
       {(requiresBody || isTextNotes) && form.body && (
         <div
-          className="prose prose-sm max-w-none mt-3 pt-3 border-t border-ink/10 text-ink/70 line-clamp-6"
+          className="prose prose-sm max-w-none mt-3 pt-3 border-t border-ink/10 text-ink/70 h-32 overflow-hidden"
           dangerouslySetInnerHTML={{ __html: form.body }}
         />
       )}
