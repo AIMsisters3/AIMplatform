@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { CartProvider } from './context/CartContext.jsx';
 import { LanguageProvider } from './context/LanguageContext.jsx';
+import ScrollToTop from './Components/ScrollToTop.jsx';
 import logo from './assets/lg.png';
 
 // Navbar/Footer/AdminLayout are part of the shell on every page, so they
@@ -101,6 +102,7 @@ export default function App() {
     <LanguageProvider>
     <AuthProvider>
       <CartProvider>
+        <ScrollToTop />
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* ---------- Public site ---------- */}
