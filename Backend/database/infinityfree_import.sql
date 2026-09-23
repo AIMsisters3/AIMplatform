@@ -1431,3 +1431,14 @@ WHERE type = 'content'
 
 INSERT IGNORE INTO categories (name, slug, type) VALUES
   ('Prophecy', 'prophecy', 'content');
+
+-- =========================================================
+-- Migration 021: Real video duration on content
+--
+-- Adds duration_seconds to content - captured client-side from the
+-- actual video file at upload time (see UploadContent.jsx), never
+-- estimated/faked. Existing rows stay NULL until re-uploaded.
+-- =========================================================
+
+ALTER TABLE content
+  ADD COLUMN duration_seconds INT UNSIGNED DEFAULT NULL AFTER views;

@@ -180,7 +180,30 @@ const SECTION_DESTINATION = {
 // under both Content and Bible Study").
 const LIVE_ELIGIBLE_SECTIONS = ['media_library', 'bible_study'];
 
-const emptyUpload = { file: null, previewUrl: null, uploadedUrl: null, uploading: false, progress: 0, error: null };
+const emptyUpload = { file: null, previewUrl: null, uploadedUrl: null, uploading: false, progress: 0, error: null, durationSeconds: null };
+
+// Reads a video file's real duration client-side via a throwaway <video>
+// element — no server-side ffmpeg/ffprobe dependency (this shared host
+// almost certainly doesn't have one). Resolves null on any failure
+// rather than rejecting, so a file the browser can't probe just omits
+// the duration instead of blocking the upload.
+function readVideoDuration(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const el = document.createElement('video');
+    el.preload = 'metadata';
+    el.onloadedmetadata = () => {
+      const seconds = Number.isFinite(el.duration) ? Math.round(el.duration) : null;
+      URL.revokeObjectURL(url);
+      resolve(seconds);
+    };
+    el.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    el.src = url;
+  });
+}
 
 const DEFAULT_FORM = {
   title: '', description: '', body: '', transcript: '',
@@ -493,6 +516,9 @@ export default function UploadContent() {
     }
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
     setState({ ...emptyUpload, file, previewUrl });
+    if (rule.folder === 'videos') {
+      readVideoDuration(file).then((seconds) => setState((s) => ({ ...s, durationSeconds: seconds })));
+    }
     if (chunked) uploadChunked(file, rule.folder, setState);
     else uploadSimple(file, rule.folder, setState);
   }
@@ -578,6 +604,9 @@ export default function UploadContent() {
             : (media.uploadedUrl || null),
       body: requiresBody || isTextNotes ? form.body : null,
       transcript: !requiresBody && !isTextNotes && mediaKind ? (form.transcript.trim() || null) : null,
+      // Real duration read client-side from the actual file (see
+      // readVideoDuration()) - null for anything that isn't a video.
+      duration_seconds: mediaKind === 'video' ? (media.durationSeconds ?? null) : null,
     };
 
     if (isBibleStudy) {

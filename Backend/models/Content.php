@@ -111,11 +111,11 @@ class Content
         $sql = 'INSERT INTO content
                 (title, slug, description, body, transcript, content_type, section, media_type, category_id, author_id, speaker,
                  bible_references, tags, language, thumbnail, media_url, visibility, status,
-                 is_featured, is_live, allow_comments, seo_keywords, publish_date)
+                 is_featured, is_live, allow_comments, seo_keywords, publish_date, duration_seconds)
                 VALUES
                 (:title, :slug, :description, :body, :transcript, :content_type, :section, :media_type, :category_id, :author_id, :speaker,
                  :bible_references, :tags, :language, :thumbnail, :media_url, :visibility, :status,
-                 :is_featured, :is_live, :allow_comments, :seo_keywords, :publish_date)';
+                 :is_featured, :is_live, :allow_comments, :seo_keywords, :publish_date, :duration_seconds)';
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -145,6 +145,11 @@ class Content
             'allow_comments'   => array_key_exists('allow_comments', $data) ? (int) (bool) $data['allow_comments'] : 1,
             'seo_keywords'     => $data['seo_keywords'] ?? null,
             'publish_date'     => $data['publish_date'] ?? null,
+            // Real duration read client-side from the actual video file at
+            // upload time (see UploadContent.jsx) - never estimated. Null
+            // for anything that isn't a video, or an older upload from
+            // before this existed.
+            'duration_seconds' => isset($data['duration_seconds']) ? (int) $data['duration_seconds'] : null,
         ]);
 
         return (int) $this->db->lastInsertId();
@@ -158,7 +163,7 @@ class Content
         $allowed = [
             'title', 'slug', 'description', 'body', 'transcript', 'content_type', 'section', 'media_type', 'category_id', 'speaker',
             'bible_references', 'tags', 'language', 'thumbnail', 'media_url', 'visibility',
-            'status', 'is_featured', 'is_live', 'allow_comments', 'seo_keywords', 'publish_date',
+            'status', 'is_featured', 'is_live', 'allow_comments', 'seo_keywords', 'publish_date', 'duration_seconds',
         ];
 
         foreach ($allowed as $field) {
