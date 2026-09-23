@@ -5,8 +5,18 @@ import api from '../api/axios.js';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
 import DownloadButton from './DownloadButton.jsx';
+import ArticleDownloadButton from './ArticleDownloadButton.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
+import logo from '../assets/lg.png';
+
+// Devotion and News articles get a dedicated "official document" reading
+// layout (spec: logo, title, date, pink "AIMSISTERS ARTICLE" masthead,
+// no repeated thumbnail, "by the AIMsisters" closing signature) rather
+// than the generic media-viewer layout below — a Bible Study or general
+// Content-page article intentionally keeps the plain layout, since only
+// Devotions/News asked for this specific document treatment.
+const OFFICIAL_DOCUMENT_MEDIA_TYPES = ['devotional', 'news_article'];
 
 // How often to re-check whether a broadcast a viewer already has open is
 // still actually live — see LiveNowStrip.jsx's matching comment: there's
@@ -56,6 +66,92 @@ export default function ContentViewerModal({ item, onClose }) {
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
   const live = liveOverride !== null ? liveOverride : isLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
+  const isOfficialDocument = OFFICIAL_DOCUMENT_MEDIA_TYPES.includes(item.media_type);
+
+  if (isOfficialDocument) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div
+            className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-xl3 bg-white shadow-glass"
+            initial={{ opacity: 0, scale: 0.94, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 24 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-brand-gradient text-white flex items-center justify-center shadow-glass hover:opacity-90 transition"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            {/* Official document masthead — no thumbnail repeated here,
+                by design (spec: "Do not display the thumbnail again
+                after opening the article"). */}
+            <div className="px-8 sm:px-12 pt-10 pb-6 border-b border-ink/10">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <img src={logo} alt="AIMsisters" className="h-10 w-10 rounded-full object-cover shadow-glass" />
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#E548B9' }}>
+                  AIMsisters Article
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-ink leading-snug mb-2">
+                {item.title}
+              </h1>
+              {(item.publish_date || item.created_at) && (
+                <p className="text-right text-sm text-ink/45">
+                  {new Date(item.publish_date || item.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            <div className="px-8 sm:px-12 py-8">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-6">
+                {(item.speaker || item.author) && (
+                  <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-secondary" />{item.speaker || item.author}</span>
+                )}
+                {item.views !== undefined && (
+                  <span className="flex items-center gap-1.5"><Eye className="w-4 h-4 text-secondary" />{item.views} {Number(item.views) === 1 ? 'view' : 'views'}</span>
+                )}
+                <span className="ml-auto flex items-center gap-2">
+                  <ShareButton item={item} />
+                  <ArticleDownloadButton item={item} />
+                </span>
+              </div>
+
+              {item.description && <p className="text-ink/60 italic mb-6">{item.description}</p>}
+
+              {/* Professionally formatted document body — generous max-w
+                  for readable line length, explicit paragraph/heading
+                  spacing, and images constrained to never overflow the
+                  page while keeping their real aspect ratio. */}
+              {item.body && (
+                <div
+                  className="prose prose-sm sm:prose-base max-w-none text-ink/80 leading-relaxed [&_h1]:font-display [&_h2]:font-display [&_h3]:font-display [&_p]:mb-4 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-xl [&_blockquote]:border-l-2 [&_blockquote]:border-secondary/40 [&_blockquote]:pl-4 [&_blockquote]:italic"
+                  dangerouslySetInnerHTML={{ __html: item.body }}
+                />
+              )}
+
+              <p className="text-right italic mt-10 mb-2" style={{ color: '#1E295A' }}>by the AIMsisters</p>
+
+              <ErrorBoundary>
+                <CommentsSection contentId={item.id} allowComments={commentsAllowed} />
+              </ErrorBoundary>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
