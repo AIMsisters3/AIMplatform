@@ -123,10 +123,24 @@ date_default_timezone_set('Africa/Windhoek');
 error_reporting(APP_ENV === 'local' ? E_ALL : 0);
 ini_set('display_errors', APP_ENV === 'local' ? '1' : '0');
 
-// --- Mail (SMTP) ---
+// --- Mail ---
 // Left blank locally by default — send_email() already fails gracefully
 // (logs and returns false) when these aren't set, so newsletter/auth
 // flows still work end-to-end without a real mail account configured.
+//
+// MAIL_DRIVER picks between two real, working delivery mechanisms in
+// helpers/mailer.php:
+//   'smtp' (default) — PHPMailer over SMTP_HOST/PORT, as before.
+//   'brevo_api'       — HTTPS POST to Brevo's REST API instead of an SMTP
+//                        connection at all. Many free shared hosts (the
+//                        InfinityFree/ProFreeHost family this project
+//                        targets) block outbound SMTP ports entirely as
+//                        an anti-spam measure while still allowing plain
+//                        outbound HTTPS — this option exists specifically
+//                        for that case. Brevo's free tier (300 emails/
+//                        day) needs no card on file; see README for setup.
+define('MAIL_DRIVER', env('MAIL_DRIVER', 'smtp'));
+define('BREVO_API_KEY', env('BREVO_API_KEY', ''));
 define('SMTP_HOST', env('SMTP_HOST', 'smtp.gmail.com'));
 define('SMTP_USER', env('SMTP_USER', ''));
 define('SMTP_PASS', env('SMTP_PASS', ''));

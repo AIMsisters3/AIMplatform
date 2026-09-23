@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { HeartPulse, Shirt, Sparkles, ScrollText, Quote } from 'lucide-react';
+import { HeartPulse, Shirt, Sparkles, ScrollText, Quote, Mail, Send } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
@@ -462,37 +462,54 @@ export default function Home() {
         </section>
       )}
 
-      {/* Newsletter */}
-      <GlassSection>
+      {/* Newsletter — its own deliberately decorated section, not a plain
+          form dropped into the generic glass-section pattern. */}
+      <section className="relative py-24 overflow-hidden bg-gradient-to-br from-primary via-[#3F2E7A] to-secondary">
+        <div className="absolute inset-0 opacity-20 mix-blend-soft-light" style={{ backgroundImage: `url(${heroBg})`, backgroundSize: 'cover', backgroundPosition: 'center 20%' }} />
         <motion.div
-          className="max-w-3xl mx-auto text-center"
+          className="absolute top-8 right-10 w-72 h-72 rounded-full bg-accent/25 blur-3xl pointer-events-none"
+          animate={{ y: [0, 25, 0], x: [0, -15, 0] }} transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-0 left-10 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none"
+          animate={{ y: [0, -20, 0] }} transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="relative z-10 max-w-2xl mx-auto px-6 text-center"
           initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
         >
-          <h2 className="text-2xl font-bold mb-4 text-ink">Stay Connected</h2>
-          <p className="text-ink/60 mb-6">Subscribe to receive new devotions and ministry news in your inbox.</p>
-          <form className="flex flex-col sm:flex-row gap-3 justify-center" onSubmit={handleSubscribe}>
+          <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mx-auto mb-6 shadow-glass">
+            <Mail className="w-7 h-7 text-accent" />
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-display font-bold text-white mb-3">Stay Connected</h2>
+          <p className="text-white/70 mb-8 max-w-md mx-auto">
+            Subscribe to receive new devotions and ministry news directly in your inbox.
+          </p>
+          <form className="flex flex-col sm:flex-row gap-3 justify-center max-w-lg mx-auto" onSubmit={handleSubscribe}>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Your email address"
-              className="px-5 py-3 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary w-full sm:w-80"
+              className="flex-1 px-5 py-3.5 rounded-full border-0 bg-white/95 shadow-glass focus:outline-none focus:ring-2 focus:ring-accent text-sm"
             />
-            <button
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
               disabled={subStatus === 'loading'}
-              className="px-8 py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
+              className="px-7 py-3.5 rounded-full bg-white text-secondary font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60 flex items-center justify-center gap-2 shrink-0"
             >
-              {subStatus === 'loading' ? 'Subscribing...' : 'Subscribe'}
-            </button>
+              {subStatus === 'loading' ? 'Subscribing...' : <>Subscribe <Send className="w-4 h-4" /></>}
+            </motion.button>
           </form>
           {subMessage && (
-            <p className={`mt-3 text-sm ${subStatus === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+            <p className={`mt-4 text-sm font-medium ${subStatus === 'success' ? 'text-emerald-300' : 'text-rose-300'}`}>
               {subMessage}
             </p>
           )}
         </motion.div>
-      </GlassSection>
+      </section>
 
       <ContentViewerModal item={activeItem} onClose={() => setActiveItem(null)} />
     </div>
