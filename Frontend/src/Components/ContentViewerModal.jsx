@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Calendar, BookOpen, FileText, Eye, AlertTriangle } from 'lucide-react';
+import { User, Calendar, BookOpen, FileText, Eye, AlertTriangle, Loader2 } from 'lucide-react';
 import api from '../api/axios.js';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
@@ -9,6 +9,12 @@ import ArticleDownloadButton from './ArticleDownloadButton.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
 import logo from '../assets/lg.png';
+
+// pdfjs-dist (KidsBookReader's one dependency) is ~400KB — lazy-loaded
+// so every other content type's viewer (the vast majority of opens)
+// never downloads it, same fix already applied to ArticleDownloadButton
+// for jsPDF.
+const KidsBookReader = lazy(() => import('./KidsBookReader.jsx'));
 
 // Devotion and News articles get a dedicated "official document" reading
 // layout (spec: logo, title, date, pink "AIMSISTERS ARTICLE" masthead,
@@ -42,9 +48,11 @@ export default function ContentViewerModal({ item, onClose }) {
   // poll actually runs, it always wins (even to flip live -> not live).
   const [liveOverride, setLiveOverride] = useState(null);
   const [mediaError, setMediaError] = useState(false);
+  const [bookReaderOpen, setBookReaderOpen] = useState(false);
 
   useEffect(() => {
     setMediaError(false);
+    setBookReaderOpen(false);
   }, [item?.id]);
 
   useEffect(() => {
@@ -67,6 +75,9 @@ export default function ContentViewerModal({ item, onClose }) {
   const live = liveOverride !== null ? liveOverride : isLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
   const isOfficialDocument = OFFICIAL_DOCUMENT_MEDIA_TYPES.includes(item.media_type);
+  // Kids Bible Lessons open as a page-by-page book, never the raw PDF
+  // iframe used everywhere else (spec: "not a raw PDF viewer").
+  const isKidsBibleLessonPdf = kind === 'pdf' && item.section === 'kids' && item.media_type === 'bible_lesson';
 
   if (isOfficialDocument) {
     return (
@@ -232,7 +243,17 @@ export default function ContentViewerModal({ item, onClose }) {
             )
           )}
 
-          {kind === 'pdf' && (
+          {isKidsBibleLessonPdf ? (
+            <div className="w-full bg-gradient-to-br from-amber-100 via-orange-50 to-pink-50 py-10 flex flex-col items-center gap-3">
+              <BookOpen className="w-9 h-9 text-amber-500" />
+              <button
+                onClick={() => setBookReaderOpen(true)}
+                className="px-7 py-3 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-glass hover:opacity-90 transition"
+              >
+                Open the Book
+              </button>
+            </div>
+          ) : kind === 'pdf' && (
             <iframe src={item.media_url} title={item.title} className="w-full h-[60vh]" />
           )}
 
@@ -332,7 +353,7 @@ export default function ContentViewerModal({ item, onClose }) {
               </div>
             )}
 
-            {kind === 'pdf' && (<a href={item.media_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mb-2 px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition"><FileText className="w-4 h-4" />Open Full PDF</a>)}
+            {kind === 'pdf' && !isKidsBibleLessonPdf && (<a href={item.media_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 mb-2 px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition"><FileText className="w-4 h-4" />Open Full PDF</a>)}
 
             <ErrorBoundary>
               <CommentsSection contentId={item.id} allowComments={commentsAllowed} />
@@ -340,6 +361,16 @@ export default function ContentViewerModal({ item, onClose }) {
           </div>
         </motion.div>
       </motion.div>
+
+      {bookReaderOpen && isKidsBibleLessonPdf && (
+        <Suspense fallback={
+          <div className="fixed inset-0 z-[100] bg-amber-900/90 backdrop-blur-sm flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
+          </div>
+        }>
+          <KidsBookReader url={item.media_url} title={item.title} onClose={() => setBookReaderOpen(false)} />
+        </Suspense>
+      )}
     </AnimatePresence>
   );
 }

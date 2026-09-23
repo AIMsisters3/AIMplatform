@@ -66,16 +66,39 @@ const DEVOTION_TYPES = [
 // ---------------------------------------------------------------------
 // Media types available WITHIN "Kids" — its own dedicated, safe area
 // (not just another category), mirrors
-// ContentController::SECTION_MEDIA_TYPES['kids'].
+// ContentController::SECTION_MEDIA_TYPES['kids']. Simplified by
+// migration 025: Cartoon/Other removed. Song's media_type is
+// 'kids_song', not 'song' — that string is reserved for the separate,
+// always-audio Songs section (SINGLETON_MEDIA_TYPE.songs below).
 // ---------------------------------------------------------------------
 const KIDS_TYPES = [
   { key: 'kids_bible_story', label: 'Bible Story', icon: BookHeart, media_type: 'bible_story' },
   { key: 'kids_bible_lesson', label: 'Bible Lesson', icon: BookOpen, media_type: 'bible_lesson' },
-  { key: 'kids_cartoon', label: 'Cartoon', icon: Palette, media_type: 'cartoon' },
-  { key: 'kids_song', label: 'Song', icon: Music2, media_type: 'song' },
+  { key: 'kids_song', label: 'Song', icon: Music2, media_type: 'kids_song' },
   { key: 'kids_activity', label: 'Activity', icon: Sparkles, media_type: 'activity' },
-  { key: 'kids_other', label: 'Other', icon: FileType, media_type: 'other' },
 ];
+
+// Bible Lesson (PDF or Poster), Song (Video or Audio), and Activity
+// (Poster, Video, or PDF) each need a further choice of what kind of
+// file this particular upload is — unlike Bible Story, which is always
+// a video. Keyed by the type card's media_type; each option's `kind`
+// drives the Media field directly (bypassing mediaKindFor()'s
+// media_type-only table for just these three).
+const KIDS_SUBTYPES = {
+  bible_lesson: [
+    { value: 'pdf', label: 'PDF', kind: 'document' },
+    { value: 'poster', label: 'Poster', kind: null },
+  ],
+  kids_song: [
+    { value: 'video', label: 'Video', kind: 'video' },
+    { value: 'audio', label: 'Audio', kind: 'audio' },
+  ],
+  activity: [
+    { value: 'poster', label: 'Poster', kind: null },
+    { value: 'video', label: 'Video', kind: 'video' },
+    { value: 'pdf', label: 'PDF', kind: 'document' },
+  ],
+};
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN the "Content / Media Library" section only —
@@ -112,8 +135,10 @@ const BIBLE_STUDY_TYPES = [
   { value: 'image', label: 'Poster' },
 ];
 
-// Mirrors ContentController::BODY_REQUIRED_MEDIA_TYPES exactly.
-const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
+// Mirrors ContentController::BODY_REQUIRED_MEDIA_TYPES exactly. Kids
+// bible lessons are deliberately absent (migration 025: PDF-or-Poster
+// only, no written-article format any more).
+const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
 
 // PDF types support EITHER an uploaded file OR typed text, chosen by the
 // admin (spec: "support typed notes/text ... rather than requiring every
@@ -212,6 +237,7 @@ const DEFAULT_FORM = {
   study_guide_url: '',
   series_id: '', season_number: '1', episode_number: '',
   media_type_bible_study: 'video',
+  kids_subtype: '', // see KIDS_SUBTYPES — falls back to that type's first option when unset
   is_live: false, live_url: '',
   notes_mode: 'file', // 'file' | 'text' — see TEXT_OPTIONAL_MEDIA_TYPES
 };
@@ -350,14 +376,22 @@ export default function UploadContent() {
   const mediaType = isBibleStudy
     ? (form.media_type_bible_study || 'video')
     : (SINGLETON_MEDIA_TYPE[section] || selectedType.media_type);
-  const mediaKind = mediaKindFor(mediaType);
+  // Bible Lesson/Song/Activity each offer a further choice of file kind
+  // within Kids (see KIDS_SUBTYPES) - falls back to that type's first
+  // option so switching type cards never leaves an invalid selection
+  // lingering from whichever type was picked before.
+  const kidsSubtypeOptions = section === 'kids' ? KIDS_SUBTYPES[mediaType] : null;
+  const selectedKidsSubtype = kidsSubtypeOptions
+    ? (kidsSubtypeOptions.find((s) => s.value === form.kids_subtype) || kidsSubtypeOptions[0])
+    : null;
+  const mediaKind = kidsSubtypeOptions ? selectedKidsSubtype.kind : mediaKindFor(mediaType);
   const requiresBody = mediaKind === 'article';
   const isDocumentOrText = mediaKind === 'document_or_text';
   const isTextNotes = isDocumentOrText && form.notes_mode === 'text';
-  // Songs has no Series functionality (spec: "remove all Series
-  // functionality from Songs") - excluded here even though its media_type
-  // ('song') maps to the 'audio' mediaKind that would otherwise show it.
-  const showSeries = (mediaKind === 'video' || mediaKind === 'audio') && !isSongs;
+  // Songs and Kids have no Series functionality (spec: "remove all
+  // Series functionality from Songs/Children Zone") - excluded here even
+  // though a video/audio mediaKind would otherwise show it.
+  const showSeries = (mediaKind === 'video' || mediaKind === 'audio') && !isSongs && section !== 'kids';
   const isLiveEligible = LIVE_ELIGIBLE_SECTIONS.includes(section) && mediaKind === 'video';
   const isLive = isLiveEligible && form.is_live;
 
@@ -970,6 +1004,27 @@ export default function UploadContent() {
                   />
                 </Field>
               </div>
+            )}
+
+            {kidsSubtypeOptions && (
+              <Field label={`${selectedType.label} format`} hint="What kind of file will this be?">
+                <div className="flex flex-wrap gap-2">
+                  {kidsSubtypeOptions.map((s) => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => update('kids_subtype', s.value)}
+                      className={`px-4 py-2 rounded-full text-xs font-bold transition ${
+                        selectedKidsSubtype.value === s.value
+                          ? 'bg-brand-gradient text-white shadow-glass'
+                          : 'bg-white text-ink/60 border border-ink/10 hover:text-ink'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
             )}
           </div>
 

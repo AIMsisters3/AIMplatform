@@ -1519,3 +1519,16 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   is_read TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
+
+-- =========================================================
+-- Migration 025: Children Zone type simplification
+--
+-- "Other"/"Fun"/"Cartoon" removed as Kids choices (existing rows
+-- relabeled to Activity, the remaining format-flexible bucket). Kids'
+-- own song media_type is renamed from 'song' to 'kids_song' so it no
+-- longer collides with the separate, always-audio Songs section's own
+-- 'song' media_type - Kids songs can now be Video OR Audio.
+-- =========================================================
+
+UPDATE content SET media_type = 'activity' WHERE section = 'kids' AND media_type IN ('cartoon', 'other');
+UPDATE content SET media_type = 'kids_song' WHERE section = 'kids' AND media_type = 'song';

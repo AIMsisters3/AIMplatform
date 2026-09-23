@@ -50,10 +50,17 @@ class ContentController
         'bible_study' => ['video', 'pdf', 'article', 'image'],
         // Kids is its own dedicated, safe section (migration 014) - not just
         // another category - with its own age-appropriate vocabulary.
-        'kids' => ['bible_lesson', 'bible_story', 'cartoon', 'song', 'activity', 'other'],
+        // Simplified by migration 025: Cartoon/Other removed; Bible Lesson
+        // is PDF-or-Poster only (no written-article format); the child's
+        // actual uploaded file (PDF vs image, video vs audio) is what
+        // drives the viewer shown, sniffed from the file extension at
+        // render time (see Frontend/src/utils/mediaKind.js) - media_type
+        // here only says which Kids category the item belongs to.
+        'kids' => ['bible_story', 'bible_lesson', 'kids_song', 'activity'],
         // Songs is a dedicated destination (migration 018), separate from
-        // Kids' own embedded 'song' type above - this is general worship
-        // music/audio for every visitor, not children's content.
+        // Kids' own 'kids_song' type above - this is general worship
+        // music/audio for every visitor, not children's content. Always
+        // audio (unlike kids_song, which can be Video or Audio).
         'songs' => ['song'],
     ];
 
@@ -66,12 +73,14 @@ class ContentController
      * notes instead of uploading a file (spec: "support typed notes/text
      * where PDF content is allowed"), while still being free to upload a
      * real file instead, in which case body stays null. The rest (news
-     * articles, devotions, written articles, kids bible lessons) genuinely
-     * do require body - enforced in validate() on the frontend, since the
-     * backend has always left "is this actually filled in" to the client's
-     * publish-time validation.
+     * articles, devotions, written articles) genuinely do require body -
+     * enforced in validate() on the frontend, since the backend has
+     * always left "is this actually filled in" to the client's
+     * publish-time validation. Kids bible lessons are PDF-or-Poster only
+     * as of migration 025 (no written-article format any more), so
+     * 'bible_lesson' is deliberately absent here now.
      */
-    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson', 'pdf'];
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'pdf'];
 
     /**
      * content_type keeps its original 6-value ENUM and is still what

@@ -16,8 +16,14 @@ export function getYouTubeEmbed(url = '') {
 // whatever the *thumbnail's* extension happened to be (almost always an
 // image), misclassifying every article/devotion/news article as 'image'.
 // Checked first, before any URL-extension inference, so this can never
-// happen regardless of what the thumbnail looks like.
-const ARTICLE_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'bible_lesson'];
+// happen regardless of what the thumbnail looks like. Kids bible lessons
+// are deliberately absent here (migration 025: PDF-or-Poster only, no
+// written-article format any more) — a bible_lesson's real kind now
+// comes from its actual uploaded file's extension below, same as any
+// other PDF/image upload. A pre-migration bible lesson that still only
+// has typed body text (no media_url) is still caught by the body-only
+// fallback two lines down, so old written lessons keep rendering.
+const ARTICLE_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
 
 // Media types that are unambiguously audio, straight from the backend
 // (Backend/controllers/ContentController.php's SECTION_MEDIA_TYPES) —
