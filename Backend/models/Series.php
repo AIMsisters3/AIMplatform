@@ -1,10 +1,19 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 /** Backs `series` + the series_id/season_number/episode_number columns on `content` (migration 005). */
 class Series
 {
+    private static function normalizeCover(array $row): array
+    {
+        if (array_key_exists('cover_image', $row)) {
+            $row['cover_image'] = normalize_media_url($row['cover_image']);
+        }
+        return $row;
+    }
+
     private PDO $db;
 
     public function __construct()
@@ -51,21 +60,23 @@ class Series
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map([self::class, 'normalizeCover'], $stmt->fetchAll());
     }
 
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM series WHERE id = :id AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['id' => $id]);
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch();
+        return $row ? self::normalizeCover($row) : null;
     }
 
     public function findBySlug(string $slug): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM series WHERE slug = :slug AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['slug' => $slug]);
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch();
+        return $row ? self::normalizeCover($row) : null;
     }
 
     /** Episodes for a series, grouped for the frontend by season (frontend groups the flat list — see SeriesDetail.jsx). */
@@ -77,7 +88,7 @@ class Series
              ORDER BY season_number ASC, episode_number ASC"
         );
         $stmt->execute(['series_id' => $seriesId]);
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
     public function create(array $data): int

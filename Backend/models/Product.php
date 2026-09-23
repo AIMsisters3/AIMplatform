@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 /**
  * Shop product model (migration 015 extends the original schema.sql
@@ -199,7 +200,10 @@ class Product
     {
         $stmt = $this->db->prepare('SELECT * FROM product_images WHERE product_id = :id ORDER BY sort_order ASC, id ASC');
         $stmt->execute(['id' => $productId]);
-        return $stmt->fetchAll();
+        return array_map(function ($row) {
+            $row['url'] = normalize_media_url($row['url']);
+            return $row;
+        }, $stmt->fetchAll());
     }
 
     public function variantsFor(int $productId): array
@@ -218,6 +222,7 @@ class Product
         $row['attributes'] = json_decode($row['attributes'] ?? 'null', true) ?: null;
         $row['availability'] = self::availabilityFor($row);
         $row['effective_price'] = self::effectivePriceFor($row);
+        $row['thumbnail'] = normalize_media_url($row['thumbnail'] ?? null);
         return $row;
     }
 

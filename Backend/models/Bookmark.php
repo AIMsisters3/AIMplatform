@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 /** Backs `bookmarks` (migration 006) — spec §33 centralized saved-content system. */
 class Bookmark
@@ -57,7 +58,7 @@ class Bookmark
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
     /** Bookmark status for a batch of content IDs — one query for a whole listing page instead of N. */

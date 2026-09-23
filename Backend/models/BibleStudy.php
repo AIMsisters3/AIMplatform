@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 /**
  * Backs bible_studies / bible_study_progress / bible_study_notes
@@ -68,7 +69,7 @@ class BibleStudy
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
     public function findByContentId(int $contentId): ?array
@@ -79,7 +80,8 @@ class BibleStudy
              WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
         );
         $stmt->execute(['id' => $contentId]);
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch();
+        return $row ? normalize_media_row($row) : null;
     }
 
     /** Called right after Content::create() for a content_type='bible_study' row. */
@@ -142,7 +144,7 @@ class BibleStudy
         $stmt->bindValue('u', $userId, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
     // ---------------------------------------------------------

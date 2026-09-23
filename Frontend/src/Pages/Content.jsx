@@ -124,6 +124,7 @@ const dateVal = (d) => (d ? new Date(d).getTime() : 0);
 function FeaturedCard({ item, onClick }) {
   const kind = getItemKind(item);
   const KindIcon = KIND_ICON[kind] || FileText;
+  const [thumbnailBroken, setThumbnailBroken] = useState(false);
 
   return (
     <motion.div
@@ -133,8 +134,15 @@ function FeaturedCard({ item, onClick }) {
       className="glass-card overflow-hidden cursor-pointer group"
     >
       <div className="relative h-36 bg-brand-gradient-soft overflow-hidden">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        {item.thumbnail && !thumbnailBroken ? (
+          <img
+            src={item.thumbnail}
+            alt={item.title}
+            loading="lazy"
+            decoding="async"
+            onError={() => setThumbnailBroken(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-3xl brand-gradient-text font-display font-bold">AIM</span>
@@ -154,6 +162,7 @@ function FeaturedCard({ item, onClick }) {
 }
 
 function PopularItem({ item, rank, onClick }) {
+  const [thumbnailBroken, setThumbnailBroken] = useState(false);
   return (
     <motion.div
       variants={fadeUp}
@@ -165,8 +174,15 @@ function PopularItem({ item, rank, onClick }) {
         {rank}
       </div>
       <div className="h-44 rounded-xl2 overflow-hidden bg-brand-gradient-soft shadow-glass">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        {item.thumbnail && !thumbnailBroken ? (
+          <img
+            src={item.thumbnail}
+            alt={item.title}
+            loading="lazy"
+            decoding="async"
+            onError={() => setThumbnailBroken(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-xl brand-gradient-text font-display font-bold">AIM</span>

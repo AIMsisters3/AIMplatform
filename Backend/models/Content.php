@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 class Content
 {
@@ -86,7 +87,7 @@ class Content
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
 
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
     public function find(int $id): ?array
@@ -94,7 +95,7 @@ class Content
         $stmt = $this->db->prepare('SELECT * FROM content WHERE id = :id AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
-        return $row ?: null;
+        return $row ? normalize_media_row($row) : null;
     }
 
     public function findBySlug(string $slug): ?array
@@ -102,7 +103,7 @@ class Content
         $stmt = $this->db->prepare('SELECT * FROM content WHERE slug = :slug AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['slug' => $slug]);
         $row = $stmt->fetch();
-        return $row ?: null;
+        return $row ? normalize_media_row($row) : null;
     }
 
     public function create(array $data): int
@@ -308,6 +309,6 @@ class Content
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 }

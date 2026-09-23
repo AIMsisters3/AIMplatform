@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PlayCircle, FileText, Headphones } from 'lucide-react';
 import { getItemKind, isLive } from '../utils/mediaKind.js';
 
@@ -12,6 +12,11 @@ const KIND_ICON = {
 export default function ContentCard({ item, onClick }) {
   const kind = getItemKind(item);
   const KindIcon = KIND_ICON[kind];
+  // A thumbnail URL that 404s or points at an unreachable host (a stale
+  // record, a still-uploading file, a host outage) falls back to the same
+  // placeholder used for no-thumbnail items, rather than leaving a broken
+  // image icon on the card.
+  const [thumbnailBroken, setThumbnailBroken] = useState(false);
 
   return (
     <article
@@ -19,8 +24,15 @@ export default function ContentCard({ item, onClick }) {
       className="glass-card overflow-hidden group cursor-pointer hover:-translate-y-1 transition-transform"
     >
       <div className="relative h-44 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
-        {item.thumbnail ? (
-          <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+        {item.thumbnail && !thumbnailBroken ? (
+          <img
+            src={item.thumbnail}
+            alt={item.title}
+            loading="lazy"
+            decoding="async"
+            onError={() => setThumbnailBroken(true)}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <span className="text-4xl brand-gradient-text font-display font-bold">AIM</span>
         )}

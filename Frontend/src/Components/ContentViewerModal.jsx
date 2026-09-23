@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Calendar, BookOpen, FileText, Eye } from 'lucide-react';
+import { User, Calendar, BookOpen, FileText, Eye, AlertTriangle } from 'lucide-react';
 import api from '../api/axios.js';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
@@ -15,10 +15,27 @@ import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
 // making the viewer close and reopen the item themselves.
 const LIVE_POLL_INTERVAL_MS = 30_000;
 
+// A file that 404s, or that a host is temporarily refusing to serve,
+// should never take the whole viewer down with it — shown in place of
+// the player/image instead of a browser's own broken-media UI.
+function MediaErrorFallback({ label }) {
+  return (
+    <div className="w-full bg-surface py-10 flex flex-col items-center gap-2 text-center px-6">
+      <AlertTriangle className="w-6 h-6 text-ink/30" />
+      <p className="text-sm text-ink/50">{label}</p>
+    </div>
+  );
+}
+
 export default function ContentViewerModal({ item, onClose }) {
   // liveOverride: null = trust item.is_live as originally fetched; once a
   // poll actually runs, it always wins (even to flip live -> not live).
   const [liveOverride, setLiveOverride] = useState(null);
+  const [mediaError, setMediaError] = useState(false);
+
+  useEffect(() => {
+    setMediaError(false);
+  }, [item?.id]);
 
   useEffect(() => {
     setLiveOverride(null);
@@ -105,7 +122,11 @@ export default function ContentViewerModal({ item, onClose }) {
               to check whether a replay is available there. */}
           {kind === 'video' && !youtubeSrc && !live && item.media_url && (
             /\.(mp4|webm|ogg|mov)(\?|$)/i.test(item.media_url) ? (
-              <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} />
+              mediaError ? (
+                <MediaErrorFallback label="This video could not be loaded. It may still be processing, or the file is temporarily unavailable." />
+              ) : (
+                <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} onError={() => setMediaError(true)} />
+              )
             ) : (
               <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
                 <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
@@ -119,16 +140,32 @@ export default function ContentViewerModal({ item, onClose }) {
             <iframe src={item.media_url} title={item.title} className="w-full h-[60vh]" />
           )}
 
-          {kind === 'article' && !item.media_url && item.thumbnail && (
+          {kind === 'article' && !item.media_url && item.thumbnail && !mediaError && (
             <div className="h-56 w-full overflow-hidden">
-              <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+              <img
+                src={item.thumbnail}
+                alt={item.title}
+                loading="lazy"
+                decoding="async"
+                onError={() => setMediaError(true)}
+                className="w-full h-full object-cover"
+              />
             </div>
           )}
 
           {kind === 'image' && (item.media_url || item.thumbnail) && (
-            <div className="w-full h-72 md:h-96 overflow-hidden bg-ink flex items-center justify-center">
-              <img src={item.media_url || item.thumbnail} alt={item.title} className="max-w-full max-h-full object-contain" />
-            </div>
+            mediaError ? (
+              <MediaErrorFallback label="This image could not be loaded." />
+            ) : (
+              <div className="w-full h-72 md:h-96 overflow-hidden bg-ink flex items-center justify-center">
+                <img
+                  src={item.media_url || item.thumbnail}
+                  alt={item.title}
+                  onError={() => setMediaError(true)}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )
           )}
 
           <div className="p-8">
@@ -167,7 +204,13 @@ export default function ContentViewerModal({ item, onClose }) {
 
             {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}
 
-            {kind === 'audio' && <audio controls className="w-full mb-5" src={item.media_url} />}
+            {kind === 'audio' && (
+              mediaError ? (
+                <MediaErrorFallback label="This audio could not be loaded. It may still be processing, or the file is temporarily unavailable." />
+              ) : (
+                <audio controls className="w-full mb-5" src={item.media_url} onError={() => setMediaError(true)} />
+              )
+            )}
 
             {item.body && (
               <div
