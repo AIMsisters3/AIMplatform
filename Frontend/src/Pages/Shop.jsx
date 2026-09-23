@@ -75,6 +75,10 @@ export default function Shop() {
     <div className="min-h-screen bg-surface">
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary py-14">
+        <motion.div
+          className="absolute -top-16 -right-10 w-64 h-64 rounded-full bg-accent/20 blur-3xl pointer-events-none"
+          animate={{ y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
         <div className="relative max-w-7xl mx-auto px-6">
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-xl">
             <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3">

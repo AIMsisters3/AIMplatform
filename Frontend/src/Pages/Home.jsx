@@ -209,10 +209,18 @@ export default function Home() {
 
   return (
     <div className="relative">
-      <div className="fixed inset-0 -z-10 bg-cover bg-center" style={{ backgroundImage: `url(${heroBg})` }} />
+      {/* Different composition per screen size, not the same crop
+          stretched to fit: mobile favors a tighter, higher crop (keeps
+          the hero itself compact, per spec) while desktop shows the
+          fuller frame centered. */}
+      <div
+        className="fixed inset-0 -z-10 bg-cover bg-[position:65%_top] md:bg-center"
+        style={{ backgroundImage: `url(${heroBg})` }}
+      />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden min-h-[580px] flex items-center">
+      {/* Hero — shorter on mobile so it stays compact, taller on desktop
+          where there's room for it. */}
+      <section className="relative overflow-hidden min-h-[420px] md:min-h-[580px] flex items-center">
         <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-surface to-transparent" />
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 w-full">
           <div className="max-w-xl text-left">
