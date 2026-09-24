@@ -47,27 +47,18 @@ export default function Kids() {
   const { language } = useLanguage();
 
   const [items, setItems] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState('');
   const [mediaType, setMediaType] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeItem, setActiveItem] = useState(null);
 
-  const isFiltering = Boolean(search || categoryId || mediaType);
-
-  useEffect(() => {
-    api.get('/categories', { params: { type: 'content' } })
-      .then((r) => setCategories(r.data?.data?.items || []))
-      .catch(() => setCategories([]));
-  }, []);
+  const isFiltering = Boolean(search || mediaType);
 
   useEffect(() => {
     setLoading(true);
     api.get('/kids', {
       params: {
         search: search || undefined,
-        category_id: categoryId || undefined,
         language,
         media_type: mediaType || undefined,
         // Unfiltered: pull enough to populate every type group below.
@@ -77,7 +68,7 @@ export default function Kids() {
       .then((r) => setItems(r.data?.data?.items || []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [search, categoryId, language, mediaType, isFiltering]);
+  }, [search, language, mediaType, isFiltering]);
 
   useEffect(() => {
     const slug = searchParams.get('item');
@@ -168,18 +159,6 @@ export default function Kids() {
               </button>
             );
           })}
-        </div>
-
-        {/* Category */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-10">
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="px-5 py-2.5 rounded-full border border-ink/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
         </div>
 
         {loading ? (

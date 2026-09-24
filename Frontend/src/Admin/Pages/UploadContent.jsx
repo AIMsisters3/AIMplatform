@@ -370,10 +370,11 @@ export default function UploadContent() {
   const isBibleStudy = section === 'bible_study';
   const isGallery = section === 'gallery';
   const isSongs = section === 'songs';
-  // Neither Gallery nor Songs offers a Category choice (spec) - Gallery
-  // never did (it reuses Language's "Not applicable" pattern below);
-  // Songs is being simplified the same way here.
-  const isNoCategory = isGallery || isSongs;
+  const isKids = section === 'kids';
+  // None of Gallery, Songs, or Children Zone offer a Category choice
+  // (spec) - Gallery never did (it reuses Language's "Not applicable"
+  // pattern below); Songs and Kids are simplified the same way.
+  const isNoCategory = isGallery || isSongs || isKids;
   const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : section === 'kids' ? KIDS_TYPES : CONTENT_TYPES;
   const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
