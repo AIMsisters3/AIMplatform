@@ -4,6 +4,7 @@ import { CheckCircle2, Truck, MapPin, Clock, Info } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/axios.js';
+import DeliveryLocationPicker from '../Components/DeliveryLocationPicker.jsx';
 
 const METHOD_LABELS = {
   manual_bank: 'Bank Transfer',
@@ -22,6 +23,7 @@ export default function Checkout() {
   const [fulfillmentType, setFulfillmentType] = useState('delivery');
   const [deliveryAreaId, setDeliveryAreaId] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
+  const [deliveryLocation, setDeliveryLocation] = useState(null); // {lat, lng}
   const [couponCode, setCouponCode] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
@@ -61,17 +63,22 @@ export default function Checkout() {
 
   useEffect(() => {
     setDeliveryAreaId('');
+    setDeliveryLocation(null);
   }, [fulfillmentType]);
 
   async function handlePlaceOrder(e) {
     e.preventDefault();
     setError('');
     if (shippingAddress.trim() === '') {
-      setError('Please provide a contact address.');
+      setError(fulfillmentType === 'delivery' ? 'Please provide your name and phone number.' : 'Please provide a contact name and phone number.');
       return;
     }
     if (fulfillmentType === 'delivery' && !deliveryAreaId) {
       setError('Please choose your delivery area.');
+      return;
+    }
+    if (fulfillmentType === 'delivery' && !deliveryLocation) {
+      setError('Please pin your delivery location on the map below.');
       return;
     }
     if (fulfillmentType === 'pickup' && pickupOptions.length > 0 && !deliveryAreaId) {
@@ -86,6 +93,8 @@ export default function Checkout() {
         fulfillment_type: fulfillmentType,
         delivery_area_id: deliveryAreaId || undefined,
         shipping_address: shippingAddress,
+        delivery_latitude: fulfillmentType === 'delivery' ? deliveryLocation?.lat : undefined,
+        delivery_longitude: fulfillmentType === 'delivery' ? deliveryLocation?.lng : undefined,
         coupon_code: couponCode || undefined,
         payment_method: paymentMethod === 'pay_later' ? 'pay_later' : paymentMethod,
         pay_later_days: paymentMethod === 'pay_later' ? payLaterDays : undefined,
@@ -194,15 +203,25 @@ export default function Checkout() {
           </div>
 
           <div className="glass-card p-6">
-            <h3 className="font-display font-semibold mb-4">Contact / Address</h3>
+            <h3 className="font-display font-semibold mb-4">Contact {fulfillmentType === 'delivery' ? '' : '/ Address'}</h3>
             <textarea
-              rows={4}
+              rows={3}
               required
               value={shippingAddress}
               onChange={(e) => setShippingAddress(e.target.value)}
-              placeholder={fulfillmentType === 'delivery' ? 'Full name, street address, city, phone number' : 'Full name and phone number'}
+              placeholder="Full name and phone number"
               className="w-full px-4 py-3 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
             />
+
+            {/* Real pin, not a hand-typed street address — the ministry's
+                delivery person gets a map to follow, not a description to
+                interpret. See DeliveryLocationPicker.jsx. */}
+            {fulfillmentType === 'delivery' && (
+              <div className="mt-4 pt-4 border-t border-ink/10">
+                <p className="text-sm font-semibold mb-2">Delivery Location</p>
+                <DeliveryLocationPicker value={deliveryLocation} onChange={setDeliveryLocation} />
+              </div>
+            )}
           </div>
 
           <div className="glass-card p-6">

@@ -665,6 +665,7 @@ export default function ManageProducts() {
                 <th className="p-4">SKU</th>
                 <th className="p-4">Category</th>
                 <th className="p-4">Price</th>
+                <th className="p-4">Cost Price</th>
                 <th className="p-4">Stock</th>
                 <th className="p-4">Availability</th>
                 <th className="p-4">Status</th>
@@ -690,6 +691,18 @@ export default function ManageProducts() {
                       N$ {Number(p.sale_price ?? p.price).toFixed(2)}
                       {p.sale_price && Number(p.sale_price) < Number(p.price) && (
                         <span className="ml-1.5 text-xs text-ink/35 line-through">N$ {Number(p.price).toFixed(2)}</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-ink/60">
+                      {p.cost_price !== null && p.cost_price !== undefined ? (
+                        <>
+                          N$ {Number(p.cost_price).toFixed(2)}
+                          <span className={`ml-1.5 text-[11px] font-semibold ${Number(p.price) - Number(p.cost_price) < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                            ({Number(p.price) - Number(p.cost_price) >= 0 ? '+' : ''}N$ {(Number(p.price) - Number(p.cost_price)).toFixed(2)})
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-ink/30 italic">Not set</span>
                       )}
                     </td>
                     <td className="p-4 text-ink/60">

@@ -164,6 +164,15 @@ export default function OrderDocument() {
             {order.shipping_address && order.fulfillment_type === 'delivery' && (
               <p className="text-ink/50 whitespace-pre-line">{order.shipping_address}</p>
             )}
+            {order.fulfillment_type === 'delivery' && order.delivery_latitude != null && order.delivery_longitude != null && (
+              <a
+                href={`https://www.google.com/maps?q=${order.delivery_latitude},${order.delivery_longitude}`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-secondary underline"
+              >
+                Open delivery location in Maps
+              </a>
+            )}
             {order.tracking_number && <p className="text-ink/50">Tracking: {order.tracking_number}</p>}
           </div>
         </div>
@@ -276,6 +285,19 @@ export default function OrderDocument() {
             <p className="font-semibold mb-1">{type === 'packing_slip' ? 'Packing Notes' : 'Delivery Notes'}</p>
             <p>{order.delivery_area_name_snapshot ? `Deliver to: ${order.delivery_area_name_snapshot}` : ''}</p>
             {order.shipping_address && <p className="whitespace-pre-line">{order.shipping_address}</p>}
+            {order.delivery_latitude != null && order.delivery_longitude != null && (
+              <div className="mt-2">
+                <p className="font-semibold text-ink/80">Delivery location (customer-pinned):</p>
+                <p>{Number(order.delivery_latitude).toFixed(6)}, {Number(order.delivery_longitude).toFixed(6)}</p>
+                <a
+                  href={`https://www.google.com/maps?q=${order.delivery_latitude},${order.delivery_longitude}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-secondary underline"
+                >
+                  Open in Google Maps
+                </a>
+              </div>
+            )}
             {order.tracking_number && <p>Tracking number: {order.tracking_number}</p>}
           </div>
         )}

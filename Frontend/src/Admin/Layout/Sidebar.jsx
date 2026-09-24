@@ -33,7 +33,7 @@ export default function Sidebar() {
         <p className="text-xs text-ink/40 mt-1">Admin CMS</p>
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
         {items.map((item) => (
           <NavLink
             key={item.to}

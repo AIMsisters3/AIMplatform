@@ -43,6 +43,10 @@ class Order
      * @param array $items [['product_id' => int, 'variant_id' => ?int, 'quantity' => int], ...]
      * @param string $paymentMethod one of PaymentGatewayFactory::availableMethods(), or the literal 'pay_later'.
      * @param int|null $payLaterDays required (1-14) iff $paymentMethod === 'pay_later'.
+     * @param float|null $deliveryLatitude,$deliveryLongitude the customer's pinned/GPS delivery location
+     *   (migration 027) — a real coordinate pair they placed on the checkout map, never a hand-typed
+     *   address the delivery person has to interpret. Only meaningful when $fulfillmentType === 'delivery';
+     *   ignored for pickup.
      * @return array ['orders' => [order, ...], 'split' => bool]
      * @throws OrderException on any validation failure — message is safe to show the customer directly.
      */
@@ -55,7 +59,9 @@ class Order
         ?string $couponCode,
         string $paymentMethod,
         array $paymentDetails = [],
-        ?int $payLaterDays = null
+        ?int $payLaterDays = null,
+        ?float $deliveryLatitude = null,
+        ?float $deliveryLongitude = null
     ): array {
         if (empty($items)) {
             throw new OrderException('Your cart is empty.');
@@ -138,14 +144,15 @@ class Order
                 $createdOrders[] = $this->createInStockOrder(
                     $userId, $inStockLines, $totalSubtotal, $totalDiscount, $deliveryFee,
                     $fulfillmentType, $deliveryAreaId, $deliveryAreaName, $shippingAddress,
-                    $coupon, $paymentMethod, $paymentDetails, $isPayLater, $payLaterDays, $splitGroupId
+                    $coupon, $paymentMethod, $paymentDetails, $isPayLater, $payLaterDays, $splitGroupId,
+                    $deliveryLatitude, $deliveryLongitude
                 );
             }
             if (!empty($onOrderLines)) {
                 $createdOrders[] = $this->createOnOrderOrder(
                     $userId, $onOrderLines, $totalSubtotal, $totalDiscount, $deliveryFee,
                     $fulfillmentType, $deliveryAreaId, $deliveryAreaName, $shippingAddress,
-                    $coupon, $splitGroupId
+                    $coupon, $splitGroupId, $deliveryLatitude, $deliveryLongitude
                 );
             }
 
@@ -302,7 +309,8 @@ class Order
     private function createInStockOrder(
         int $userId, array $lines, float $totalSubtotal, float $totalDiscount, float $deliveryFee,
         string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
-        ?array $coupon, string $paymentMethod, array $paymentDetails, bool $isPayLater, ?int $payLaterDays, ?string $splitGroupId
+        ?array $coupon, string $paymentMethod, array $paymentDetails, bool $isPayLater, ?int $payLaterDays, ?string $splitGroupId,
+        ?float $deliveryLatitude = null, ?float $deliveryLongitude = null
     ): array {
         $subtotal = array_sum(array_map(fn ($l) => $l['line_total'], $lines));
         $discount = $totalDiscount > 0 ? round($subtotal / $totalSubtotal * $totalDiscount, 2) : 0.0;
@@ -315,7 +323,10 @@ class Order
             'split_group_id' => $splitGroupId, 'status' => $isPayLater ? 'awaiting_approval' : 'awaiting_payment',
             'payment_state' => 'pending', 'subtotal' => $subtotal, 'discount_total' => $discount,
             'shipping_total' => $deliveryFee, 'grand_total' => $grandTotal, 'coupon_id' => $coupon['id'] ?? null,
-            'shipping_address' => $shippingAddress, 'fulfillment_type' => $fulfillmentType,
+            'shipping_address' => $shippingAddress,
+            'delivery_latitude' => $fulfillmentType === 'delivery' ? $deliveryLatitude : null,
+            'delivery_longitude' => $fulfillmentType === 'delivery' ? $deliveryLongitude : null,
+            'fulfillment_type' => $fulfillmentType,
             'delivery_area_id' => $deliveryAreaId, 'delivery_area_name_snapshot' => $deliveryAreaName,
             'payment_method' => $isPayLater ? 'pay_later' : $paymentMethod,
         ]);
@@ -364,7 +375,8 @@ class Order
     private function createOnOrderOrder(
         int $userId, array $lines, float $totalSubtotal, float $totalDiscount, float $deliveryFee,
         string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
-        ?array $coupon, ?string $splitGroupId
+        ?array $coupon, ?string $splitGroupId,
+        ?float $deliveryLatitude = null, ?float $deliveryLongitude = null
     ): array {
         $subtotal = array_sum(array_map(fn ($l) => $l['line_total'], $lines));
         $discount = $totalDiscount > 0 ? round($subtotal / $totalSubtotal * $totalDiscount, 2) : 0.0;
@@ -379,6 +391,8 @@ class Order
             'split_group_id' => $splitGroupId, 'status' => 'awaiting_approval', 'payment_state' => 'pending',
             'subtotal' => $subtotal, 'discount_total' => $discount, 'shipping_total' => $deliveryFee,
             'grand_total' => $grandTotal, 'coupon_id' => $coupon['id'] ?? null, 'shipping_address' => $shippingAddress,
+            'delivery_latitude' => $fulfillmentType === 'delivery' ? $deliveryLatitude : null,
+            'delivery_longitude' => $fulfillmentType === 'delivery' ? $deliveryLongitude : null,
             'fulfillment_type' => $fulfillmentType, 'delivery_area_id' => $deliveryAreaId,
             'delivery_area_name_snapshot' => $deliveryAreaName, 'payment_method' => 'deposit',
         ]);
@@ -399,12 +413,12 @@ class Order
         $stmt = $this->db->prepare(
             'INSERT INTO orders
                 (user_id, order_number, order_kind, split_group_id, status, payment_state, subtotal, discount_total,
-                 shipping_total, grand_total, coupon_id, shipping_address, fulfillment_type, delivery_area_id,
-                 delivery_area_name_snapshot, payment_method)
+                 shipping_total, grand_total, coupon_id, shipping_address, delivery_latitude, delivery_longitude,
+                 fulfillment_type, delivery_area_id, delivery_area_name_snapshot, payment_method)
              VALUES
                 (:user_id, :order_number, :order_kind, :split_group_id, :status, :payment_state, :subtotal, :discount_total,
-                 :shipping_total, :grand_total, :coupon_id, :shipping_address, :fulfillment_type, :delivery_area_id,
-                 :delivery_area_name_snapshot, :payment_method)'
+                 :shipping_total, :grand_total, :coupon_id, :shipping_address, :delivery_latitude, :delivery_longitude,
+                 :fulfillment_type, :delivery_area_id, :delivery_area_name_snapshot, :payment_method)'
         );
         $stmt->execute($data);
         return (int) $this->db->lastInsertId();

@@ -101,7 +101,8 @@ class OrderController
     /**
      * POST /api/orders — place an order from a cart payload.
      * body: {items: [{product_id, variant_id?, quantity}], fulfillment_type, delivery_area_id?,
-     *        shipping_address, coupon_code?, payment_method, pay_later_days?}
+     *        shipping_address, delivery_latitude?, delivery_longitude? (required iff fulfillment_type
+     *        === 'delivery'), coupon_code?, payment_method, pay_later_days?}
      */
     public function store(): void
     {
@@ -121,11 +122,29 @@ class OrderController
         $couponCode = !empty($body['coupon_code']) ? trim($body['coupon_code']) : null;
         $payLaterDays = isset($body['pay_later_days']) ? (int) $body['pay_later_days'] : null;
 
+        // Delivery location pinned on the checkout map (migration 027) —
+        // real GPS/map coordinates, never a hand-typed address. Only
+        // required for fulfillment_type === 'delivery'; a pickup order
+        // has nowhere to deliver to, so it's simply never collected there.
+        $deliveryLatitude = null;
+        $deliveryLongitude = null;
+        if ($fulfillmentType === 'delivery') {
+            if (!isset($body['delivery_latitude'], $body['delivery_longitude'])
+                || !is_numeric($body['delivery_latitude']) || !is_numeric($body['delivery_longitude'])) {
+                json_error('Please pin your delivery location on the map.', 422);
+            }
+            $deliveryLatitude = (float) $body['delivery_latitude'];
+            $deliveryLongitude = (float) $body['delivery_longitude'];
+            if ($deliveryLatitude < -90 || $deliveryLatitude > 90 || $deliveryLongitude < -180 || $deliveryLongitude > 180) {
+                json_error('That delivery location looks invalid — please re-pin it on the map.', 422);
+            }
+        }
+
         if (empty($items)) {
             json_error('Your cart is empty.', 422);
         }
         if ($shippingAddress === '') {
-            json_error('A contact address is required.', 422);
+            json_error('A contact name and phone number are required.', 422);
         }
 
         try {
@@ -138,7 +157,9 @@ class OrderController
                 $couponCode,
                 $paymentMethod,
                 $body['payment_details'] ?? [],
-                $payLaterDays
+                $payLaterDays,
+                $deliveryLatitude,
+                $deliveryLongitude
             );
         } catch (OrderException $e) {
             json_error($e->getMessage(), 422);

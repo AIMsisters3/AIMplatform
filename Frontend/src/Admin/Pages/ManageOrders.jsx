@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, Link2, FileText, Download, Loader2 } from 'lucide-react';
+import { Clock, Link2, FileText, Download, Loader2, MapPin } from 'lucide-react';
 import api from '../../api/axios.js';
 
 const EXPORT_COLUMNS = [
@@ -316,6 +316,16 @@ export default function ManageOrders() {
                     <p className="text-ink/50">
                       {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}{o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''} · Contact: {o.shipping_address}
                     </p>
+                    {o.fulfillment_type === 'delivery' && o.delivery_latitude != null && o.delivery_longitude != null && (
+                      <a
+                        href={`https://www.google.com/maps?q=${o.delivery_latitude},${o.delivery_longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-secondary font-semibold text-xs mt-1"
+                      >
+                        <MapPin className="w-3.5 h-3.5" /> Open delivery location in Maps
+                      </a>
+                    )}
                     <p className="text-ink/50">Paid so far: N$ {Number(o.amount_paid || 0).toFixed(2)} {balanceDue > 0 && <span className="text-red-500 font-semibold">(N$ {balanceDue.toFixed(2)} outstanding)</span>}</p>
 
                     {o.order_kind === 'pay_later' && o.status === 'awaiting_approval' && (
