@@ -8,6 +8,8 @@ import { useCart } from '../context/CartContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { LANGUAGE_OPTIONS } from '../i18n/translations.js';
 import NotificationsBell from './NotificationsBell.jsx';
+import LiveIndicator from './LiveIndicator.jsx';
+import useLiveNow from '../hooks/useLiveNow.js';
 
 // Every destination lives under one of these three top-level slots, plus a
 // plain Home and Shop link. Explore groups everything content-related so
@@ -41,6 +43,16 @@ function NavDropdown({ label, links, currentPath, t }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const closeTimerRef = useRef(null);
+  // Picking a link navigates, which shifts the "active" underline
+  // (layoutId="navbar-active-underline") from Home onto this dropdown's
+  // own label - that layout animation moves real DOM elements under
+  // wherever the mouse happens to be resting, which fires a genuine new
+  // mouseenter on this wrapper milliseconds after the click's own
+  // setOpen(false), reopening a menu the visitor just chose from (confirmed
+  // by direct interaction testing, not just reading the close-on-click
+  // handler below in isolation). This suppresses openNow() briefly right
+  // after a selection so that reflow-triggered hover can't undo it.
+  const suppressHoverRef = useRef(false);
   const menuId = useId();
   const isActiveGroup = links.some((l) => currentPath === l.to || currentPath.startsWith(l.to + '/'));
 
@@ -60,11 +72,18 @@ function NavDropdown({ label, links, currentPath, t }) {
   }, []);
 
   function openNow() {
+    if (suppressHoverRef.current) return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     setOpen(true);
   }
   function closeSoon() {
     closeTimerRef.current = setTimeout(() => setOpen(false), 150);
+  }
+  function selectLink() {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    setOpen(false);
+    suppressHoverRef.current = true;
+    setTimeout(() => { suppressHoverRef.current = false; }, 400);
   }
 
   return (
@@ -89,39 +108,53 @@ function NavDropdown({ label, links, currentPath, t }) {
           />
         )}
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            id={menuId}
-            role="menu"
-            aria-label={label}
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 mt-2 w-56 glass-card bg-white/95 shadow-glass z-50 overflow-hidden py-1.5"
-          >
-            {links.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className={({ isActive }) =>
-                  `block px-4 py-2.5 text-sm transition ${isActive ? 'text-secondary font-semibold bg-surface' : 'text-ink/70 hover:bg-surface hover:text-ink'}`
-                }
-              >
-                {link.labelKey ? t(link.labelKey) : link.label}
-              </NavLink>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {open && (
+        // No AnimatePresence here on purpose: it wraps this exact pattern
+        // ({open && <motion.div exit={...}>}) everywhere else in this file
+        // too, and testing (both dev and a production build) found it can
+        // stall mid-exit - open commits to false (confirmed via the state
+        // itself and aria-expanded), the exit animation starts, but the
+        // element is sometimes left in the DOM at full opacity indefinitely
+        // instead of actually being removed, leaving a fully interactive
+        // dropdown visually stuck open over the page. Plain conditional
+        // rendering still gets the same fade/scale-in on open (motion.div's
+        // initial/animate need no AnimatePresence), it just closes instantly
+        // instead of fading out - a real user-facing bug fixed at the cost
+        // of one cosmetic 150ms transition.
+        <motion.div
+          id={menuId}
+          role="menu"
+          aria-label={label}
+          initial={{ opacity: 0, y: -8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.15 }}
+          className="absolute left-0 mt-2 w-56 glass-card bg-white/95 shadow-glass z-50 overflow-hidden py-1.5"
+        >
+          {links.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              role="menuitem"
+              onClick={selectLink}
+              className={({ isActive }) =>
+                `block px-4 py-2.5 text-sm transition ${isActive ? 'text-secondary font-semibold bg-surface' : 'text-ink/70 hover:bg-surface hover:text-ink'}`
+              }
+            >
+              {link.labelKey ? t(link.labelKey) : link.label}
+            </NavLink>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 }
 
-function AccountMenu({ t }) {
+// compact=true is the mobile header's own profile/login icon (spec:
+// "keep the profile icon visible on smaller screens... do not hide it") -
+// same auth state and routes as the desktop version, just a smaller
+// icon-only footprint (no "Login" text pill) so it fits next to the
+// hamburger without crowding it.
+function AccountMenu({ t, compact = false }) {
   const { user, logout, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -136,6 +169,17 @@ function AccountMenu({ t }) {
   }, []);
 
   if (!user) {
+    if (compact) {
+      return (
+        <Link
+          to="/login"
+          aria-label={t('nav_login')}
+          className="w-9 h-9 rounded-full bg-brand-gradient text-white flex items-center justify-center shadow-glass shrink-0"
+        >
+          <User className="w-4 h-4" />
+        </Link>
+      );
+    }
     return (
       <Link to="/login">
         <motion.span
@@ -150,54 +194,54 @@ function AccountMenu({ t }) {
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative shrink-0" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-10 h-10 rounded-full bg-brand-gradient text-white flex items-center justify-center font-display font-semibold shadow-glass"
+        className={`${compact ? 'w-9 h-9' : 'w-10 h-10'} rounded-full bg-brand-gradient text-white flex items-center justify-center font-display font-semibold shadow-glass`}
         aria-label="Account menu"
         aria-haspopup="true"
         aria-expanded={open}
       >
         {user.name?.[0]?.toUpperCase() || <User className="w-4 h-4" />}
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            role="menu"
-            aria-label="Account menu"
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-56 glass-card bg-white/95 shadow-glass z-50 overflow-hidden"
-          >
-            <div className="px-4 py-3 border-b border-ink/10">
-              <p className="text-sm font-semibold truncate">{user.name}</p>
-              <p className="text-xs text-ink/50 truncate">{user.email}</p>
-            </div>
-            <button onClick={() => { setOpen(false); navigate('/orders'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <Package className="w-4 h-4" /> {t('account_my_orders')}
+      {open && (
+        // No AnimatePresence - see NavDropdown's own comment on this same
+        // pattern for why (a confirmed exit-animation stall that can leave
+        // a fully interactive menu stuck open over the page).
+        <motion.div
+          role="menu"
+          aria-label="Account menu"
+          initial={{ opacity: 0, y: -8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.15 }}
+          className="absolute right-0 mt-2 w-56 glass-card bg-white/95 shadow-glass z-50 overflow-hidden"
+        >
+          <div className="px-4 py-3 border-b border-ink/10">
+            <p className="text-sm font-semibold truncate">{user.name}</p>
+            <p className="text-xs text-ink/50 truncate">{user.email}</p>
+          </div>
+          <button onClick={() => { setOpen(false); navigate('/orders'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
+            <Package className="w-4 h-4" /> {t('account_my_orders')}
+          </button>
+          <button onClick={() => { setOpen(false); navigate('/bookmarks'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
+            <Bookmark className="w-4 h-4" /> {t('account_my_bookmarks')}
+          </button>
+          <button onClick={() => { setOpen(false); navigate('/notes'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
+            <NotebookText className="w-4 h-4" /> {t('account_my_notes')}
+          </button>
+          <button onClick={() => { setOpen(false); navigate('/wishlist'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
+            <Heart className="w-4 h-4" /> {t('account_my_wishlist')}
+          </button>
+          {isAdmin && (
+            <button onClick={() => { setOpen(false); navigate('/admin'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
+              <LayoutDashboard className="w-4 h-4" /> {t('account_admin_dashboard')}
             </button>
-            <button onClick={() => { setOpen(false); navigate('/bookmarks'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <Bookmark className="w-4 h-4" /> {t('account_my_bookmarks')}
-            </button>
-            <button onClick={() => { setOpen(false); navigate('/notes'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <NotebookText className="w-4 h-4" /> {t('account_my_notes')}
-            </button>
-            <button onClick={() => { setOpen(false); navigate('/wishlist'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-              <Heart className="w-4 h-4" /> {t('account_my_wishlist')}
-            </button>
-            {isAdmin && (
-              <button onClick={() => { setOpen(false); navigate('/admin'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink/70 hover:bg-surface transition">
-                <LayoutDashboard className="w-4 h-4" /> {t('account_admin_dashboard')}
-              </button>
-            )}
-            <button onClick={() => { setOpen(false); logout(); navigate('/'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition border-t border-ink/10">
-              <LogOut className="w-4 h-4" /> {t('account_logout')}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+          <button onClick={() => { setOpen(false); logout(); navigate('/'); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition border-t border-ink/10">
+            <LogOut className="w-4 h-4" /> {t('account_logout')}
+          </button>
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -280,31 +324,30 @@ function LanguageSwitcher({ language, setLanguage }) {
         <span className="text-lg leading-none">{current.flag}</span>
         <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            role="menu"
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-44 glass-card bg-white/95 shadow-glass z-50 overflow-hidden py-1.5"
-          >
-            {LANGUAGE_OPTIONS.map((opt) => (
-              <button
-                key={opt.code}
-                role="menuitem"
-                onClick={() => { setLanguage(opt.code); setOpen(false); }}
-                className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition ${
-                  opt.code === language ? 'text-secondary font-semibold bg-surface' : 'text-ink/70 hover:bg-surface hover:text-ink'
-                }`}
-              >
-                <span className="text-base leading-none">{opt.flag}</span> {opt.name}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {open && (
+        // No AnimatePresence - see NavDropdown's own comment on this same
+        // pattern for why.
+        <motion.div
+          role="menu"
+          initial={{ opacity: 0, y: -8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.15 }}
+          className="absolute right-0 mt-2 w-44 glass-card bg-white/95 shadow-glass z-50 overflow-hidden py-1.5"
+        >
+          {LANGUAGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.code}
+              role="menuitem"
+              onClick={() => { setLanguage(opt.code); setOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition ${
+                opt.code === language ? 'text-secondary font-semibold bg-surface' : 'text-ink/70 hover:bg-surface hover:text-ink'
+              }`}
+            >
+              <span className="text-base leading-none">{opt.flag}</span> {opt.name}
+            </button>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -365,6 +408,9 @@ export default function Navbar() {
   const { count } = useCart();
   const { language, setLanguage, t } = useLanguage();
   const location = useLocation();
+  // Called once here - both the desktop and mobile LiveIndicator render
+  // sites below share this single poll/expiry-timer instance.
+  const liveItems = useLiveNow();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -393,19 +439,19 @@ export default function Navbar() {
           : 'bg-gradient-to-r from-secondary/10 via-white/95 to-accent/10 border-white/60 shadow-[0_2px_16px_rgba(45,42,74,0.06)]'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between gap-4 py-2 min-h-16">
-        <Link to="/" className="flex items-center gap-2.5 group shrink-0">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 py-2 min-h-16">
+        <Link to="/" className="flex items-center gap-1.5 sm:gap-2.5 group shrink-0 min-w-0">
           <img
             src={logo}
             alt="AIMsisters logo"
-            className="w-22 h-16 rounded-full object-cover shadow-glass transition-transform group-hover:scale-105"
+            className="w-12 h-12 sm:w-22 sm:h-16 rounded-full object-cover shadow-glass transition-transform group-hover:scale-105 shrink-0"
           />
-          <div className="flex flex-col leading-none">
-            <span className="text-xl font-display font-800">
+          <div className="flex flex-col leading-none min-w-0">
+            <span className="text-base sm:text-xl font-display font-800 whitespace-nowrap">
               <span className="brand-gradient-text font-extrabold">AIM</span>
               <span className="text-ink font-semibold">sisters</span>
             </span>
-            <span className="text-[11px] font-medium tracking-wide text-ink/45 mt-1">
+            <span className="hidden sm:block text-[11px] font-medium tracking-wide text-ink/45 mt-1">
               Christ is all in all
             </span>
           </div>
@@ -452,6 +498,7 @@ export default function Navbar() {
         </nav>
 
         <div className="hidden lg:flex items-center gap-2 shrink-0">
+          <LiveIndicator items={liveItems} />
           <SearchBox t={t} />
           <LanguageSwitcher language={language} setLanguage={setLanguage} />
           {user && <NotificationsBell />}
@@ -468,42 +515,58 @@ export default function Navbar() {
           </span>
         </div>
 
-        <button
-          className="lg:hidden relative w-9 h-9 flex items-center justify-center rounded-lg text-ink"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle menu"
-          aria-haspopup="true"
-          aria-expanded={open}
-          aria-controls="mobile-nav-menu"
-        >
-          <motion.span
-            className="absolute block w-6 h-0.5 bg-ink rounded-full"
-            animate={open ? { rotate: 45, y: 0 } : { rotate: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
-          />
-          <motion.span
-            className="absolute block w-6 h-0.5 bg-ink rounded-full"
-            animate={open ? { opacity: 0 } : { opacity: 1 }}
-            transition={{ duration: 0.15 }}
-          />
-          <motion.span
-            className="absolute block w-6 h-0.5 bg-ink rounded-full"
-            animate={open ? { rotate: -45, y: 0 } : { rotate: 0, y: 6 }}
-            transition={{ duration: 0.2 }}
-          />
-        </button>
+        {/* Mobile-only cluster: LIVE badge (only when something's live) +
+            profile/login icon (kept visible here rather than buried inside
+            the hamburger menu - spec explicitly requires this) + the
+            hamburger itself. Search/language/cart/notifications stay
+            inside the expandable menu below, same as before - this row is
+            only adding back what the spec calls out as missing, not
+            redesigning the rest of the mobile nav. */}
+        <div className="lg:hidden flex items-center gap-1.5 shrink-0">
+          <LiveIndicator items={liveItems} />
+          <AccountMenu t={t} compact />
+          <button
+            className="relative w-9 h-9 flex items-center justify-center rounded-lg text-ink shrink-0"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle menu"
+            aria-haspopup="true"
+            aria-expanded={open}
+            aria-controls="mobile-nav-menu"
+          >
+            <motion.span
+              className="absolute block w-6 h-0.5 bg-ink rounded-full"
+              animate={open ? { rotate: 45, y: 0 } : { rotate: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+            />
+            <motion.span
+              className="absolute block w-6 h-0.5 bg-ink rounded-full"
+              animate={open ? { opacity: 0 } : { opacity: 1 }}
+              transition={{ duration: 0.15 }}
+            />
+            <motion.span
+              className="absolute block w-6 h-0.5 bg-ink rounded-full"
+              animate={open ? { rotate: -45, y: 0 } : { rotate: 0, y: 6 }}
+              transition={{ duration: 0.2 }}
+            />
+          </button>
+        </div>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.nav
-            id="mobile-nav-menu"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="lg:hidden overflow-hidden bg-white/95 backdrop-blur-md border-t border-ink/5"
-          >
+      {open && (
+        // No AnimatePresence - see NavDropdown's own comment on this same
+        // pattern (a confirmed exit-animation stall). The stakes are
+        // highest here of anywhere in this file: this is the entire mobile
+        // menu overlaying the page, so it closes instantly rather than
+        // risk being left stuck open and blocking mobile content - it also
+        // already closes via a route-change effect above, independent of
+        // this animation, as a second guarantee.
+        <motion.nav
+          id="mobile-nav-menu"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          transition={{ duration: 0.25, ease: 'easeInOut' }}
+          className="lg:hidden overflow-hidden bg-white/95 backdrop-blur-md border-t border-ink/5"
+        >
             <div className="px-6 py-4 flex flex-col gap-1 max-h-[75vh] overflow-y-auto">
               <NavLink
                 to="/"
@@ -558,9 +621,8 @@ export default function Navbar() {
                 )}
               </div>
             </div>
-          </motion.nav>
-        )}
-      </AnimatePresence>
+        </motion.nav>
+      )}
     </header>
   );
 }

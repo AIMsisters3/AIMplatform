@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/media_url.php';
+require_once __DIR__ . '/../helpers/live_status.php';
 
 /**
  * Backs bible_studies / bible_study_progress / bible_study_notes
@@ -51,7 +52,7 @@ class BibleStudy
             $params['search'] = '%' . $filters['search'] . '%';
         }
         if (!empty($filters['is_live'])) {
-            $where[] = 'c.is_live = 1';
+            $where[] = live_window_sql('c');
         }
 
         $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
@@ -69,7 +70,7 @@ class BibleStudy
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return array_map('normalize_media_row', $stmt->fetchAll());
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
     public function findByContentId(int $contentId): ?array
@@ -81,7 +82,7 @@ class BibleStudy
         );
         $stmt->execute(['id' => $contentId]);
         $row = $stmt->fetch();
-        return $row ? normalize_media_row($row) : null;
+        return $row ? decorate_live_status(normalize_media_row($row)) : null;
     }
 
     /** Called right after Content::create() for a content_type='bible_study' row. */
@@ -144,7 +145,7 @@ class BibleStudy
         $stmt->bindValue('u', $userId, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        return array_map('normalize_media_row', $stmt->fetchAll());
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
     // ---------------------------------------------------------

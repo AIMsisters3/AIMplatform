@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/media_url.php';
+require_once __DIR__ . '/../helpers/live_status.php';
 
 class Content
 {
@@ -72,7 +73,10 @@ class Content
             $where[] = 'c.is_featured = 1';
         }
         if (!empty($filters['is_live'])) {
-            $where[] = 'c.is_live = 1';
+            // Not just "c.is_live = 1" - that alone never expires (see
+            // live_window_sql()'s own docblock). Genuinely restricts to
+            // items currently inside their computed live window.
+            $where[] = live_window_sql('c');
         }
 
         $sql = 'SELECT c.*, cat.name AS category_name,
@@ -91,7 +95,13 @@ class Content
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
 
-        return array_map('normalize_media_row', $stmt->fetchAll());
+        return array_map([self::class, 'decorateRow'], $stmt->fetchAll());
+    }
+
+    /** normalize_media_url() for URLs + decorate_live_status() for the real, time-bounded is_live - applied identically everywhere a content row leaves this model. */
+    private static function decorateRow(array $row): array
+    {
+        return decorate_live_status(normalize_media_row($row));
     }
 
     public function find(int $id): ?array
@@ -99,7 +109,7 @@ class Content
         $stmt = $this->db->prepare('SELECT * FROM content WHERE id = :id AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
-        return $row ? normalize_media_row($row) : null;
+        return $row ? self::decorateRow($row) : null;
     }
 
     public function findBySlug(string $slug): ?array
@@ -107,7 +117,7 @@ class Content
         $stmt = $this->db->prepare('SELECT * FROM content WHERE slug = :slug AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['slug' => $slug]);
         $row = $stmt->fetch();
-        return $row ? normalize_media_row($row) : null;
+        return $row ? self::decorateRow($row) : null;
     }
 
     public function create(array $data): int
@@ -387,6 +397,6 @@ class Content
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
-        return array_map('normalize_media_row', $stmt->fetchAll());
+        return array_map([self::class, 'decorateRow'], $stmt->fetchAll());
     }
 }
