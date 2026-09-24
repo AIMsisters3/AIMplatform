@@ -55,10 +55,12 @@ class BibleStudy
             $where[] = live_window_sql('c');
         }
 
-        $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
+        $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name,
+                    s.title AS series_title, s.slug AS series_slug
                 FROM content c
                 JOIN bible_studies bs ON bs.content_id = c.id
                 LEFT JOIN categories cat ON cat.id = c.category_id
+                LEFT JOIN series s ON s.id = c.series_id
                 WHERE ' . implode(' AND ', $where) . '
                 ORDER BY COALESCE(c.publish_date, c.created_at) DESC
                 LIMIT :limit OFFSET :offset';
