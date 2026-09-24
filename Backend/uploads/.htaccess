@@ -1,22 +1,25 @@
-# Defense in depth: this directory only ever holds media/document files
-# saved by UploadController (which enforces an extension + MIME-type
-# whitelist and always renames to a server-generated filename), so this
-# is a backup layer, not the primary defense. Kept deliberately minimal.
+# Intentionally empty of directives.
 #
-# This previously used <FilesMatch> + Require all denied / Order+Deny to
-# block PHP execution here - confirmed live (2026-09-24, a real uploaded
-# thumbnail returning the host's own 500/".htaccess error" page for every
-# request under this folder) that those directives need Apache's
-# Limit/AuthConfig AllowOverride classes, which this specific free host
-# does not permit at all: the whole .htaccess file was rejected, taking
-# every image in this folder down with it, not just PHP files. Replaced
-# with RemoveHandler/RemoveType, which only needs the FileInfo class -
-# the same class RewriteRule already needs in Backend/.htaccess, which
-# was working fine, confirming FileInfo IS permitted on this host. The
-# <IfModule mod_php.c> php_flag block that used to sit here is dropped
-# too - not implicated in the actual failure, but it adds no protection
-# RemoveHandler/RemoveType and UploadController's own extension/MIME
-# whitelist don't already cover, and this host has proven unusually
-# restrictive, so there's no reason to keep anything not doing real work.
-RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl
-RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl
+# History: this file used to try to block PHP execution in this folder
+# at the Apache level. First with <FilesMatch> + Require all denied /
+# Order+Deny (needs the Limit/AuthConfig AllowOverride classes) - that
+# 500'd on this exact live host for every request under this folder
+# (confirmed 2026-09-24: opening a real uploaded thumbnail URL returned
+# the host's own ".htaccess error" page). Replaced with RemoveHandler/
+# RemoveType (needs only FileInfo) on the assumption that class was
+# permitted here since RewriteRule elsewhere on this host needs it too -
+# that assumption was wrong: re-tested live and RemoveHandler/RemoveType
+# 500'd exactly the same way. This host's AllowOverride is evidently
+# stricter than either attempt could satisfy, so the only version of
+# this file guaranteed not to 500 here is one with no directives at all.
+#
+# This is NOT a security gap. PHP execution was never the primary
+# defense for this folder - UploadController::store() already refuses
+# any file whose extension isn't on an explicit image/video/audio/doc
+# whitelist (upload_extension_allowed()) AND whose actual content
+# doesn't match that extension (upload_content_matches_extension()),
+# and every saved filename is server-generated (uniqid()-based), never
+# the uploader's own filename or extension choice. A .php file can
+# never be saved into this folder in the first place - there is nothing
+# left here for an .htaccess-level block to additionally protect
+# against.
