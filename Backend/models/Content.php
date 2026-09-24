@@ -223,6 +223,28 @@ class Content
     }
 
     /**
+     * Of the given ids, which currently have no thumbnail at all (NULL or
+     * empty string). UploadContent.jsx's own validate() already blocks
+     * publishing without one on create, but nothing enforced that
+     * server-side, so a draft saved with no thumbnail could reach
+     * status='published' entirely through Manage Content's row-level
+     * Publish toggle or a bulk publish - neither of which ever sends a
+     * thumbnail field - leaving a permanently thumbnail-less item live
+     * with no way to add one afterward. Used by both
+     * ContentController::update() and ::bulk() to close that gap.
+     */
+    public function idsWithoutThumbnail(array $ids): array
+    {
+        if (empty($ids)) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id FROM content WHERE id IN ($placeholders) AND (thumbnail IS NULL OR thumbnail = '')"
+        );
+        $stmt->execute($ids);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /**
      * Flips every 'scheduled' item whose publish_date has already arrived
      * to 'published', and returns their ids. Nothing in this codebase
      * ever did this automatically before - picking "Schedule for later"

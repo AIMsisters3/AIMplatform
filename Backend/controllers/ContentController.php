@@ -303,6 +303,24 @@ class ContentController
             json_error('You do not have permission to feature content.', 403);
         }
 
+        // UploadContent.jsx's validate() already requires a thumbnail before
+        // its own Publish button will submit - but that check only runs
+        // inside that form. Manage Content's row-level Publish toggle and
+        // bulk publish (below) both send only {status}, and Content::update()
+        // only ever touches fields actually present in the request body, so
+        // neither path was stopped from flipping a thumbnail-less draft to
+        // 'published'/'scheduled'. Once that happened, the item was
+        // permanently stuck showing the "no thumbnail" placeholder
+        // everywhere, since there is no separate "edit content" screen to
+        // add one afterward. Mirror the same requirement here so it can't be
+        // bypassed by any path other than the validated upload form.
+        if (array_key_exists('status', $body) && in_array($body['status'], ['published', 'scheduled'], true)) {
+            $thumbnail = array_key_exists('thumbnail', $body) ? $body['thumbnail'] : $existing['thumbnail'];
+            if (empty($thumbnail)) {
+                json_error('This item has no thumbnail. Please add one (use the thumbnail button in Manage Content) before publishing.', 422);
+            }
+        }
+
         // A partial update might only send one of section/media_type (or
         // neither) - re-validate the pair using whichever value wasn't
         // sent from the existing row, so a lone {media_type: ...} can't
@@ -386,6 +404,21 @@ class ContentController
         $requiredPermission = $action === 'delete' ? 'content.delete' : 'content.publish';
         require_permission($requiredPermission);
 
+        // Same rule as the single-item update() guard above: a bulk publish
+        // must not silently flip a thumbnail-less item to 'published' - so
+        // those ids are skipped here rather than rejecting the whole batch
+        // (an admin bulk-publishing 20 items shouldn't lose all 20 because
+        // one draft never got a thumbnail).
+        $skippedForThumbnail = [];
+        if ($action === 'publish') {
+            $skippedForThumbnail = $this->model->idsWithoutThumbnail($ids);
+            $ids = array_values(array_diff($ids, $skippedForThumbnail));
+        }
+
+        if (empty($ids)) {
+            json_error('None of the selected items have a thumbnail. Please add one before publishing.', 422);
+        }
+
         match ($action) {
             'delete'  => $this->model->bulkDelete($ids),
             'publish' => $this->model->bulkUpdateStatus($ids, 'published'),
@@ -393,7 +426,12 @@ class ContentController
             default   => json_error('Unknown bulk action.', 422),
         };
 
-        json_ok(null, 'Bulk action completed.');
+        $message = 'Bulk action completed.';
+        if (!empty($skippedForThumbnail)) {
+            $message .= ' ' . count($skippedForThumbnail) . ' item(s) skipped - no thumbnail.';
+        }
+
+        json_ok(['skipped_ids' => $skippedForThumbnail], $message);
     }
 
     private function slugify(string $text): string

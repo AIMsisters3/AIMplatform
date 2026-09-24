@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Image as ImageIcon, Eye, Loader2 } from 'lucide-react';
+import { Eye, Loader2, Upload } from 'lucide-react';
 import api from '../../api/axios.js';
 import { isLive } from '../../utils/mediaKind.js';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -153,13 +153,68 @@ export default function ManageContent() {
     }
   }
 
+  // A thumbnail-less item can reach this list two ways: it was drafted
+  // without one (allowed - UploadContent.jsx's validate() only requires it
+  // on Publish) and never published, or - the actual bug this closes - it
+  // was drafted without one and later flipped to 'published' straight from
+  // this page's own Publish toggle/bulk publish, which only ever send
+  // {status}. The backend now refuses that transition (see
+  // ContentController::update()/bulk()), but an item that already slipped
+  // through before this fix - or is still sitting as a draft - has no other
+  // screen to add a thumbnail to it (there is no "Edit Content" form). This
+  // is that missing path: upload straight from the row via the same plain
+  // POST /upload the Series thumbnail field already uses (ManageSeries.jsx),
+  // then PUT the real URL onto the item.
+  async function uploadThumbnail(item, file) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      setMessage('Use a JPG, PNG, GIF, or WEBP image for the thumbnail.');
+      return;
+    }
+    setBusyId(item.id);
+    try {
+      const data = new FormData();
+      data.append('file', file);
+      data.append('folder', 'thumbnails');
+      const uploadRes = await api.post('/upload', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const url = uploadRes.data.data.url;
+      await api.put(`/content/${item.id}`, { thumbnail: url });
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, thumbnail: url } : i)));
+      setMessage('Thumbnail added.');
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Thumbnail upload failed.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function ThumbCell({ item }) {
-    return item.thumbnail ? (
-      <img src={item.thumbnail} alt="" loading="lazy" decoding="async" className="w-12 h-12 rounded-lg object-cover bg-surface shrink-0" />
-    ) : (
-      <div className="w-12 h-12 rounded-lg bg-brand-gradient-soft flex items-center justify-center shrink-0 text-secondary">
-        <ImageIcon className="w-5 h-5" />
-      </div>
+    const inputRef = useRef(null);
+    const busy = busyId === item.id;
+    if (item.thumbnail) {
+      return <img src={item.thumbnail} alt="" loading="lazy" decoding="async" className="w-12 h-12 rounded-lg object-cover bg-surface shrink-0" />;
+    }
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+        title="Add a thumbnail"
+        className="w-12 h-12 rounded-lg bg-brand-gradient-soft flex items-center justify-center shrink-0 text-secondary disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) uploadThumbnail(item, file);
+          }}
+        />
+      </button>
     );
   }
 
