@@ -4,9 +4,17 @@ require_once __DIR__ . '/../models/ContactMessage.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/rate_limit_v2.php';
 require_once __DIR__ . '/../helpers/admin_notify.php';
+require_once __DIR__ . '/../helpers/mailer.php';
+require_once __DIR__ . '/../emails/order_notification_template.php';
 
 class ContactController
 {
+    // Every contact form submission's real destination - the in-app
+    // notification below is a secondary channel for whoever happens to
+    // be logged into the admin panel, not a substitute for this: an
+    // actual inbox someone checks even when nobody's signed in.
+    private const CONTACT_INBOX = 'aimsisters3@gmail.com';
+
     private ContactMessage $model;
 
     public function __construct()
@@ -44,6 +52,25 @@ class ContactController
             "From {$name} <{$email}>: \"" . mb_substr($message, 0, 140) . (mb_strlen($message) > 140 ? '...' : '') . '"',
             'contact'
         );
+
+        // A logged-out visitor's message must reach a real inbox, not just
+        // the in-app bell above (which only whoever happens to be signed
+        // into the admin panel right now would ever see). Never let a mail
+        // failure fail the submission itself - send_email() already
+        // returns false rather than throwing and logs the real reason
+        // (see mailer_log()) if this doesn't go through.
+        try {
+            $html = order_notification_email_html(
+                'New Contact Message',
+                "Message from {$name}",
+                "From: {$name} <{$email}>\n\n{$message}",
+                'Reply by Email',
+                'mailto:' . $email
+            );
+            send_email(self::CONTACT_INBOX, "New contact message from {$name}", $html);
+        } catch (Throwable $e) {
+            error_log('Contact message email failed for #' . $id . ': ' . $e->getMessage());
+        }
 
         json_created(['id' => $id], "Thank you! Your message has been sent — we'll get back to you soon.");
     }

@@ -204,12 +204,15 @@ const LIVE_ELIGIBLE_SECTIONS = ['media_library', 'bible_study'];
 
 const emptyUpload = { file: null, previewUrl: null, uploadedUrl: null, uploading: false, progress: 0, error: null, durationSeconds: null };
 
-// Reads a video file's real duration client-side via a throwaway <video>
-// element — no server-side ffmpeg/ffprobe dependency (this shared host
-// almost certainly doesn't have one). Resolves null on any failure
-// rather than rejecting, so a file the browser can't probe just omits
-// the duration instead of blocking the upload.
-function readVideoDuration(file) {
+// Reads a video OR audio file's real duration client-side via a throwaway
+// <video> element — a plain audio file loaded into one still populates
+// .duration correctly (no visible video track needed), so this covers
+// both without a second implementation. No server-side ffmpeg/ffprobe
+// dependency (this shared host almost certainly doesn't have one).
+// Resolves null on any failure rather than rejecting, so a file the
+// browser can't probe just omits the duration instead of blocking the
+// upload.
+function readMediaDuration(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const el = document.createElement('video');
@@ -555,8 +558,8 @@ export default function UploadContent() {
     }
     const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
     setState({ ...emptyUpload, file, previewUrl });
-    if (rule.folder === 'videos') {
-      readVideoDuration(file).then((seconds) => setState((s) => ({ ...s, durationSeconds: seconds })));
+    if (rule.folder === 'videos' || rule.folder === 'audio') {
+      readMediaDuration(file).then((seconds) => setState((s) => ({ ...s, durationSeconds: seconds })));
     }
     if (chunked) uploadChunked(file, rule.folder, setState);
     else uploadSimple(file, rule.folder, setState);
@@ -644,8 +647,10 @@ export default function UploadContent() {
       body: requiresBody || isTextNotes ? form.body : null,
       transcript: !requiresBody && !isTextNotes && mediaKind ? (form.transcript.trim() || null) : null,
       // Real duration read client-side from the actual file (see
-      // readVideoDuration()) - null for anything that isn't a video.
-      duration_seconds: mediaKind === 'video' ? (media.durationSeconds ?? null) : null,
+      // readMediaDuration()) - null for anything that isn't a video or
+      // audio/song upload (previously video-only, which meant a song's
+      // card could never show a duration no matter what was uploaded).
+      duration_seconds: (mediaKind === 'video' || mediaKind === 'audio') ? (media.durationSeconds ?? null) : null,
     };
 
     if (isBibleStudy) {

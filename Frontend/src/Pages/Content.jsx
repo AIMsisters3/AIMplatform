@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, ArrowRight, HeartPulse, Shirt,
+  Search, HeartPulse, Shirt,
   ScrollText, PlayCircle, FileText, Headphones, Inbox,
-  Sparkles, Image as ImageIcon, Layers, Loader2, X, Eye, MessageCircle, LayoutGrid,
+  Sparkles, Image as ImageIcon, Loader2, X, Eye, MessageCircle, LayoutGrid,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
@@ -130,7 +130,7 @@ function FeaturedCard({ item, onClick }) {
   const kind = getItemKind(item);
   const KindIcon = KIND_ICON[kind] || FileText;
   const [thumbnailBroken, setThumbnailBroken] = useState(false);
-  const duration = kind === 'video' ? formatDuration(item.duration_seconds) : null;
+  const duration = (kind === 'video' || kind === 'audio') ? formatDuration(item.duration_seconds) : null;
   const relativeDate = formatRelativeDate(item.publish_date || item.created_at);
 
   return (
@@ -233,57 +233,11 @@ function PopularItem({ item, rank, onClick }) {
   );
 }
 
-function SeriesStrip({ series }) {
-  if (series.length === 0) return null;
-  return (
-    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-display font-bold text-ink flex items-center gap-2">
-            <Layers className="w-4 h-4 text-secondary" /> Series & Collections
-          </h2>
-          <p className="text-xs text-ink/45">Multi-part stories, animations, and studies told across episodes.</p>
-        </div>
-        <Link to="/series" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
-          View All <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
-      </div>
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
-        {series.map((s) => (
-          <Link
-            key={s.id}
-            to={`/series/${s.slug}`}
-            className="shrink-0 w-60 glass-card overflow-hidden group hover:-translate-y-1 transition-transform"
-          >
-            <div className="relative h-32 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
-              {s.cover_image ? (
-                <img src={s.cover_image} alt={s.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              ) : (
-                <Layers className="w-8 h-8 text-secondary" />
-              )}
-              <span className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full bg-brand-gradient text-white text-[11px] font-semibold shadow-glass flex items-center gap-1">
-                <PlayCircle className="w-3 h-3" /> {s.episode_count}
-              </span>
-            </div>
-            <div className="p-3.5">
-              <h3 className="font-display font-semibold text-sm leading-snug mb-0.5 line-clamp-1 group-hover:text-secondary transition-colors">
-                {s.title}
-              </h3>
-              {s.category_name && <p className="text-[11px] text-ink/45">{s.category_name}</p>}
-            </div>
-          </Link>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
 export default function Content() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { language } = useLanguage();
 
   const [categories, setCategories] = useState([]);
-  const [series, setSeries] = useState([]);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [mediaType, setMediaType] = useState('');
@@ -314,9 +268,6 @@ export default function Content() {
     api.get('/categories', { params: { type: 'content' } })
       .then((r) => setCategories(sortCategories(r.data?.data?.items || [])))
       .catch(() => setCategories([]));
-    api.get('/series', { params: { section: 'media_library', limit: 8 } })
-      .then((r) => setSeries(r.data?.data?.items || []))
-      .catch(() => setSeries([]));
     // Popular This Week reflects genuine site-wide activity (real,
     // deduplicated views in the last 7 days, min. 10 - see
     // Content::popularThisWeek()) rather than whatever the visitor
@@ -562,8 +513,6 @@ export default function Content() {
             })}
           </div>
         </motion.div>
-
-        <SeriesStrip series={series} />
 
         {loading ? (
           <LogoSpinner label="Loading content..." />

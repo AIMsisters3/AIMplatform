@@ -19,7 +19,7 @@ export default function ContentCard({ item, onClick }) {
   // placeholder used for no-thumbnail items, rather than leaving a broken
   // image icon on the card.
   const [thumbnailBroken, setThumbnailBroken] = useState(false);
-  const duration = kind === 'video' ? formatDuration(item.duration_seconds) : null;
+  const duration = (kind === 'video' || kind === 'audio') ? formatDuration(item.duration_seconds) : null;
   const relativeDate = formatRelativeDate(item.publish_date || item.created_at);
   const viewCount = formatCount(item.views);
   const commentCount = formatCount(item.comments_count);
@@ -67,7 +67,7 @@ export default function ContentCard({ item, onClick }) {
 
         {/* YouTube-style duration chip on the thumbnail itself (in
             addition to appearing in the metadata line below) — only
-            ever a real, captured duration (see readVideoDuration() in
+            ever a real, captured duration (see readMediaDuration() in
             UploadContent.jsx); omitted entirely for anything uploaded
             before that existed. */}
         {duration && (
