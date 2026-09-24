@@ -12,12 +12,12 @@ class ContactMessage
         $this->db = Database::getConnection();
     }
 
-    public function create(string $name, string $email, string $message): int
+    public function create(string $name, string $email, string $message, ?string $subject = null): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO contact_messages (name, email, message) VALUES (:name, :email, :message)'
+            'INSERT INTO contact_messages (name, email, subject, message) VALUES (:name, :email, :subject, :message)'
         );
-        $stmt->execute(['name' => $name, 'email' => $email, 'message' => $message]);
+        $stmt->execute(['name' => $name, 'email' => $email, 'subject' => $subject, 'message' => $message]);
         return (int) $this->db->lastInsertId();
     }
 }
