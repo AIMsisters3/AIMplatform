@@ -61,7 +61,32 @@ class ProductController
             unset($item);
         }
 
+        $items = self::stripCostPriceUnlessManager($items, $viewer);
+
         json_ok(['items' => $items, 'page' => $page, 'limit' => $limit, 'total' => $total]);
+    }
+
+    /**
+     * GET /api/products/featured?limit= — admin-curated first, backfilled
+     * by real popularity signals (views/purchases) when short — see
+     * Product::featured() for the selection logic. Never a hardcoded list.
+     */
+    public function featured(): void
+    {
+        $limit = min(20, max(1, (int) ($_GET['limit'] ?? 10)));
+        $items = $this->model->featured($limit);
+
+        $viewer = optional_auth();
+        if ($viewer) {
+            $wishlisted = (new Wishlist())->wishlistedIdsAmong((int) $viewer['sub'], array_column($items, 'id'));
+            foreach ($items as &$item) {
+                $item['is_wishlisted'] = in_array((int) $item['id'], $wishlisted, true);
+            }
+            unset($item);
+        }
+        $items = self::stripCostPriceUnlessManager($items, $viewer);
+
+        json_ok(['items' => $items]);
     }
 
     /** GET /api/products/{idOrSlug} */
@@ -81,7 +106,41 @@ class ProductController
             $product['is_wishlisted'] = (new Wishlist())->contains((int) $viewer['sub'], (int) $product['id']);
         }
 
+        // Real customer interest only - this same endpoint is also hit
+        // directly by ManageProducts.jsx's edit form (unlike the public
+        // product page, which is a separate route), so an admin opening
+        // a product to edit it must never inflate its "Most Viewed"
+        // ranking. No per-visitor dedup yet (a refreshed tab counts
+        // again) - a known, disclosed simplification, not silently
+        // presented as exact analytics-grade tracking.
+        if (!$viewer || !user_has_permission($viewer, 'products.manage')) {
+            $this->model->incrementViews((int) $product['id']);
+        }
+
+        [$product] = self::stripCostPriceUnlessManager([$product], $viewer);
+        $related = self::stripCostPriceUnlessManager($related, $viewer);
+
         json_ok(['item' => $product, 'related' => $related]);
+    }
+
+    /**
+     * cost_price (migration 026) is admin-only, never public — spec: "Do
+     * not expose cost price publicly. Only admins see this." Stripped
+     * here, at every response boundary, rather than trusting each caller
+     * to remember not to read it - Product::decorate() intentionally
+     * leaves it in place since the model itself is shared by admin reads
+     * (ManageProducts.jsx needs it) and public ones.
+     */
+    private static function stripCostPriceUnlessManager(array $items, ?array $viewer): array
+    {
+        if ($viewer && user_has_permission($viewer, 'products.manage')) {
+            return $items;
+        }
+        foreach ($items as &$item) {
+            unset($item['cost_price']);
+        }
+        unset($item);
+        return $items;
     }
 
     /** POST /api/products (requires products.manage) */

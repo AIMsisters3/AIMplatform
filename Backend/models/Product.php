@@ -278,14 +278,68 @@ class Product
         return array_map([$this, 'decorate'], $stmt->fetchAll());
     }
 
+    /**
+     * Featured products for the storefront: admin-curated (is_featured=1)
+     * products win a slot first, and if there aren't enough of those to
+     * fill $limit, the rest are backfilled by real popularity signals —
+     * views (migration 026) and units actually sold (stock_movements
+     * reason='sale', migration 015) — never a hardcoded/static list, per
+     * spec: "selected using views/purchases/popularity/admin flag."
+     * Purchases are weighted above views since a sale is much stronger
+     * buying-intent evidence than a page view.
+     */
+    public function featured(int $limit = 10): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT p.*, cat.name AS category_name, cat.slug AS category_slug
+             FROM products p
+             LEFT JOIN categories cat ON cat.id = p.category_id
+             WHERE p.deleted_at IS NULL AND p.status = 'active' AND p.is_featured = 1
+             ORDER BY p.created_at DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        $picked = $stmt->fetchAll();
+
+        $remaining = $limit - count($picked);
+        if ($remaining > 0) {
+            $excludeIds = array_column($picked, 'id') ?: [0];
+            $placeholders = implode(',', array_fill(0, count($excludeIds), '?'));
+
+            $stmt = $this->db->prepare(
+                "SELECT p.*, cat.name AS category_name, cat.slug AS category_slug,
+                    (p.views + COALESCE(sold.units, 0) * 5) AS popularity_score
+                 FROM products p
+                 LEFT JOIN categories cat ON cat.id = p.category_id
+                 LEFT JOIN (
+                     SELECT product_id, SUM(-quantity_change) AS units
+                     FROM stock_movements
+                     WHERE reason = 'sale'
+                     GROUP BY product_id
+                 ) sold ON sold.product_id = p.id
+                 WHERE p.deleted_at IS NULL AND p.status = 'active' AND p.id NOT IN ($placeholders)
+                 ORDER BY popularity_score DESC, p.created_at DESC
+                 LIMIT " . $remaining
+            );
+            $stmt->execute($excludeIds);
+            $picked = array_merge($picked, $stmt->fetchAll());
+        }
+
+        return array_map(function (array $row): array {
+            unset($row['popularity_score']);
+            return $this->decorate($row);
+        }, $picked);
+    }
+
     public function create(array $data): int
     {
         $sql = 'INSERT INTO products
-                (name, slug, description, seo_keywords, category_id, brand, price, currency, sale_price, sale_starts_at, sale_ends_at,
+                (name, slug, description, seo_keywords, category_id, brand, price, cost_price, currency, sale_price, sale_starts_at, sale_ends_at,
                  sku, barcode, stock_quantity, weight_kg, product_type, sourcing_type, thumbnail, gallery_images, attributes,
                  is_featured, is_new, status)
                 VALUES
-                (:name, :slug, :description, :seo_keywords, :category_id, :brand, :price, :currency, :sale_price, :sale_starts_at, :sale_ends_at,
+                (:name, :slug, :description, :seo_keywords, :category_id, :brand, :price, :cost_price, :currency, :sale_price, :sale_starts_at, :sale_ends_at,
                  :sku, :barcode, :stock_quantity, :weight_kg, :product_type, :sourcing_type, :thumbnail, :gallery_images, :attributes,
                  :is_featured, :is_new, :status)';
 
@@ -298,7 +352,7 @@ class Product
     public function update(int $id, array $data): bool
     {
         $allowed = [
-            'name', 'slug', 'description', 'seo_keywords', 'category_id', 'brand', 'price', 'currency',
+            'name', 'slug', 'description', 'seo_keywords', 'category_id', 'brand', 'price', 'cost_price', 'currency',
             'sale_price', 'sale_starts_at', 'sale_ends_at', 'sku', 'barcode', 'stock_quantity', 'weight_kg',
             'product_type', 'sourcing_type', 'thumbnail', 'gallery_images', 'attributes', 'is_featured', 'is_new', 'status',
         ];
@@ -331,6 +385,7 @@ class Product
             'category_id'     => $data['category_id'] ?? null,
             'brand'           => $data['brand'] ?? null,
             'price'           => $data['price'] ?? 0,
+            'cost_price'      => $data['cost_price'] ?? null,
             'currency'        => $data['currency'] ?? 'NAD',
             'sale_price'      => $data['sale_price'] ?? null,
             'sale_starts_at'  => $data['sale_starts_at'] ?? null,
@@ -527,5 +582,10 @@ class Product
     public function countActive(): int
     {
         return (int) $this->db->query("SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND status = 'active'")->fetchColumn();
+    }
+
+    public function incrementViews(int $id): void
+    {
+        $this->db->prepare('UPDATE products SET views = views + 1 WHERE id = :id')->execute(['id' => $id]);
     }
 }

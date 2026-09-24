@@ -235,12 +235,32 @@ export default function ProductDetail() {
     ? (matchedVariant ? (matchedVariant.stock_quantity - (matchedVariant.reserved_quantity || 0)) > 0 : null)
     : availability !== 'out_of_stock';
 
+  // Cart-time stock check starts here, not at checkout: a shopper can
+  // never even select more units than are actually available right now.
+  // On-order items aren't stock-limited the same way, so they have no cap.
+  const maxQuantity = useMemo(() => {
+    if (!product || product.sourcing_type === 'on_order') return null;
+    if (hasVariants) {
+      return matchedVariant ? Math.max(0, matchedVariant.stock_quantity - (matchedVariant.reserved_quantity || 0)) : null;
+    }
+    return Math.max(0, (product.stock_quantity || 0) - (product.reserved_quantity || 0));
+  }, [product, hasVariants, matchedVariant]);
+
+  useEffect(() => {
+    if (maxQuantity != null && maxQuantity > 0) {
+      setQuantity((q) => Math.min(q, maxQuantity));
+    }
+  }, [maxQuantity]);
+
   const pickupOnly = deliveryAreas.filter((a) => a.is_pickup);
   const deliveryOnly = deliveryAreas.filter((a) => !a.is_pickup);
   const cheapestDelivery = deliveryOnly.length ? Math.min(...deliveryOnly.map((a) => Number(a.fee))) : null;
 
   function changeQuantity(delta) {
-    setQuantity((q) => Math.max(1, q + delta));
+    setQuantity((q) => {
+      const next = Math.max(1, q + delta);
+      return maxQuantity != null ? Math.min(next, Math.max(1, maxQuantity)) : next;
+    });
   }
 
   function handleAddToCart() {
@@ -376,6 +396,9 @@ export default function ProductDetail() {
                 <Plus className="w-4 h-4" />
               </button>
             </div>
+            {maxQuantity != null && maxQuantity > 0 && maxQuantity <= 10 && (
+              <span className="text-xs font-semibold text-amber-600">Only {maxQuantity} left</span>
+            )}
 
             <button
               onClick={handleAddToCart}

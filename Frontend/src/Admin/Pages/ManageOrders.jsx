@@ -1,7 +1,37 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Clock, Link2, FileText } from 'lucide-react';
+import { Clock, Link2, FileText, Download, Loader2 } from 'lucide-react';
 import api from '../../api/axios.js';
+
+const EXPORT_COLUMNS = [
+  ['order_number', 'Order Number'], ['created_at', 'Date'], ['customer_name', 'Customer Name'],
+  ['customer_email', 'Customer Email'], ['order_kind', 'Order Kind'], ['status', 'Fulfillment Status'],
+  ['payment_state', 'Payment State'], ['payment_method', 'Payment Method'], ['subtotal', 'Subtotal'],
+  ['discount_total', 'Discount'], ['shipping_total', 'Shipping'], ['grand_total', 'Grand Total'],
+  ['amount_paid', 'Amount Paid'], ['fulfillment_type', 'Fulfillment Type'],
+  ['delivery_area_name_snapshot', 'Delivery Area'], ['tracking_number', 'Tracking Number'],
+];
+
+function csvEscape(value) {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function downloadOrdersCsv(orders) {
+  const rows = [
+    EXPORT_COLUMNS.map(([, header]) => header).join(','),
+    ...orders.map((o) => EXPORT_COLUMNS.map(([key]) => csvEscape(o[key])).join(',')),
+  ];
+  const blob = new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 const STATUSES = ['', 'awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered', 'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'];
 const ORDER_KINDS = ['', 'standard', 'pay_later', 'on_order'];
@@ -52,6 +82,27 @@ export default function ManageOrders() {
   const [refunds, setRefunds] = useState({}); // orderId -> refund[]
   const [refundForm, setRefundForm] = useState({}); // orderId -> {amount, reason}
   const [processForm, setProcessForm] = useState({}); // refundId -> {method, notes}
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    setMessage('');
+    try {
+      const { data } = await api.get('/orders/export', {
+        params: { status: status || undefined, order_kind: orderKind || undefined },
+      });
+      const items = data.data.items;
+      if (items.length === 0) {
+        setMessage('No orders match the current filters to export.');
+      } else {
+        downloadOrdersCsv(items);
+      }
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Could not export orders.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -188,6 +239,15 @@ export default function ManageOrders() {
             className="px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary">
             {STATUSES.map((s) => <option key={s} value={s}>{s ? label(s) : 'All Statuses'}</option>)}
           </select>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            title="Export orders matching the current filters as CSV"
+            className="px-4 py-2.5 rounded-xl2 bg-brand-gradient text-white text-sm font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60 flex items-center gap-2"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Export CSV
+          </button>
         </div>
       </div>
 

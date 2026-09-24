@@ -41,6 +41,47 @@ class OrderController
         json_ok(['items' => $this->model->forUser((int) $payload['sub'], $limit, ($page - 1) * $limit)]);
     }
 
+    /**
+     * GET /api/orders/export — every order matching the filters (up to
+     * 5000), for the admin's CSV export (spec item 22: "sales export, CSV
+     * reports"). Returns JSON, not a CSV file directly: this API is
+     * header-token auth only (no query-string token support — see
+     * Backend/middleware/auth.php), so a plain browser-navigated download
+     * link can't authenticate. The frontend fetches this via the normal
+     * authenticated axios client and builds the CSV file client-side from
+     * real data, the same "fetch via API, render client-side" pattern
+     * OrderDocument.jsx already uses for invoices/receipts.
+     */
+    public function export(): void
+    {
+        require_permission('orders.manage');
+        $filters = [
+            'status'        => $_GET['status'] ?? null,
+            'payment_state' => $_GET['payment_state'] ?? null,
+            'order_kind'    => $_GET['order_kind'] ?? null,
+            'date_from'     => $_GET['date_from'] ?? null,
+            'date_to'       => $_GET['date_to'] ?? null,
+        ];
+        json_ok(['items' => $this->model->all($filters, 5000, 0)]);
+    }
+
+    /**
+     * POST /api/orders/check-availability — read-only cart-time stock
+     * check, no auth required (the cart itself is guest-accessible).
+     * Body: { items: [{product_id, variant_id?, quantity}] }. See
+     * Order::checkAvailability() — this never reserves or locks anything;
+     * checkout still re-validates for real.
+     */
+    public function checkAvailability(): void
+    {
+        $body = get_json_body();
+        $items = is_array($body['items'] ?? null) ? $body['items'] : [];
+        if (empty($items)) {
+            json_error('items[] is required.', 422);
+        }
+        json_ok(['items' => $this->model->checkAvailability($items)]);
+    }
+
     /** GET /api/orders/{id} — the order's own customer, or anyone with orders.manage. */
     public function show(int $id): void
     {

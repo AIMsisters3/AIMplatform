@@ -52,7 +52,9 @@ export default function Shop() {
   useEffect(() => {
     api.get('/categories', { params: { type: 'product' } }).then((r) => setCategories(r.data?.data?.items || [])).catch(() => {});
     api.get('/products', { params: { is_new: 1, limit: 10 } }).then((r) => setNewArrivals(r.data?.data?.items || [])).catch(() => {});
-    api.get('/products', { params: { is_featured: 1, limit: 10 } }).then((r) => setFeatured(r.data?.data?.items || [])).catch(() => {});
+    // Real selection (admin flag backfilled by views/purchases), never a
+    // hardcoded list — see Product::featured() and the spec's own wording.
+    api.get('/products/featured', { params: { limit: 10 } }).then((r) => setFeatured(r.data?.data?.items || [])).catch(() => {});
   }, []);
 
   const topCategories = useMemo(() => categories.filter((c) => !c.parent_id), [categories]);
@@ -109,10 +111,7 @@ export default function Shop() {
 
       <div className="max-w-7xl mx-auto px-6 py-10">
         {!isFiltering && (
-          <>
-            <ProductRow title="New Arrivals" icon={Sparkles} products={newArrivals} />
-            <ProductRow title="Featured" icon={Tag} products={featured} />
-          </>
+          <ProductRow title="New Arrivals" icon={Sparkles} products={newArrivals} />
         )}
 
         {/* Category pills */}
@@ -200,11 +199,26 @@ export default function Shop() {
           </div>
         ) : (
           <>
-            <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {items.map((p) => (
+            {/* Featured sits after ~1-2 rows of normal products (4 items =
+                1 row at 4-wide desktop / 2 rows at 2-wide mobile), not
+                pinned at the very top — spec: "not necessarily always at
+                the very top." Only when browsing, not on a filtered/search
+                result, same as New Arrivals above. */}
+            <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+              {items.slice(0, 4).map((p) => (
                 <motion.div key={p.id} variants={fadeUp}><ProductCard product={p} /></motion.div>
               ))}
             </motion.div>
+
+            {!isFiltering && <ProductRow title="Featured" icon={Tag} products={featured} />}
+
+            {items.length > 4 && (
+              <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {items.slice(4).map((p) => (
+                  <motion.div key={p.id} variants={fadeUp}><ProductCard product={p} /></motion.div>
+                ))}
+              </motion.div>
+            )}
             {hasMore && (
               <div className="flex justify-center mt-10">
                 <button

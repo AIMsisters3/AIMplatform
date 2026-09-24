@@ -66,7 +66,7 @@ const AVAILABILITY_BADGE = {
 
 const emptyForm = {
   name: '', slug: '', description: '', seo_keywords: '', category_id: '', brand: '',
-  price: '', sale_price: '', sale_starts_at: '', sale_ends_at: '',
+  price: '', cost_price: '', sale_price: '', sale_starts_at: '', sale_ends_at: '',
   sku: '', barcode: '', stock_quantity: '', weight_kg: '',
   sourcing_type: 'in_stock', is_featured: false, is_new: false, status: 'draft',
   attributes: {},
@@ -160,6 +160,16 @@ export default function ManageProducts() {
       .catch(() => setCategories([]));
   }, []);
 
+  const [lowStockThreshold, setLowStockThreshold] = useState(5);
+  useEffect(() => {
+    api.get('/settings/shop')
+      .then((r) => {
+        const n = parseInt(r.data?.data?.items?.['shop.low_stock_threshold'], 10);
+        if (n > 0) setLowStockThreshold(n);
+      })
+      .catch(() => {});
+  }, []);
+
   const topCategories = useMemo(() => categories.filter((c) => !c.parent_id), [categories]);
   const childrenOf = useCallback((parentId) => categories.filter((c) => String(c.parent_id) === String(parentId)), [categories]);
   const attributeFields = useMemo(() => {
@@ -189,7 +199,7 @@ export default function ManageProducts() {
     setForm({
       name: product.name || '', slug: product.slug || '', description: product.description || '',
       seo_keywords: product.seo_keywords || '', category_id: product.category_id || '', brand: product.brand || '',
-      price: product.price ?? '', sale_price: product.sale_price ?? '',
+      price: product.price ?? '', cost_price: product.cost_price ?? '', sale_price: product.sale_price ?? '',
       sale_starts_at: product.sale_starts_at ? product.sale_starts_at.slice(0, 16) : '',
       sale_ends_at: product.sale_ends_at ? product.sale_ends_at.slice(0, 16) : '',
       sku: product.sku || '', barcode: product.barcode || '', stock_quantity: product.stock_quantity ?? '',
@@ -285,6 +295,7 @@ export default function ManageProducts() {
         slug: form.slug.trim() || undefined,
         category_id: form.category_id || null,
         price: Number(form.price) || 0,
+        cost_price: form.cost_price !== '' ? Number(form.cost_price) : null,
         sale_price: form.sale_price !== '' ? Number(form.sale_price) : null,
         sale_starts_at: form.sale_starts_at || null,
         sale_ends_at: form.sale_ends_at || null,
@@ -438,6 +449,21 @@ export default function ManageProducts() {
               {form.sourcing_type === 'in_stock' && (
                 <Field label="Stock Quantity">
                   <input type="number" min="0" value={form.stock_quantity} onChange={(e) => update('stock_quantity', e.target.value)} className={inputClass} />
+                </Field>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field
+                label="Cost Price (NAD, optional)"
+                hint="What this actually cost the ministry — admin-only, never shown to customers. Powers the Business Dashboard's profit/tithe figures."
+              >
+                <input type="number" step="0.01" min="0" value={form.cost_price} onChange={(e) => update('cost_price', e.target.value)} className={inputClass} />
+              </Field>
+              {form.cost_price !== '' && form.price !== '' && (
+                <Field label="Profit per unit">
+                  <div className={`${inputClass} bg-ink/5 flex items-center font-semibold ${Number(form.price) - Number(form.cost_price) < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    N$ {(Number(form.price) - Number(form.cost_price)).toFixed(2)}
+                  </div>
                 </Field>
               )}
             </div>
@@ -666,7 +692,21 @@ export default function ManageProducts() {
                         <span className="ml-1.5 text-xs text-ink/35 line-through">N$ {Number(p.price).toFixed(2)}</span>
                       )}
                     </td>
-                    <td className="p-4 text-ink/60">{p.sourcing_type === 'in_stock' ? (p.stock_quantity ?? 0) : '—'}</td>
+                    <td className="p-4 text-ink/60">
+                      {p.sourcing_type === 'in_stock' ? (
+                        <span className="flex items-center gap-1.5">
+                          {p.stock_quantity ?? 0}
+                          {(Number(p.stock_quantity ?? 0) - Number(p.reserved_quantity ?? 0)) <= lowStockThreshold && (
+                            <span
+                              className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold"
+                              title={`Available stock is at or below the low-stock threshold (${lowStockThreshold}).`}
+                            >
+                              LOW
+                            </span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-semibold ${avail.className}`}>{avail.label}</span></td>
                     <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE[p.status] || 'bg-ink/10'}`}>{p.status}</span></td>
                     <td className="p-4 text-right">

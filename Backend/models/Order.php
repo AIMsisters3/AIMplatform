@@ -178,6 +178,77 @@ class Order
         return ['orders' => $fullOrders, 'split' => $splitGroupId !== null];
     }
 
+    /**
+     * Read-only cart-time stock check (spec: "validate stock at cart
+     * time... do NOT wait until checkout"). No row locking, no
+     * transaction, nothing reserved — this only gives the shopper early,
+     * honest feedback while they're still on the cart page. The real,
+     * authoritative, row-locked check still happens in
+     * lockAndValidateLine() inside the actual checkout transaction; this
+     * method can never be the thing that prevents overselling by itself.
+     *
+     * @param array $items [{product_id, variant_id?, quantity}, ...]
+     * @return array one result per input line, same order, each:
+     *   {product_id, variant_id, product_name, requested_quantity,
+     *    available_quantity (null for on-order items — not stock-limited
+     *    the same way), ok, reason}
+     */
+    public function checkAvailability(array $items): array
+    {
+        $results = [];
+        foreach ($items as $line) {
+            $productId = (int) ($line['product_id'] ?? 0);
+            $variantId = !empty($line['variant_id']) ? (int) $line['variant_id'] : null;
+            $requestedQty = max(1, (int) ($line['quantity'] ?? 1));
+
+            $product = $this->productModel->find($productId);
+            if (!$product || $product['status'] !== 'active') {
+                $results[] = [
+                    'product_id' => $productId, 'variant_id' => $variantId, 'product_name' => $product['name'] ?? null,
+                    'requested_quantity' => $requestedQty, 'available_quantity' => 0, 'ok' => false,
+                    'reason' => 'This product is no longer available.',
+                ];
+                continue;
+            }
+
+            $variant = null;
+            if ($variantId) {
+                $variant = $this->productModel->findVariant($variantId);
+                if (!$variant || (int) $variant['product_id'] !== $productId || $variant['status'] !== 'active') {
+                    $results[] = [
+                        'product_id' => $productId, 'variant_id' => $variantId, 'product_name' => $product['name'],
+                        'requested_quantity' => $requestedQty, 'available_quantity' => 0, 'ok' => false,
+                        'reason' => 'The selected option is no longer available.',
+                    ];
+                    continue;
+                }
+            }
+
+            if (($product['sourcing_type'] ?? 'in_stock') !== 'in_stock') {
+                // On-order items are procured per-order, not stock-limited the same way.
+                $results[] = [
+                    'product_id' => $productId, 'variant_id' => $variantId, 'product_name' => $product['name'],
+                    'requested_quantity' => $requestedQty, 'available_quantity' => null, 'ok' => true, 'reason' => null,
+                ];
+                continue;
+            }
+
+            $stockQty = (int) ($variant['stock_quantity'] ?? $product['stock_quantity']);
+            $reservedQty = (int) ($variant['reserved_quantity'] ?? $product['reserved_quantity']);
+            $available = max(0, $stockQty - $reservedQty);
+            $ok = $available >= $requestedQty;
+
+            $results[] = [
+                'product_id' => $productId, 'variant_id' => $variantId, 'product_name' => $product['name'],
+                'requested_quantity' => $requestedQty, 'available_quantity' => $available, 'ok' => $ok,
+                'reason' => $ok
+                    ? null
+                    : ($available === 0 ? "\"{$product['name']}\" is out of stock." : "Only {$available} left of \"{$product['name']}\"."),
+            ];
+        }
+        return $results;
+    }
+
     /** Locks the product (and variant, if any) row and returns validated line data — throws if unavailable. */
     private function lockAndValidateLine(array $item): array
     {
@@ -344,10 +415,10 @@ class Order
         $stmt = $this->db->prepare(
             'INSERT INTO order_items
                 (order_id, product_id, variant_id, product_name_snapshot, variant_attributes_snapshot, quantity,
-                 unit_price, sourcing_type_snapshot, procurement_status)
+                 unit_price, unit_cost_snapshot, sourcing_type_snapshot, procurement_status)
              VALUES
                 (:order_id, :product_id, :variant_id, :name_snapshot, :variant_snapshot, :quantity,
-                 :unit_price, :sourcing_type, :procurement_status)'
+                 :unit_price, :unit_cost_snapshot, :sourcing_type, :procurement_status)'
         );
         foreach ($lines as $line) {
             $stmt->execute([
@@ -358,6 +429,12 @@ class Order
                 'variant_snapshot'    => $line['variant'] ? $line['variant']['attributes'] : null,
                 'quantity'            => $line['quantity'],
                 'unit_price'          => $line['unit_price'],
+                // Captured now, not read back from products.cost_price
+                // later - see migration 026's own comment: a cost-price
+                // correction next month must never rewrite this order's
+                // historical profit. Null when the admin hasn't entered a
+                // cost for this product yet - never a guessed value.
+                'unit_cost_snapshot'  => $line['product']['cost_price'] ?? null,
                 'sourcing_type'       => $line['sourcing_type'],
                 'procurement_status'  => $procurementStatus,
             ]);
@@ -439,6 +516,14 @@ class Order
         if (!empty($filters['order_kind'])) {
             $where[] = 'o.order_kind = :order_kind';
             $params['order_kind'] = $filters['order_kind'];
+        }
+        if (!empty($filters['date_from'])) {
+            $where[] = 'o.created_at >= :date_from';
+            $params['date_from'] = $filters['date_from'] . ' 00:00:00';
+        }
+        if (!empty($filters['date_to'])) {
+            $where[] = 'o.created_at <= :date_to';
+            $params['date_to'] = $filters['date_to'] . ' 23:59:59';
         }
         $sql = 'SELECT o.*, u.name AS customer_name, u.email AS customer_email
                 FROM orders o LEFT JOIN users u ON u.id = o.user_id'

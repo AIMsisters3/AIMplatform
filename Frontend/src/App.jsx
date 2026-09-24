@@ -46,6 +46,7 @@ const Login = lazy(() => import('./Pages/Login.jsx'));
 
 // ---------- Admin CMS pages ----------
 const Dashboard = lazy(() => import('./Admin/Pages/Dashboard.jsx'));
+const BusinessDashboard = lazy(() => import('./Admin/Pages/BusinessDashboard.jsx'));
 const UploadContent = lazy(() => import('./Admin/Pages/UploadContent.jsx'));
 const Testimonials = lazy(() => import('./Admin/Pages/Testimonials.jsx'));
 const ManageContent = lazy(() => import('./Admin/Pages/ManageContent.jsx'));
@@ -148,6 +149,7 @@ export default function App() {
               <Route path="content" element={<ManageContent />} />
               <Route path="categories" element={<ManageCategories />} />
               <Route path="products" element={<ManageProducts />} />
+              <Route path="business" element={<BusinessDashboard />} />
               <Route path="series" element={<ManageSeries />} />
               <Route path="orders" element={<ManageOrders />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />

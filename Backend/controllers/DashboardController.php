@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../models/Setting.php';
 
 class DashboardController
 {
@@ -12,8 +13,9 @@ class DashboardController
         require_permission('content.create');
 
         $db = Database::getConnection();
+        $lowStockThreshold = (new Setting())->lowStockThreshold();
 
-        $stats = $db->query(
+        $stats = $db->prepare(
             "SELECT
                 (SELECT COUNT(*) FROM content WHERE content_type = 'video' AND deleted_at IS NULL) AS videos,
                 (SELECT COUNT(*) FROM content WHERE content_type = 'article' AND deleted_at IS NULL) AS articles,
@@ -22,11 +24,13 @@ class DashboardController
                 (SELECT COUNT(*) FROM content WHERE status = 'draft' AND deleted_at IS NULL) AS drafts,
                 (SELECT COUNT(*) FROM comments WHERE status = 'pending') AS pending_comments,
                 (SELECT COUNT(*) FROM orders WHERE status IN ('awaiting_approval','awaiting_payment','processing','supplier_ordered')) AS orders_awaiting_fulfillment,
-                (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_type = 'physical' AND sourcing_type = 'in_stock' AND status != 'archived' AND stock_quantity <= 5) AS low_stock_products,
+                (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_type = 'physical' AND sourcing_type = 'in_stock' AND status != 'archived' AND (stock_quantity - reserved_quantity) <= :low_stock_threshold) AS low_stock_products,
                 (SELECT COUNT(*) FROM payment_records WHERE status = 'awaiting_verification') AS payments_awaiting_verification,
                 (SELECT COUNT(*) FROM refunds WHERE status = 'requested') AS refunds_requested,
                 (SELECT COUNT(*) FROM product_reviews WHERE status = 'pending') AS pending_reviews"
-        )->fetch();
+        );
+        $stats->execute(['low_stock_threshold' => $lowStockThreshold]);
+        $stats = $stats->fetch();
 
         // Separate, best-effort query: content_views (migration 011) may not
         // exist yet on a site that hasn't run that migration - the rest of

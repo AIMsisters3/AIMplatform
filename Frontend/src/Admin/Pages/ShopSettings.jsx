@@ -13,6 +13,8 @@ const FIELDS = [
     hint: 'Include the wallet number/name to send to.' },
   { key: 'shop.refund_policy', label: 'Returns & Refunds Policy', type: 'textarea',
     hint: 'Shown to customers on the Shop. Have this reviewed by a Namibian legal advisor before publishing.' },
+  { key: 'shop.low_stock_threshold', label: 'Low Stock Alert Threshold', type: 'number',
+    hint: 'When a product\'s available stock (stock minus reserved) falls at or below this number, it\'s flagged as low stock on the dashboard and in Manage Products. Defaults to 5 until you set your own.' },
 ];
 
 const DRAFT_REFUND_POLICY = `We want you to be happy with your order.
@@ -85,8 +87,11 @@ export default function ShopSettings() {
               />
             ) : (
               <input
+                type={f.type === 'number' ? 'number' : 'text'}
+                min={f.type === 'number' ? 1 : undefined}
                 value={values[f.key] || ''}
                 onChange={(e) => update(f.key, e.target.value)}
+                placeholder={f.key === 'shop.low_stock_threshold' ? '5' : undefined}
                 className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
               />
             )}

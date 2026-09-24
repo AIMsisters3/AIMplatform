@@ -24,7 +24,19 @@ class Setting
         'shop.payment_instructions_bank'       => 'Bank Transfer Instructions',
         'shop.payment_instructions_mobile_wallet' => 'Mobile Wallet Instructions',
         'shop.refund_policy'                   => 'Returns & Refunds Policy',
+        'shop.low_stock_threshold'             => 'Low Stock Alert Threshold',
     ];
+
+    /** Fallback used only until an admin sets shop.low_stock_threshold for the first time — never silently treated as "the" threshold once a real value exists. */
+    public const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+
+    /** The effective, admin-configurable low-stock threshold (spec: "admin-configurable threshold" — never hardcoded past this one read). */
+    public function lowStockThreshold(): int
+    {
+        $value = $this->getMany(['shop.low_stock_threshold'])['shop.low_stock_threshold'] ?? '';
+        $n = (int) $value;
+        return $n > 0 ? $n : self::DEFAULT_LOW_STOCK_THRESHOLD;
+    }
 
     public function __construct()
     {

@@ -25,6 +25,7 @@ require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../controllers/LanguageController.php';
 require_once __DIR__ . '/../controllers/ContactController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
+require_once __DIR__ . '/../controllers/BusinessAnalyticsController.php';
 require_once __DIR__ . '/../controllers/DeliveryAreaController.php';
 require_once __DIR__ . '/../controllers/CronController.php';
 require_once __DIR__ . '/../controllers/PaymentController.php';
@@ -106,6 +107,8 @@ function route(string $method, string $path)
 
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
+
+        if ($id === 'featured' && $method === 'GET') return $ctrl->featured();
 
         if ($id !== null && $action === 'images' && $subId === 'reorder' && $method === 'POST') return $ctrl->reorderImages((int) $id);
         if ($id !== null && $action === 'images' && $subId !== null && $method === 'DELETE') return $ctrl->deleteImage((int) $id, (int) $subId);
@@ -195,6 +198,8 @@ function route(string $method, string $path)
         $ctrl = new OrderController();
 
         if ($id === 'payment-methods' && $method === 'GET') return $ctrl->paymentMethods();
+        if ($id === 'check-availability' && $method === 'POST') return $ctrl->checkAvailability();
+        if ($id === 'export' && $method === 'GET') return $ctrl->export();
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
@@ -267,6 +272,17 @@ function route(string $method, string $path)
         if ($id === 'summary' && $method === 'GET') return $ctrl->summary();
 
         json_error('Dashboard route not found.', 404);
+    }
+
+    // ---------- BUSINESS ANALYTICS (Shop) ----------
+    if ($resource === 'business-analytics') {
+        $ctrl = new BusinessAnalyticsController();
+
+        if ($id === 'summary' && $method === 'GET') return $ctrl->summary();
+        if ($id === 'trends' && $method === 'GET') return $ctrl->trends();
+        if ($id === 'products' && $method === 'GET') return $ctrl->products();
+
+        json_error('Business analytics route not found.', 404);
     }
 
     // ---------- BIBLE STUDIES ----------

@@ -1,16 +1,60 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingBag, Package, Info } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, Package, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
+import api from '../api/axios.js';
 
 function unitPriceFor(item) {
   if (item.variant_price_override != null) return item.variant_price_override;
   return item.sale_price !== null && item.sale_price < item.price ? item.sale_price : item.price;
 }
 
+function lineKey(productId, variantId) {
+  return `${productId}::${variantId || 'base'}`;
+}
+
 export default function Cart() {
   const { items, setQuantity, removeItem, subtotal, hasPhysical, hasInStock, hasOnOrder } = useCart();
   const navigate = useNavigate();
+
+  // Cart-time stock check — spec: "validate stock while items are still in
+  // the cart, do NOT wait until checkout." This re-checks real, current
+  // database availability every time the cart's contents change (not just
+  // once on page load), so a shopper sees a problem (someone else bought
+  // the last one, an admin adjusted stock, etc.) before they ever reach
+  // checkout — checkout itself still does the authoritative, row-locked
+  // check again; this is purely early, honest feedback.
+  const [availability, setAvailability] = useState({});
+  const [checkingStock, setCheckingStock] = useState(false);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      setAvailability({});
+      return;
+    }
+    let cancelled = false;
+    setCheckingStock(true);
+    api.post('/orders/check-availability', {
+      items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id, quantity: i.quantity })),
+    })
+      .then((r) => {
+        if (cancelled) return;
+        const map = {};
+        for (const result of r.data?.data?.items || []) {
+          map[lineKey(result.product_id, result.variant_id)] = result;
+        }
+        setAvailability(map);
+      })
+      .catch(() => { /* best-effort — checkout's own real check is still authoritative */ })
+      .finally(() => { if (!cancelled) setCheckingStock(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.map((i) => `${i.product_id}:${i.variant_id}:${i.quantity}`).join(',')]);
+
+  const stockIssues = useMemo(
+    () => Object.values(availability).filter((r) => !r.ok),
+    [availability]
+  );
 
   if (items.length === 0) {
     return (
@@ -39,9 +83,11 @@ export default function Cart() {
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => {
             const unit = unitPriceFor(item);
-            const key = `${item.product_id}::${item.variant_id || 'base'}`;
+            const key = lineKey(item.product_id, item.variant_id);
+            const stock = availability[key];
+            const isShort = stock && !stock.ok;
             return (
-              <div key={key} className="glass-card p-4 flex items-center gap-4">
+              <div key={key} className={`glass-card p-4 flex items-center gap-4 ${isShort ? 'ring-2 ring-red-300' : ''}`}>
                 <div className="w-20 h-20 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center overflow-hidden shrink-0">
                   {item.thumbnail ? (
                     <img src={item.thumbnail} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
@@ -60,6 +106,21 @@ export default function Cart() {
                     <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold">ON ORDER</span>
                   )}
                   <p className="font-bold text-ink mt-1">N$ {unit.toFixed(2)}</p>
+                  {isShort && (
+                    <p className="flex items-center gap-1 text-xs font-semibold text-red-600 mt-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {stock.reason}
+                      {stock.available_quantity > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setQuantity(item.product_id, stock.available_quantity, item.variant_id)}
+                          className="underline hover:no-underline"
+                        >
+                          Reduce to {stock.available_quantity}
+                        </button>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -104,10 +165,18 @@ export default function Cart() {
             <span>Estimated Total</span>
             <span>N$ {subtotal.toFixed(2)}{hasPhysical ? '+' : ''}</span>
           </div>
+          {stockIssues.length > 0 && (
+            <p className="flex items-start gap-2 text-xs font-semibold text-red-600 mb-4 bg-red-50 rounded-2xl px-4 py-3">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              {stockIssues.length === 1 ? 'One item in your cart' : `${stockIssues.length} items in your cart`} won't fit as-is — fix the quantities highlighted above before checking out.
+            </p>
+          )}
           <button
             onClick={() => navigate('/checkout')}
-            className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition"
+            disabled={stockIssues.length > 0 || checkingStock}
+            className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
+            {checkingStock && <Loader2 className="w-4 h-4 animate-spin" />}
             Proceed to Checkout
           </button>
         </div>
