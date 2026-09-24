@@ -3,12 +3,14 @@
  * AIMsisters - Minimal fixed-window rate limiter.
  *
  * No external service (Redis/Memcached) required — safe for a single-server
- * XAMPP/shared-hosting deployment. Counters live in the OS temp dir (never
- * web-accessible) and use flock() for atomic increments across requests.
- * If storage is unavailable for any reason this fails OPEN (allows the
- * request) rather than taking the whole API down over a filesystem hiccup.
+ * XAMPP/shared-hosting deployment. Counters live under Backend/storage/
+ * (never web-accessible - see storage/.htaccess) and use flock() for
+ * atomic increments across requests. If storage is unavailable for any
+ * reason this fails OPEN (allows the request) rather than taking the
+ * whole API down over a filesystem hiccup.
  */
 
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/response.php';
 
 function client_ip(): string
@@ -23,7 +25,7 @@ function client_ip(): string
  */
 function rate_limit_check(string $key, int $maxAttempts, int $windowSeconds): void
 {
-    $dir = sys_get_temp_dir() . '/aimsisters_ratelimit';
+    $dir = rtrim(RATE_LIMIT_DIR, '/');
     if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
         return; // can't create storage — fail open
     }

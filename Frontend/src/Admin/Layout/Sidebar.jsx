@@ -5,9 +5,15 @@ const items = [
   { to: '/admin', label: 'Dashboard', icon: '🏠', end: true },
   { to: '/admin/upload', label: 'Upload Content', icon: '⬆️' },
   { to: '/admin/content', label: 'Manage Content', icon: '📋' },
+  { to: '/admin/categories', label: 'Manage Categories', icon: '🏷️' },
   { to: '/admin/series', label: 'Manage Series', icon: '🎬' },
   { to: '/admin/products', label: 'Manage Products', icon: '🛍️' },
+  { to: '/admin/business', label: 'Business Dashboard', icon: '📊' },
   { to: '/admin/orders', label: 'Orders', icon: '📦' },
+  { to: '/admin/delivery-areas', label: 'Delivery & Pickup', icon: '🚚' },
+  { to: '/admin/payments', label: 'Payment Verification', icon: '💳' },
+  { to: '/admin/shop-settings', label: 'Shop Settings', icon: '⚙️' },
+  { to: '/admin/reviews', label: 'Product Reviews', icon: '📝' },
   { to: '/admin/comments', label: 'Comments', icon: '💬' },
   { to: '/admin/newsletter', label: 'Newsletter', icon: '✉️' },
   { to: '/admin/roles', label: 'Roles & Users', icon: '👥' },
@@ -27,7 +33,7 @@ export default function Sidebar() {
         <p className="text-xs text-ink/40 mt-1">Admin CMS</p>
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
         {items.map((item) => (
           <NavLink
             key={item.to}

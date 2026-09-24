@@ -43,13 +43,27 @@ if (!$jwtSecret) {
     // auto-generates .env with a JWT_SECRET on first run).
     $jwtSecret = 'local-dev-only-insecure-secret-change-me';
 }
+
+// --- Cron (scheduled task sweep) ---
+// This shared host has no server-side cron (README §7's known
+// limitations) — a scheduled GitHub Actions workflow calls
+// /api/cron/run-due-tasks instead, authenticated by this shared secret
+// rather than a user JWT (see CronController). Left blank, that endpoint
+// refuses every request rather than running with no auth at all.
+define('CRON_SECRET', env('CRON_SECRET', ''));
 define('JWT_SECRET', $jwtSecret);
 define('JWT_ALGO', 'HS256');
 define('JWT_EXPIRY_SECONDS', 60 * 60 * 24 * 7); // 7 days
 
 // --- App URLs ---
-define('APP_URL', env('APP_URL', 'http://localhost/AIMTech/Backend'));
-define('FRONTEND_URL', env('FRONTEND_URL', 'http://localhost:5173'));
+// rtrim: a hand-edited .env (this project has no admin UI for it — see
+// README) very easily ends up with a trailing slash on APP_URL (e.g.
+// "https://example.com/server/"), which would otherwise double up into
+// ".../server//uploads/..." below and in MAIL_LOGO_URL further down —
+// harmless on some server configs, a genuine 404 on others. Defensive
+// either way, and a no-op for an already-correct value.
+define('APP_URL', rtrim(env('APP_URL', 'http://localhost/AIMTech/Backend'), '/'));
+define('FRONTEND_URL', rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/'));
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');
 define('UPLOAD_URL', APP_URL . '/uploads/');
 // Chunk staging area for large uploads (ChunkUploadController) - deliberately
@@ -57,6 +71,22 @@ define('UPLOAD_URL', APP_URL . '/uploads/');
 // chunk is never web-accessible even by guessing a path. Blocked further by
 // its own .htaccess (Backend/storage/chunk_uploads/.htaccess).
 define('CHUNK_UPLOAD_DIR', __DIR__ . '/../storage/chunk_uploads/');
+// Proof-of-payment screenshots/PDFs — same "outside the public uploads/
+// tree, blocked by storage/.htaccess" reasoning as CHUNK_UPLOAD_DIR
+// above, except here it's permanent, not staging: a payment proof is a
+// customer document and must never be reachable by a guessed URL, only
+// through PaymentController's own auth-checked download endpoint.
+define('PROOF_OF_PAYMENT_DIR', __DIR__ . '/../storage/proof_of_payment/');
+// Rate-limit counters (helpers/rate_limit.php). Deliberately NOT
+// sys_get_temp_dir() - some shared hosts (confirmed on at least one
+// ProFreeHost/InfinityFree-family server) run PHP with an open_basedir
+// restriction whose allow-list doesn't include wherever the OS temp dir
+// actually resolves to there, which made every rate-limited request emit
+// a PHP warning (and, worse, corrupt the JSON response body with that
+// warning's HTML). Backend/storage/ is always inside the app's own
+// already-allowed path on any host, same reasoning as the two constants
+// above, and already .htaccess-blocked from direct web access.
+define('RATE_LIMIT_DIR', __DIR__ . '/../storage/ratelimit/');
 
 // Allowed frontend origins (Vite dev server + production domain).
 // Add production domains via ALLOWED_ORIGINS_EXTRA="https://aimsisters.org,https://www.aimsisters.org"
@@ -84,19 +114,38 @@ define('ALLOWED_VIDEO_TYPES', ['mp4','mov','webm']);
 define('ALLOWED_AUDIO_TYPES', ['mp3','wav','ogg']);
 define('ALLOWED_DOC_TYPES', ['pdf']);
 
-date_default_timezone_set('UTC');
+// AIMsisters trades physically in Namibia — Pay Later/deposit deadlines,
+// reminders, and every date shown to a customer or admin need to mean
+// "Namibian time" consistently, in both PHP and MySQL (see
+// config/database.php's matching `SET time_zone`). Namibia has used a
+// single fixed UTC+2 offset (no DST) since 2018 in practice.
+date_default_timezone_set('Africa/Windhoek');
 error_reporting(APP_ENV === 'local' ? E_ALL : 0);
 ini_set('display_errors', APP_ENV === 'local' ? '1' : '0');
 
-// --- Mail (SMTP) ---
+// --- Mail ---
 // Left blank locally by default — send_email() already fails gracefully
 // (logs and returns false) when these aren't set, so newsletter/auth
 // flows still work end-to-end without a real mail account configured.
+//
+// MAIL_DRIVER picks between two real, working delivery mechanisms in
+// helpers/mailer.php:
+//   'smtp' (default) — PHPMailer over SMTP_HOST/PORT, as before.
+//   'brevo_api'       — HTTPS POST to Brevo's REST API instead of an SMTP
+//                        connection at all. Many free shared hosts (the
+//                        InfinityFree/ProFreeHost family this project
+//                        targets) block outbound SMTP ports entirely as
+//                        an anti-spam measure while still allowing plain
+//                        outbound HTTPS — this option exists specifically
+//                        for that case. Brevo's free tier (300 emails/
+//                        day) needs no card on file; see README for setup.
+define('MAIL_DRIVER', env('MAIL_DRIVER', 'smtp'));
+define('BREVO_API_KEY', env('BREVO_API_KEY', ''));
 define('SMTP_HOST', env('SMTP_HOST', 'smtp.gmail.com'));
 define('SMTP_USER', env('SMTP_USER', ''));
 define('SMTP_PASS', env('SMTP_PASS', ''));
 define('SMTP_PORT', (int) env('SMTP_PORT', 587));
-define('SMTP_FROM_EMAIL', env('SMTP_FROM_EMAIL', 'no-reply@aimsisters.org'));
+define('SMTP_FROM_EMAIL', env('SMTP_FROM_EMAIL', 'aimsisters3@gmail.com'));
 define('SMTP_FROM_NAME', env('SMTP_FROM_NAME', 'AIMsisters'));
 
 // Logo shown in branded transactional emails (welcome/notification templates

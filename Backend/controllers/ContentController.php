@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/publish_notify.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/visitor.php';
 
 class ContentController
 {
@@ -19,28 +20,67 @@ class ContentController
      * DB enum.
      */
     private const SECTION_MEDIA_TYPES = [
-        'media_library' => [
-            'video', 'movie', 'short_film', 'cartoon', 'animation', 'sermon', 'panel',
-            'interview', 'documentary', 'audio', 'music', 'podcast', 'pdf', 'image', 'article',
-        ],
-        'news'        => ['news_article'],
+        // Movie/Cartoon/Animation, Sermon, Documentary, Panel, Podcast,
+        // Article, and PDF are deliberately absent here: those finer-grained
+        // formats were folded into Bible Study's own simplified Video/PDF/
+        // Article/Poster vocabulary (migration 022) rather than duplicated
+        // in the general Content feed too. Article lives under News/Bible
+        // Studies/Devotions; PDF lives under News/Bible Studies;
+        // Movie/Cartoon/Animation are removed from the general Content feed
+        // entirely (Cartoon remains available under Kids, unchanged, for
+        // children's content).
+        'media_library' => ['video', 'short_film', 'interview', 'audio', 'music', 'image'],
+        // News isn't always a written article - an admin can instead post a
+        // video or a PDF under News, same as Media Library's video type.
+        'news'        => ['news_article', 'video', 'pdf'],
         'gallery'     => ['photo_gallery'],
-        'devotions'   => ['devotional'],
+        // Devotions isn't always a written article either - an admin can
+        // instead post a video or audio recording of the devotion.
+        'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004) - keep these in sync with that column.
-        'bible_study' => [
-            'short_film', 'video', 'sermon', 'panel', 'audio', 'animated', 'documentary', 'pdf_notes',
-        ],
+        // value (migration 004, widened/narrowed by migrations 012/013/018/022).
+        // Migration 022 simplified this down to just 4 values ("Video/PDF/
+        // Article/Poster" per spec) - the many finer-grained formats
+        // (Short Film, Sermon, Panel, Podcast, Interview, Animated,
+        // Documentary) previously lived here as separate values but all
+        // read as "a video" to a visitor, so they're folded into 'video'.
+        // 'image' is labeled "Poster" in the UI (same convention as
+        // media_library/Content.jsx's own Poster type) - keep in sync with
+        // bible_studies.format.
+        'bible_study' => ['video', 'pdf', 'article', 'image'],
+        // Kids is its own dedicated, safe section (migration 014) - not just
+        // another category - with its own age-appropriate vocabulary.
+        // Simplified by migration 025: Cartoon/Other removed; Bible Lesson
+        // is PDF-or-Poster only (no written-article format); the child's
+        // actual uploaded file (PDF vs image, video vs audio) is what
+        // drives the viewer shown, sniffed from the file extension at
+        // render time (see Frontend/src/utils/mediaKind.js) - media_type
+        // here only says which Kids category the item belongs to.
+        'kids' => ['bible_story', 'bible_lesson', 'kids_song', 'activity'],
+        // Songs is a dedicated destination (migration 018), separate from
+        // Kids' own 'kids_song' type above - this is general worship
+        // music/audio for every visitor, not children's content. Always
+        // audio (unlike kids_song, which can be Video or Audio).
+        'songs' => ['song'],
     ];
 
     /**
-     * Media types whose primary content IS substantial written text
-     * (news articles, devotions, written articles) - only these show the
-     * Body field by default. Everything else is media-first (video,
-     * audio, gallery, ...) and gets an optional Transcript/Notes field
-     * instead.
+     * Media types allowed to carry a Body value at all - everything else
+     * gets it stripped back to null in normalizeClassification() below, so
+     * a stray value from an older client/section-switch never lingers.
+     * Despite the name, this isn't "body is mandatory" (that's the
+     * frontend's validate() call) - 'pdf' is included so an admin can type
+     * notes instead of uploading a file (spec: "support typed notes/text
+     * where PDF content is allowed"), while still being free to upload a
+     * real file instead, in which case body stays null. The rest (news
+     * articles, devotions, written articles) genuinely do require body -
+     * enforced in validate() on the frontend, since the backend has
+     * always left "is this actually filled in" to the client's
+     * publish-time validation. Kids bible lessons are PDF-or-Poster only
+     * as of migration 025 (no written-article format any more), so
+     * 'bible_lesson' is deliberately absent here now.
      */
-    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+    private const BODY_REQUIRED_MEDIA_TYPES = ['article', 'news_article', 'devotional', 'pdf'];
 
     /**
      * content_type keeps its original 6-value ENUM and is still what
@@ -104,7 +144,7 @@ class ContentController
         return $body;
     }
 
-    /** GET /api/content?type=&category_id=&search=&featured=&page=&status= */
+    /** GET /api/content?type=&category_id=&language=&search=&featured=&page=&status=&mine= */
     public function index(): void
     {
         $page  = max(1, (int) ($_GET['page'] ?? 1));
@@ -115,8 +155,10 @@ class ContentController
             'section'      => $_GET['section'] ?? null,
             'media_type'   => $_GET['media_type'] ?? null,
             'category_id'  => $_GET['category_id'] ?? null,
+            'language'     => $_GET['language'] ?? null,
             'search'       => $_GET['search'] ?? null,
             'is_featured'  => $_GET['featured'] ?? null,
+            'is_live'      => $_GET['live'] ?? null,
         ];
 
         // "status" (including the special "all" value used by the admin's Manage
@@ -134,8 +176,37 @@ class ContentController
             }
         }
 
+        // "My Posted Content" (admin CMS): mine=1 always resolves to the
+        // CALLER's own user id from their verified JWT, never a client-
+        // supplied author_id - this is a real ownership filter (logged-in
+        // admin -> user id -> content.author_id), not the "match the
+        // currently displayed admin name" pattern the spec explicitly
+        // rejected, and it never lets one admin query another's content by
+        // guessing an id.
+        if (!empty($_GET['mine'])) {
+            $payload = require_auth();
+            $filters['author_id'] = (int) $payload['sub'];
+        }
+
         $items = $this->model->all($filters, $limit, ($page - 1) * $limit);
         json_ok(['items' => $items, 'page' => $page, 'limit' => $limit]);
+    }
+
+    /**
+     * GET /api/content/popular?section=&limit= — "Popular This Week":
+     * published items with at least 10 deduplicated views (real
+     * visitors, not page refreshes — see content_views/migration 011)
+     * in the last 7 days, ordered by that week's view count descending.
+     * Returns an empty items array (never a fabricated/fallback list)
+     * when nothing has reached the threshold yet.
+     */
+    public function popular(): void
+    {
+        $section = $_GET['section'] ?? null;
+        $limit = min(24, max(1, (int) ($_GET['limit'] ?? 12)));
+
+        $items = $this->model->popularThisWeek($section, 10, 7, $limit);
+        json_ok(['items' => $items]);
     }
 
     /** GET /api/content/{slug} */
@@ -149,7 +220,11 @@ class ContentController
             json_error('Content not found.', 404);
         }
 
-        $this->model->incrementViews((int) $item['id']);
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+        $this->model->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
+
         json_ok(['item' => $item]);
     }
 
@@ -226,6 +301,24 @@ class ContentController
             && !user_has_permission($payload, 'content.feature')
         ) {
             json_error('You do not have permission to feature content.', 403);
+        }
+
+        // UploadContent.jsx's validate() already requires a thumbnail before
+        // its own Publish button will submit - but that check only runs
+        // inside that form. Manage Content's row-level Publish toggle and
+        // bulk publish (below) both send only {status}, and Content::update()
+        // only ever touches fields actually present in the request body, so
+        // neither path was stopped from flipping a thumbnail-less draft to
+        // 'published'/'scheduled'. Once that happened, the item was
+        // permanently stuck showing the "no thumbnail" placeholder
+        // everywhere, since there is no separate "edit content" screen to
+        // add one afterward. Mirror the same requirement here so it can't be
+        // bypassed by any path other than the validated upload form.
+        if (array_key_exists('status', $body) && in_array($body['status'], ['published', 'scheduled'], true)) {
+            $thumbnail = array_key_exists('thumbnail', $body) ? $body['thumbnail'] : $existing['thumbnail'];
+            if (empty($thumbnail)) {
+                json_error('This item has no thumbnail. Please add one (use the thumbnail button in Manage Content) before publishing.', 422);
+            }
         }
 
         // A partial update might only send one of section/media_type (or
@@ -311,6 +404,21 @@ class ContentController
         $requiredPermission = $action === 'delete' ? 'content.delete' : 'content.publish';
         require_permission($requiredPermission);
 
+        // Same rule as the single-item update() guard above: a bulk publish
+        // must not silently flip a thumbnail-less item to 'published' - so
+        // those ids are skipped here rather than rejecting the whole batch
+        // (an admin bulk-publishing 20 items shouldn't lose all 20 because
+        // one draft never got a thumbnail).
+        $skippedForThumbnail = [];
+        if ($action === 'publish') {
+            $skippedForThumbnail = $this->model->idsWithoutThumbnail($ids);
+            $ids = array_values(array_diff($ids, $skippedForThumbnail));
+        }
+
+        if (empty($ids)) {
+            json_error('None of the selected items have a thumbnail. Please add one before publishing.', 422);
+        }
+
         match ($action) {
             'delete'  => $this->model->bulkDelete($ids),
             'publish' => $this->model->bulkUpdateStatus($ids, 'published'),
@@ -318,7 +426,12 @@ class ContentController
             default   => json_error('Unknown bulk action.', 422),
         };
 
-        json_ok(null, 'Bulk action completed.');
+        $message = 'Bulk action completed.';
+        if (!empty($skippedForThumbnail)) {
+            $message .= ' ' . count($skippedForThumbnail) . ' item(s) skipped - no thumbnail.';
+        }
+
+        json_ok(['skipped_ids' => $skippedForThumbnail], $message);
     }
 
     private function slugify(string $text): string

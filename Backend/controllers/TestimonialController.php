@@ -4,6 +4,7 @@ require_once __DIR__ . '/../models/Testimonial.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/admin_notify.php';
 
 class TestimonialController
 {
@@ -36,6 +37,14 @@ class TestimonialController
         }
 
         $id = $this->model->create((int) $payload['sub'], $text);
+
+        notify_admins_event(
+            'New testimony submitted',
+            'A visitor submitted a testimony awaiting review: "' . mb_substr($text, 0, 140) . (mb_strlen($text) > 140 ? '...' : '') . '"',
+            'testimonies',
+            '/admin/testimonials'
+        );
+
         json_created(['id' => $id], 'Thank you! Your testimony has been submitted for review.');
     }
 
@@ -55,12 +64,33 @@ class TestimonialController
         json_ok(null, 'Testimony approved.');
     }
 
-    /** POST /api/testimonials/{id}/reject (admin only) */
+    /** POST /api/testimonials/{id}/reject (admin only) body: {reason} - reason is required */
     public function reject(int $id): void
     {
         require_permission('testimonials.manage');
-        $this->model->updateStatus($id, 'rejected');
+        $body = get_json_body();
+        $reason = trim($body['reason'] ?? '');
+        if ($reason === '') {
+            json_error('Please explain why this testimony is being rejected.', 422);
+        }
+        $this->model->reject($id, $reason);
         json_ok(null, 'Testimony rejected.');
+    }
+
+    /** POST /api/testimonials/{id}/archive (admin only) - approved testimonies only, per the model's own state machine */
+    public function archive(int $id): void
+    {
+        require_permission('testimonials.manage');
+        $this->model->updateStatus($id, 'archived');
+        json_ok(null, 'Testimony archived.');
+    }
+
+    /** POST /api/testimonials/{id}/restore (admin only) - brings an archived testimony back to approved/public */
+    public function restore(int $id): void
+    {
+        require_permission('testimonials.manage');
+        $this->model->updateStatus($id, 'approved');
+        json_ok(null, 'Testimony restored.');
     }
 
     /** DELETE /api/testimonials/{id} (admin only) */

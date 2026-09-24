@@ -1,14 +1,52 @@
+// content.is_live comes back from the API as 1/0, '1'/'0', or a real
+// boolean depending on the PHP/PDO driver in play — normalize once here
+// rather than repeating the same loose check at every render site.
+export function isLive(item) {
+  return item?.is_live === 1 || item?.is_live === '1' || item?.is_live === true;
+}
+
 export function getYouTubeEmbed(url = '') {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;
 }
 
+// Written-content media types never have a real media file — media_url is
+// always null for these (see ContentController::normalizeClassification()),
+// so inferring kind from a URL's file extension always fell through to
+// whatever the *thumbnail's* extension happened to be (almost always an
+// image), misclassifying every article/devotion/news article as 'image'.
+// Checked first, before any URL-extension inference, so this can never
+// happen regardless of what the thumbnail looks like. Kids bible lessons
+// are deliberately absent here (migration 025: PDF-or-Poster only, no
+// written-article format any more) — a bible_lesson's real kind now
+// comes from its actual uploaded file's extension below, same as any
+// other PDF/image upload. A pre-migration bible lesson that still only
+// has typed body text (no media_url) is still caught by the body-only
+// fallback two lines down, so old written lessons keep rendering.
+const ARTICLE_MEDIA_TYPES = ['article', 'news_article', 'devotional'];
+
+// Media types that are unambiguously audio, straight from the backend
+// (Backend/controllers/ContentController.php's SECTION_MEDIA_TYPES) —
+// checked before any file-extension guessing below. Extension sniffing
+// alone previously misclassified a .ogg audio upload as video, since
+// .ogg also appears in the video-extension list a few lines down (Ogg
+// is a real container for both); media_type is already known and
+// authoritative, so there's no need to guess for these.
+const AUDIO_MEDIA_TYPES = ['audio', 'music', 'song'];
+
 export function getItemKind(item) {
+  if (ARTICLE_MEDIA_TYPES.includes(item.media_type)) return 'article';
+  // PDF/Notes typed directly as text instead of uploaded as a file (spec:
+  // "support typed notes/text where PDF/Notes content is allowed") — no
+  // media_url, but real body content.
+  if (!item.media_url && item.body) return 'article';
+  if (AUDIO_MEDIA_TYPES.includes(item.media_type)) return 'audio';
+
   const url = item.media_url || item.thumbnail || '';
   if (getYouTubeEmbed(url)) return 'video';
   const ext = url.split('.').pop()?.split('?')[0]?.toLowerCase();
-  if (['mp4', 'webm', 'ogg', 'mov'].includes(ext)) return 'video';
-  if (['mp3', 'wav', 'm4a'].includes(ext)) return 'audio';
+  if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) return 'audio';
+  if (['mp4', 'webm', 'mov'].includes(ext)) return 'video';
   if (ext === 'pdf') return 'pdf';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
   // Gallery items store their photo as media_url/thumbnail with a plain

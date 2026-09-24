@@ -1,6 +1,8 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
+require_once __DIR__ . '/../helpers/live_status.php';
 
 /**
  * Backs bible_studies / bible_study_progress / bible_study_notes
@@ -49,11 +51,16 @@ class BibleStudy
             $where[] = '(c.title LIKE :search OR c.tags LIKE :search OR c.bible_references LIKE :search)';
             $params['search'] = '%' . $filters['search'] . '%';
         }
+        if (!empty($filters['is_live'])) {
+            $where[] = live_window_sql('c');
+        }
 
-        $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
+        $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name,
+                    s.title AS series_title, s.slug AS series_slug
                 FROM content c
                 JOIN bible_studies bs ON bs.content_id = c.id
                 LEFT JOIN categories cat ON cat.id = c.category_id
+                LEFT JOIN series s ON s.id = c.series_id
                 WHERE ' . implode(' AND ', $where) . '
                 ORDER BY COALESCE(c.publish_date, c.created_at) DESC
                 LIMIT :limit OFFSET :offset';
@@ -65,7 +72,7 @@ class BibleStudy
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
     public function findByContentId(int $contentId): ?array
@@ -76,7 +83,8 @@ class BibleStudy
              WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
         );
         $stmt->execute(['id' => $contentId]);
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch();
+        return $row ? decorate_live_status(normalize_media_row($row)) : null;
     }
 
     /** Called right after Content::create() for a content_type='bible_study' row. */
@@ -139,7 +147,7 @@ class BibleStudy
         $stmt->bindValue('u', $userId, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
     // ---------------------------------------------------------
@@ -155,12 +163,26 @@ class BibleStudy
         return $stmt->fetchAll();
     }
 
-    public function createNote(int $userId, int $contentId, string $body): int
+    /** Every note belonging to one user, across every study - backs the "My Notes" notebook list. */
+    public function notesForUser(int $userId): array
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO bible_study_notes (user_id, content_id, body) VALUES (:u, :c, :body)'
+            'SELECT n.*, c.title AS study_title, c.slug AS study_slug
+             FROM bible_study_notes n
+             LEFT JOIN content c ON c.id = n.content_id
+             WHERE n.user_id = :u
+             ORDER BY n.updated_at DESC'
         );
-        $stmt->execute(['u' => $userId, 'c' => $contentId, 'body' => $body]);
+        $stmt->execute(['u' => $userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function createNote(int $userId, int $contentId, string $body, ?string $title = null): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO bible_study_notes (user_id, content_id, title, body) VALUES (:u, :c, :title, :body)'
+        );
+        $stmt->execute(['u' => $userId, 'c' => $contentId, 'title' => $title, 'body' => $body]);
         return (int) $this->db->lastInsertId();
     }
 
@@ -171,8 +193,26 @@ class BibleStudy
         return $stmt->fetch() ?: null;
     }
 
-    public function updateNote(int $id, string $body): bool
+    /** A single note plus its associated study's title/slug, for the notebook detail/print page. */
+    public function findNoteWithStudy(int $id): ?array
     {
+        $stmt = $this->db->prepare(
+            'SELECT n.*, c.title AS study_title, c.slug AS study_slug
+             FROM bible_study_notes n
+             LEFT JOIN content c ON c.id = n.content_id
+             WHERE n.id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /** $title: pass null to leave the existing title untouched (vs. clearing it), '' to explicitly clear it. */
+    public function updateNote(int $id, string $body, ?string $title = null, bool $titleProvided = false): bool
+    {
+        if ($titleProvided) {
+            $stmt = $this->db->prepare('UPDATE bible_study_notes SET body = :body, title = :title WHERE id = :id');
+            return $stmt->execute(['body' => $body, 'title' => $title, 'id' => $id]);
+        }
         $stmt = $this->db->prepare('UPDATE bible_study_notes SET body = :body WHERE id = :id');
         return $stmt->execute(['body' => $body, 'id' => $id]);
     }

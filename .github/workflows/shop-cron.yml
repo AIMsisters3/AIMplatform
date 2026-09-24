@@ -1,0 +1,51 @@
+name: Scheduled tasks (Shop reminders / scheduled content publishing)
+
+# This host has no server-side cron (see README §7's known limitations),
+# so this workflow is the "cron" for every time-based task in the app:
+# Pay Later payment reminders/expiry+stock-release, on-order deposit
+# deadline reminders, AND publishing any News/Devotion/other content an
+# admin scheduled for a now-past date (a "Schedule for later" item
+# otherwise never goes live on its own — see
+# Content::publishDueScheduled()). It just calls one protected backend
+# endpoint — CronController::runDueTasks() — which does all the actual
+# work.
+#
+# One-time setup required (see README §7.5 for the FTP secrets this repo
+# already uses as a reference — this follows the same pattern):
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#     CRON_SECRET     must match Backend/.env's CRON_SECRET on the server
+#   Optional repo VARIABLE, only if your backend URL differs from the default:
+#     BACKEND_URL     e.g. https://your-domain/backend (default below)
+
+on:
+  schedule:
+    # Every 30 minutes. Pay Later periods are whole days (1-14), so this
+    # cadence is far more frequent than actually needed for correctness —
+    # it's chosen so a reminder/expiry is never more than ~30 minutes
+    # late, not because the deadlines themselves are that precise.
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  run-due-tasks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the Shop cron endpoint
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://aimsisters.ct.ws/backend' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repo secret is not set — see this workflow's header comment."
+            exit 1
+          fi
+          http_status=$(curl -s -o response.json -w "%{http_code}" \
+            -X POST "$BACKEND_URL/api/cron/run-due-tasks" \
+            -H "X-Cron-Secret: $CRON_SECRET" \
+            -H "Content-Type: application/json")
+          echo "HTTP $http_status"
+          cat response.json
+          if [ "$http_status" -ge 300 ]; then
+            echo "::error::Cron endpoint returned HTTP $http_status"
+            exit 1
+          fi

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Check, X, Trash2 } from 'lucide-react';
+import { Check, X, Trash2, Archive, RotateCcw } from 'lucide-react';
 import api from '../../api/axios.js';
 
 const TABS = [
   { key: 'pending', label: 'Pending' },
   { key: 'approved', label: 'Approved' },
   { key: 'rejected', label: 'Rejected' },
+  { key: 'archived', label: 'Archived' },
 ];
 
 export default function Testimonials() {
@@ -13,6 +14,11 @@ export default function Testimonials() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  // The testimony currently being rejected - holds the id until a reason
+  // is typed and confirmed, rather than rejecting immediately on click
+  // (spec: rejection requires a stored reason).
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     load();
@@ -42,13 +48,47 @@ export default function Testimonials() {
     }
   }
 
-  async function handleReject(id) {
+  function openReject(id) {
+    setRejectingId(id);
+    setRejectReason('');
+  }
+
+  async function confirmReject() {
+    const reason = rejectReason.trim();
+    if (!reason) return;
+    const id = rejectingId;
     setBusyId(id);
     try {
-      await api.post(`/testimonials/${id}/reject`);
+      await api.post(`/testimonials/${id}/reject`, { reason });
       setItems((prev) => prev.filter((t) => t.id !== id));
+      setRejectingId(null);
+      setRejectReason('');
     } catch (err) {
       alert(err.response?.data?.message || 'Could not reject.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleArchive(id) {
+    setBusyId(id);
+    try {
+      await api.post(`/testimonials/${id}/archive`);
+      setItems((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not archive.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleRestore(id) {
+    setBusyId(id);
+    try {
+      await api.post(`/testimonials/${id}/restore`);
+      setItems((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not restore.');
     } finally {
       setBusyId(null);
     }
@@ -105,6 +145,38 @@ export default function Testimonials() {
                   <span>{t.user_email}</span>
                   <span>{new Date(t.created_at).toLocaleDateString()}</span>
                 </div>
+                {tab === 'rejected' && t.rejection_reason && (
+                  <p className="mt-2 text-xs text-red-600 bg-red-50/70 rounded-lg px-3 py-2">
+                    <span className="font-semibold">Reason: </span>{t.rejection_reason}
+                  </p>
+                )}
+
+                {rejectingId === t.id && (
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <input
+                      autoFocus
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Why is this testimony being rejected? (required)"
+                      className="flex-1 px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                    />
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        disabled={busyId === t.id || !rejectReason.trim()}
+                        onClick={confirmReject}
+                        className="px-4 py-2 rounded-xl2 bg-red-500 text-white text-xs font-semibold disabled:opacity-50"
+                      >
+                        Confirm Reject
+                      </button>
+                      <button
+                        onClick={() => setRejectingId(null)}
+                        className="px-4 py-2 rounded-xl2 bg-ink/10 text-ink text-xs font-semibold"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
@@ -120,13 +192,33 @@ export default function Testimonials() {
                     </button>
                     <button
                       disabled={busyId === t.id}
-                      onClick={() => handleReject(t.id)}
+                      onClick={() => openReject(t.id)}
                       className="w-9 h-9 rounded-full bg-ink/20 text-ink flex items-center justify-center hover:bg-ink/30 transition disabled:opacity-50"
                       title="Reject"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </>
+                )}
+                {tab === 'approved' && (
+                  <button
+                    disabled={busyId === t.id}
+                    onClick={() => handleArchive(t.id)}
+                    className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center hover:bg-amber-200 transition disabled:opacity-50"
+                    title="Archive (hide from the public page, recoverable)"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </button>
+                )}
+                {tab === 'archived' && (
+                  <button
+                    disabled={busyId === t.id}
+                    onClick={() => handleRestore(t.id)}
+                    className="w-9 h-9 rounded-full bg-green-50 text-green-600 flex items-center justify-center hover:bg-green-100 transition disabled:opacity-50"
+                    title="Restore to Approved"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
                 )}
                 <button
                   disabled={busyId === t.id}
