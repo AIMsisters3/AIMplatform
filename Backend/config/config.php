@@ -145,7 +145,7 @@ define('SMTP_HOST', env('SMTP_HOST', 'smtp.gmail.com'));
 define('SMTP_USER', env('SMTP_USER', ''));
 define('SMTP_PASS', env('SMTP_PASS', ''));
 define('SMTP_PORT', (int) env('SMTP_PORT', 587));
-define('SMTP_FROM_EMAIL', env('SMTP_FROM_EMAIL', 'no-reply@aimsisters.org'));
+define('SMTP_FROM_EMAIL', env('SMTP_FROM_EMAIL', 'aimsisters3@gmail.com'));
 define('SMTP_FROM_NAME', env('SMTP_FROM_NAME', 'AIMsisters'));
 
 // Logo shown in branded transactional emails (welcome/notification templates
