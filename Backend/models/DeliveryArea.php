@@ -29,23 +29,30 @@ class DeliveryArea
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO delivery_areas (name, fee, is_pickup, instructions, is_active, sort_order)
-             VALUES (:name, :fee, :is_pickup, :instructions, :is_active, :sort_order)'
+            'INSERT INTO delivery_areas (name, fee, center_latitude, center_longitude, radius_km, is_pickup, instructions, is_active, sort_order)
+             VALUES (:name, :fee, :center_latitude, :center_longitude, :radius_km, :is_pickup, :instructions, :is_active, :sort_order)'
         );
+        $isPickup = !empty($data['is_pickup']);
         $stmt->execute([
-            'name'         => $data['name'],
-            'fee'          => $data['is_pickup'] ?? false ? 0 : ($data['fee'] ?? 0),
-            'is_pickup'    => !empty($data['is_pickup']) ? 1 : 0,
-            'instructions' => $data['instructions'] ?? null,
-            'is_active'    => array_key_exists('is_active', $data) ? (int) (bool) $data['is_active'] : 1,
-            'sort_order'   => $data['sort_order'] ?? 0,
+            'name'             => $data['name'],
+            'fee'              => $isPickup ? 0 : ($data['fee'] ?? 0),
+            // Geo-matching (migration 029) only applies to delivery areas —
+            // a pickup point is somewhere the customer travels to, not
+            // matched against their own pinned location.
+            'center_latitude'  => $isPickup ? null : ($data['center_latitude'] ?? null),
+            'center_longitude' => $isPickup ? null : ($data['center_longitude'] ?? null),
+            'radius_km'        => $isPickup ? null : ($data['radius_km'] ?? null),
+            'is_pickup'        => $isPickup ? 1 : 0,
+            'instructions'     => $data['instructions'] ?? null,
+            'is_active'        => array_key_exists('is_active', $data) ? (int) (bool) $data['is_active'] : 1,
+            'sort_order'       => $data['sort_order'] ?? 0,
         ]);
         return (int) $this->db->lastInsertId();
     }
 
     public function update(int $id, array $data): bool
     {
-        $allowed = ['name', 'fee', 'is_pickup', 'instructions', 'is_active', 'sort_order'];
+        $allowed = ['name', 'fee', 'center_latitude', 'center_longitude', 'radius_km', 'is_pickup', 'instructions', 'is_active', 'sort_order'];
         $fields = [];
         $params = ['id' => $id];
         foreach ($allowed as $field) {

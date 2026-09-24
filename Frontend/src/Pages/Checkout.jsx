@@ -5,6 +5,7 @@ import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/axios.js';
 import DeliveryLocationPicker from '../Components/DeliveryLocationPicker.jsx';
+import { matchDeliveryArea } from '../utils/geo.js';
 
 const METHOD_LABELS = {
   manual_bank: 'Bank Transfer',
@@ -22,8 +23,10 @@ export default function Checkout() {
   const [deliveryAreas, setDeliveryAreas] = useState([]);
   const [fulfillmentType, setFulfillmentType] = useState('delivery');
   const [deliveryAreaId, setDeliveryAreaId] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [deliveryLocation, setDeliveryLocation] = useState(null); // {lat, lng}
+  const [autoMatchedAreaName, setAutoMatchedAreaName] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
@@ -64,13 +67,32 @@ export default function Checkout() {
   useEffect(() => {
     setDeliveryAreaId('');
     setDeliveryLocation(null);
+    setAutoMatchedAreaName('');
   }, [fulfillmentType]);
+
+  // Once the customer pins (or "Use My Location"s) a spot on the map,
+  // auto-select the delivery area whose admin-configured center+radius
+  // actually contains it — spec: "pick it up to be the delivery area"
+  // instead of making them separately choose one from the dropdown. The
+  // dropdown itself is left untouched and still fully editable, so a
+  // customer whose real address falls outside every configured zone (or
+  // who simply disagrees with the match) can still pick manually.
+  function handlePinChange(location) {
+    setDeliveryLocation(location);
+    const match = matchDeliveryArea(deliveryOptions, location.lat, location.lng);
+    if (match) {
+      setDeliveryAreaId(String(match.id));
+      setAutoMatchedAreaName(match.name);
+    } else {
+      setAutoMatchedAreaName('');
+    }
+  }
 
   async function handlePlaceOrder(e) {
     e.preventDefault();
     setError('');
-    if (shippingAddress.trim() === '') {
-      setError(fulfillmentType === 'delivery' ? 'Please provide your name and phone number.' : 'Please provide a contact name and phone number.');
+    if (contactPhone.trim() === '') {
+      setError('Please provide a phone number so we can reach you.');
       return;
     }
     if (fulfillmentType === 'delivery' && !deliveryAreaId) {
@@ -92,7 +114,8 @@ export default function Checkout() {
         items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id || undefined, quantity: i.quantity })),
         fulfillment_type: fulfillmentType,
         delivery_area_id: deliveryAreaId || undefined,
-        shipping_address: shippingAddress,
+        contact_name: contactName.trim() || undefined,
+        contact_phone: contactPhone.trim(),
         delivery_latitude: fulfillmentType === 'delivery' ? deliveryLocation?.lat : undefined,
         delivery_longitude: fulfillmentType === 'delivery' ? deliveryLocation?.lng : undefined,
         coupon_code: couponCode || undefined,
@@ -188,7 +211,7 @@ export default function Checkout() {
             {areaOptions.length > 0 ? (
               <select
                 value={deliveryAreaId}
-                onChange={(e) => setDeliveryAreaId(e.target.value)}
+                onChange={(e) => { setDeliveryAreaId(e.target.value); setAutoMatchedAreaName(''); }}
                 className="w-full px-4 py-3 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
               >
                 <option value="">{fulfillmentType === 'pickup' ? 'Choose a pickup location...' : 'Choose your delivery area...'}</option>
@@ -199,27 +222,47 @@ export default function Checkout() {
             ) : (
               <p className="text-sm text-ink/50">No {fulfillmentType} options are configured yet — please contact us to arrange {fulfillmentType}.</p>
             )}
+            {autoMatchedAreaName && String(selectedArea?.id) === deliveryAreaId && (
+              <p className="text-xs text-emerald-600 font-medium mt-2">
+                Matched to "{autoMatchedAreaName}" from your pinned location below — change it above if that's wrong.
+              </p>
+            )}
             {selectedArea?.instructions && <p className="text-xs text-ink/45 mt-2">{selectedArea.instructions}</p>}
           </div>
 
           <div className="glass-card p-6">
-            <h3 className="font-display font-semibold mb-4">Contact {fulfillmentType === 'delivery' ? '' : '/ Address'}</h3>
-            <textarea
-              rows={3}
-              required
-              value={shippingAddress}
-              onChange={(e) => setShippingAddress(e.target.value)}
-              placeholder="Full name and phone number"
-              className="w-full px-4 py-3 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
-            />
+            <h3 className="font-display font-semibold mb-4">Contact</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="block">
+                <span className="text-xs font-semibold text-ink/50">Full Name (optional)</span>
+                <input
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="Your name"
+                  className="mt-1 w-full px-4 py-3 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-ink/50">Phone Number *</span>
+                <input
+                  required
+                  type="tel"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="e.g. 081 234 5678"
+                  className="mt-1 w-full px-4 py-3 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+                />
+              </label>
+            </div>
 
             {/* Real pin, not a hand-typed street address — the ministry's
                 delivery person gets a map to follow, not a description to
-                interpret. See DeliveryLocationPicker.jsx. */}
+                interpret. See DeliveryLocationPicker.jsx. Pinning here also
+                auto-selects the matching delivery area above. */}
             {fulfillmentType === 'delivery' && (
               <div className="mt-4 pt-4 border-t border-ink/10">
                 <p className="text-sm font-semibold mb-2">Delivery Location</p>
-                <DeliveryLocationPicker value={deliveryLocation} onChange={setDeliveryLocation} />
+                <DeliveryLocationPicker value={deliveryLocation} onChange={handlePinChange} />
               </div>
             )}
           </div>

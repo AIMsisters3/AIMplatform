@@ -101,8 +101,8 @@ class OrderController
     /**
      * POST /api/orders — place an order from a cart payload.
      * body: {items: [{product_id, variant_id?, quantity}], fulfillment_type, delivery_area_id?,
-     *        shipping_address, delivery_latitude?, delivery_longitude? (required iff fulfillment_type
-     *        === 'delivery'), coupon_code?, payment_method, pay_later_days?}
+     *        contact_name? (optional), contact_phone (required), delivery_latitude?, delivery_longitude?
+     *        (required iff fulfillment_type === 'delivery'), coupon_code?, payment_method, pay_later_days?}
      */
     public function store(): void
     {
@@ -115,7 +115,6 @@ class OrderController
         $body = get_json_body();
 
         $items = is_array($body['items'] ?? null) ? $body['items'] : [];
-        $shippingAddress = trim($body['shipping_address'] ?? '');
         $fulfillmentType = $body['fulfillment_type'] ?? 'delivery';
         $deliveryAreaId = !empty($body['delivery_area_id']) ? (int) $body['delivery_area_id'] : null;
         $paymentMethod = $body['payment_method'] ?? 'manual_bank';
@@ -143,9 +142,21 @@ class OrderController
         if (empty($items)) {
             json_error('Your cart is empty.', 422);
         }
-        if ($shippingAddress === '') {
-            json_error('A contact name and phone number are required.', 422);
+
+        // Name and phone are two separate checkout inputs (migration 030)
+        // — name is optional, phone is required (never the other way
+        // around: a delivery/pickup contact must be reachable by phone,
+        // but doesn't have to give their name). shipping_address is then
+        // composed here, server-side, from the two structured fields —
+        // not accepted as free text from the client — so it stays a
+        // predictable, well-formed string for every existing admin/
+        // document screen that already reads it.
+        $contactName = trim($body['contact_name'] ?? '');
+        $contactPhone = trim($body['contact_phone'] ?? '');
+        if ($contactPhone === '') {
+            json_error('A phone number is required so we can reach you.', 422);
         }
+        $shippingAddress = $contactName !== '' ? "{$contactName} — {$contactPhone}" : $contactPhone;
 
         try {
             $result = $this->model->createFromCart(
@@ -159,7 +170,9 @@ class OrderController
                 $body['payment_details'] ?? [],
                 $payLaterDays,
                 $deliveryLatitude,
-                $deliveryLongitude
+                $deliveryLongitude,
+                $contactName !== '' ? $contactName : null,
+                $contactPhone
             );
         } catch (OrderException $e) {
             json_error($e->getMessage(), 422);

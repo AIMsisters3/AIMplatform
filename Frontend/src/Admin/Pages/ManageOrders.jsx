@@ -314,7 +314,12 @@ export default function ManageOrders() {
                     ) : <p className="text-ink/40">Loading items...</p>}
 
                     <p className="text-ink/50">
-                      {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}{o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''} · Contact: {o.shipping_address}
+                      {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}{o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''} · Contact:{' '}
+                      {o.contact_phone ? (
+                        <>
+                          {o.contact_name || 'No name given'} — <a href={`tel:${o.contact_phone}`} className="text-secondary font-semibold">{o.contact_phone}</a>
+                        </>
+                      ) : o.shipping_address}
                     </p>
                     {o.fulfillment_type === 'delivery' && o.delivery_latitude != null && o.delivery_longitude != null && (
                       <a

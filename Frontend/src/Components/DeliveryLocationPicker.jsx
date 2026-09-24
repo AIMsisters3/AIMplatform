@@ -40,6 +40,15 @@ export default function DeliveryLocationPicker({ value, onChange }) {
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState('');
 
+  // The map's click/drag handlers are bound once in a mount-only effect
+  // below, so a plain `onChange` closure there would freeze on whatever
+  // the prop was at first render — stale for good, including whatever
+  // the caller's own state (e.g. Checkout.jsx's fetched delivery areas)
+  // looked like at that instant. Read through this ref instead so every
+  // call always reaches the current onChange from the current render.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   // Mount the map exactly once — re-created markers/view updates happen
   // imperatively below rather than by re-rendering the map itself, which
   // Leaflet doesn't support cleanly with React's render cycle.
@@ -62,10 +71,10 @@ export default function DeliveryLocationPicker({ value, onChange }) {
         markerRef.current = L.marker([lat, lng], { draggable: true }).addTo(map);
         markerRef.current.on('dragend', () => {
           const pos = markerRef.current.getLatLng();
-          onChange({ lat: pos.lat, lng: pos.lng });
+          onChangeRef.current({ lat: pos.lat, lng: pos.lng });
         });
       }
-      onChange({ lat, lng });
+      onChangeRef.current({ lat, lng });
     }
     placeMarkerRef.current = placeMarker;
 

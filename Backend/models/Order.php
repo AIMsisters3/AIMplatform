@@ -47,6 +47,11 @@ class Order
      *   (migration 027) — a real coordinate pair they placed on the checkout map, never a hand-typed
      *   address the delivery person has to interpret. Only meaningful when $fulfillmentType === 'delivery';
      *   ignored for pickup.
+     * @param string $shippingAddress the composed display string (migration 030's contact_name/contact_phone
+     *   formatted together) — kept so every existing admin/document screen that already reads
+     *   shipping_address keeps working unchanged; $contactName/$contactPhone below are the structured source.
+     * @param string|null $contactName,$contactPhone the two separate checkout fields (migration 030) — name is
+     *   optional, phone is required (enforced in OrderController::store(), not here).
      * @return array ['orders' => [order, ...], 'split' => bool]
      * @throws OrderException on any validation failure — message is safe to show the customer directly.
      */
@@ -61,7 +66,9 @@ class Order
         array $paymentDetails = [],
         ?int $payLaterDays = null,
         ?float $deliveryLatitude = null,
-        ?float $deliveryLongitude = null
+        ?float $deliveryLongitude = null,
+        ?string $contactName = null,
+        ?string $contactPhone = null
     ): array {
         if (empty($items)) {
             throw new OrderException('Your cart is empty.');
@@ -145,14 +152,14 @@ class Order
                     $userId, $inStockLines, $totalSubtotal, $totalDiscount, $deliveryFee,
                     $fulfillmentType, $deliveryAreaId, $deliveryAreaName, $shippingAddress,
                     $coupon, $paymentMethod, $paymentDetails, $isPayLater, $payLaterDays, $splitGroupId,
-                    $deliveryLatitude, $deliveryLongitude
+                    $deliveryLatitude, $deliveryLongitude, $contactName, $contactPhone
                 );
             }
             if (!empty($onOrderLines)) {
                 $createdOrders[] = $this->createOnOrderOrder(
                     $userId, $onOrderLines, $totalSubtotal, $totalDiscount, $deliveryFee,
                     $fulfillmentType, $deliveryAreaId, $deliveryAreaName, $shippingAddress,
-                    $coupon, $splitGroupId, $deliveryLatitude, $deliveryLongitude
+                    $coupon, $splitGroupId, $deliveryLatitude, $deliveryLongitude, $contactName, $contactPhone
                 );
             }
 
@@ -310,7 +317,8 @@ class Order
         int $userId, array $lines, float $totalSubtotal, float $totalDiscount, float $deliveryFee,
         string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
         ?array $coupon, string $paymentMethod, array $paymentDetails, bool $isPayLater, ?int $payLaterDays, ?string $splitGroupId,
-        ?float $deliveryLatitude = null, ?float $deliveryLongitude = null
+        ?float $deliveryLatitude = null, ?float $deliveryLongitude = null,
+        ?string $contactName = null, ?string $contactPhone = null
     ): array {
         $subtotal = array_sum(array_map(fn ($l) => $l['line_total'], $lines));
         $discount = $totalDiscount > 0 ? round($subtotal / $totalSubtotal * $totalDiscount, 2) : 0.0;
@@ -323,7 +331,7 @@ class Order
             'split_group_id' => $splitGroupId, 'status' => $isPayLater ? 'awaiting_approval' : 'awaiting_payment',
             'payment_state' => 'pending', 'subtotal' => $subtotal, 'discount_total' => $discount,
             'shipping_total' => $deliveryFee, 'grand_total' => $grandTotal, 'coupon_id' => $coupon['id'] ?? null,
-            'shipping_address' => $shippingAddress,
+            'shipping_address' => $shippingAddress, 'contact_name' => $contactName, 'contact_phone' => $contactPhone,
             'delivery_latitude' => $fulfillmentType === 'delivery' ? $deliveryLatitude : null,
             'delivery_longitude' => $fulfillmentType === 'delivery' ? $deliveryLongitude : null,
             'fulfillment_type' => $fulfillmentType,
@@ -376,7 +384,8 @@ class Order
         int $userId, array $lines, float $totalSubtotal, float $totalDiscount, float $deliveryFee,
         string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
         ?array $coupon, ?string $splitGroupId,
-        ?float $deliveryLatitude = null, ?float $deliveryLongitude = null
+        ?float $deliveryLatitude = null, ?float $deliveryLongitude = null,
+        ?string $contactName = null, ?string $contactPhone = null
     ): array {
         $subtotal = array_sum(array_map(fn ($l) => $l['line_total'], $lines));
         $discount = $totalDiscount > 0 ? round($subtotal / $totalSubtotal * $totalDiscount, 2) : 0.0;
@@ -391,6 +400,7 @@ class Order
             'split_group_id' => $splitGroupId, 'status' => 'awaiting_approval', 'payment_state' => 'pending',
             'subtotal' => $subtotal, 'discount_total' => $discount, 'shipping_total' => $deliveryFee,
             'grand_total' => $grandTotal, 'coupon_id' => $coupon['id'] ?? null, 'shipping_address' => $shippingAddress,
+            'contact_name' => $contactName, 'contact_phone' => $contactPhone,
             'delivery_latitude' => $fulfillmentType === 'delivery' ? $deliveryLatitude : null,
             'delivery_longitude' => $fulfillmentType === 'delivery' ? $deliveryLongitude : null,
             'fulfillment_type' => $fulfillmentType, 'delivery_area_id' => $deliveryAreaId,
@@ -413,11 +423,13 @@ class Order
         $stmt = $this->db->prepare(
             'INSERT INTO orders
                 (user_id, order_number, order_kind, split_group_id, status, payment_state, subtotal, discount_total,
-                 shipping_total, grand_total, coupon_id, shipping_address, delivery_latitude, delivery_longitude,
+                 shipping_total, grand_total, coupon_id, shipping_address, contact_name, contact_phone,
+                 delivery_latitude, delivery_longitude,
                  fulfillment_type, delivery_area_id, delivery_area_name_snapshot, payment_method)
              VALUES
                 (:user_id, :order_number, :order_kind, :split_group_id, :status, :payment_state, :subtotal, :discount_total,
-                 :shipping_total, :grand_total, :coupon_id, :shipping_address, :delivery_latitude, :delivery_longitude,
+                 :shipping_total, :grand_total, :coupon_id, :shipping_address, :contact_name, :contact_phone,
+                 :delivery_latitude, :delivery_longitude,
                  :fulfillment_type, :delivery_area_id, :delivery_area_name_snapshot, :payment_method)'
         );
         $stmt->execute($data);

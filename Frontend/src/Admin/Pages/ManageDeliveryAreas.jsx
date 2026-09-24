@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, Loader2, Truck, MapPin } from 'lucide-react';
 import api from '../../api/axios.js';
+import DeliveryLocationPicker from '../../Components/DeliveryLocationPicker.jsx';
 
-const emptyForm = { name: '', fee: '', is_pickup: false, instructions: '' };
+const emptyForm = { name: '', fee: '', is_pickup: false, instructions: '', center: null, radius_km: '' };
 
 export default function ManageDeliveryAreas() {
   const [areas, setAreas] = useState([]);
@@ -36,6 +37,9 @@ export default function ManageDeliveryAreas() {
         fee: form.is_pickup ? 0 : Number(form.fee) || 0,
         is_pickup: form.is_pickup,
         instructions: form.instructions.trim() || null,
+        center_latitude: !form.is_pickup ? form.center?.lat ?? null : null,
+        center_longitude: !form.is_pickup ? form.center?.lng ?? null : null,
+        radius_km: !form.is_pickup && form.radius_km !== '' ? Number(form.radius_km) : null,
       });
       setForm(emptyForm);
       setShowForm(false);
@@ -83,11 +87,31 @@ export default function ManageDeliveryAreas() {
             <label htmlFor="is_pickup" className="text-sm text-ink/70">This is a pickup location (no delivery fee)</label>
           </div>
           {!form.is_pickup && (
-            <label className="block">
-              <span className="text-xs font-semibold text-ink/50">Delivery Fee (N$)</span>
-              <input required type="number" step="0.01" min="0" value={form.fee} onChange={(e) => update('fee', e.target.value)}
-                className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
-            </label>
+            <>
+              <label className="block">
+                <span className="text-xs font-semibold text-ink/50">Delivery Fee (N$)</span>
+                <input required type="number" step="0.01" min="0" value={form.fee} onChange={(e) => update('fee', e.target.value)}
+                  className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+              </label>
+
+              <div>
+                <span className="text-xs font-semibold text-ink/50">
+                  Zone Center + Radius (optional — lets checkout auto-match a customer's pinned location to this area)
+                </span>
+                <div className="mt-2">
+                  <DeliveryLocationPicker value={form.center} onChange={(loc) => update('center', loc)} />
+                </div>
+                {form.center && (
+                  <label className="block mt-3 max-w-[200px]">
+                    <span className="text-xs font-semibold text-ink/50">Radius (km)</span>
+                    <input type="number" step="0.1" min="0.1" value={form.radius_km} onChange={(e) => update('radius_km', e.target.value)}
+                      placeholder="e.g. 5"
+                      className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+                    <span className="block text-[11px] text-ink/40 mt-1">A customer pin within this radius of the center point auto-selects this area.</span>
+                  </label>
+                )}
+              </div>
+            </>
           )}
           <label className="block">
             <span className="text-xs font-semibold text-ink/50">Instructions (optional)</span>
