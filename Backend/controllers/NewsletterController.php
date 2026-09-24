@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/rate_limit_v2.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 require_once __DIR__ . '/../helpers/admin_notify.php';
+require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../emails/welcome_template.php';
 
 class NewsletterController
@@ -103,5 +104,56 @@ class NewsletterController
         }
         $this->model->unsubscribe($id);
         json_ok(null, 'Subscriber deactivated.');
+    }
+
+    /**
+     * POST /api/newsletter/test-email (requires newsletter.manage) — sends
+     * a real test email to the CALLING admin's own account address, using
+     * the exact same send_email() path every subscriber/News/Devotion
+     * email goes through. Exists so an admin can check "is email delivery
+     * actually working right now" from inside the CMS itself, without
+     * needing FTP/SSH access to read Backend/storage/logs/mailer.log -
+     * the real underlying failure reason (e.g. "SMTP connect() failed",
+     * "authentication failed") is read back from that same log line and
+     * returned directly in the response, never hidden or replaced with a
+     * generic message.
+     */
+    public function sendTestEmail(): void
+    {
+        $payload = require_permission('newsletter.manage');
+        $admin = (new User())->findById((int) $payload['sub']);
+        if (!$admin || empty($admin['email'])) {
+            json_error('Could not find your own account email to send the test to.', 404);
+        }
+
+        $logFile = __DIR__ . '/../storage/logs/mailer.log';
+        $sizeBefore = is_file($logFile) ? filesize($logFile) : 0;
+
+        $sent = send_email(
+            $admin['email'],
+            'AIMsisters — test email',
+            '<p>This is a test email sent from the AIMsisters admin panel to confirm outgoing email delivery is currently working.</p>'
+            . '<p>Driver in use: <strong>' . htmlspecialchars(MAIL_DRIVER) . '</strong></p>'
+            . '<p>Sent at: ' . htmlspecialchars(date('Y-m-d H:i:s')) . ' (Africa/Windhoek)</p>'
+        );
+
+        // Pull back just the line(s) mailer_log() wrote for this specific
+        // attempt (the file only ever grows, so anything past the
+        // pre-send size is from this call), so the real reason is visible
+        // in the admin panel itself.
+        $detail = null;
+        if (is_file($logFile)) {
+            $content = file_get_contents($logFile);
+            $newContent = $sizeBefore > 0 && $sizeBefore <= strlen($content) ? substr($content, $sizeBefore) : $content;
+            $lines = array_values(array_filter(array_map('trim', explode("\n", trim($newContent)))));
+            $detail = $lines ? end($lines) : null;
+        }
+
+        json_ok([
+            'sent'        => $sent,
+            'to'          => $admin['email'],
+            'mail_driver' => MAIL_DRIVER,
+            'detail'      => $detail,
+        ], $sent ? 'Test email sent — check your inbox (and spam folder).' : 'Test email failed — see the detail below for the real reason.');
     }
 }

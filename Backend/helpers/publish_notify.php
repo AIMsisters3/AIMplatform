@@ -70,6 +70,15 @@ function notify_content_url(array $item): string
  */
 function send_content_notification(Content $contentModel, array $item, string $eyebrow, string $button, string $type, bool $email): void
 {
+    // Atomically claim this item's one-time notification before doing
+    // anything else - see Content::claimNewsletterNotification()'s own
+    // comment for the exact race (double-click Publish, a retried
+    // request, two admins acting on the same item at once) this closes.
+    // A losing caller returns immediately having sent nothing at all.
+    if (!$contentModel->claimNewsletterNotification((int) $item['id'])) {
+        return;
+    }
+
     $subject = $eyebrow . ': ' . $item['title'];
 
     if ($email) {
@@ -86,7 +95,8 @@ function send_content_notification(Content $contentModel, array $item, string $e
                 $item['description'] ?? '',
                 $url,
                 $unsubscribeUrl,
-                $item['publish_date'] ?? $item['created_at'] ?? null
+                $item['publish_date'] ?? $item['created_at'] ?? null,
+                $item['thumbnail'] ?? null
             );
             // One failed send (bad address, transient SMTP error) must not
             // stop the rest of the batch — send_email() already returns
@@ -104,8 +114,6 @@ function send_content_notification(Content $contentModel, array $item, string $e
     } catch (Throwable $e) {
         error_log('In-app notification broadcast failed for content ' . $item['id'] . ': ' . $e->getMessage());
     }
-
-    $contentModel->markNewsletterNotified((int) $item['id']);
 }
 
 function maybe_notify_subscribers_of_new_content(Content $contentModel, int $contentId): void

@@ -269,10 +269,25 @@ class Content
     }
 
     /** Marks a devotion/Bible study/news item as having already triggered its one newsletter notification — see helpers/publish_notify.php. */
-    public function markNewsletterNotified(int $id): void
+    /**
+     * Atomically claims the right to send this item's one-time publish
+     * notification (email + in-app bell) - only succeeds for whichever
+     * caller actually flips newsletter_notified_at from NULL first.
+     * Closes a real race window that a plain unconditional "mark as
+     * notified after sending" would leave open: two near-simultaneous
+     * requests for the same item (a double-clicked Publish button, a
+     * retried request, two admins publishing at once) could otherwise
+     * both read "not yet notified" before either had written the flag,
+     * and both send a full batch of subscriber emails. Returns true only
+     * for the caller that should actually proceed to send.
+     */
+    public function claimNewsletterNotification(int $id): bool
     {
-        $stmt = $this->db->prepare('UPDATE content SET newsletter_notified_at = NOW() WHERE id = :id');
+        $stmt = $this->db->prepare(
+            'UPDATE content SET newsletter_notified_at = NOW() WHERE id = :id AND newsletter_notified_at IS NULL'
+        );
         $stmt->execute(['id' => $id]);
+        return $stmt->rowCount() > 0;
     }
 
     public function countByType(string $type): int
