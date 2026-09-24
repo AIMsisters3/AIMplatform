@@ -48,6 +48,10 @@ class Content
             $where[] = 'c.category_id = :category_id';
             $params['category_id'] = $filters['category_id'];
         }
+        if (!empty($filters['author_id'])) {
+            $where[] = 'c.author_id = :author_id';
+            $params['author_id'] = $filters['author_id'];
+        }
         if (!empty($filters['language'])) {
             $where[] = 'c.language = :language';
             $params['language'] = $filters['language'];

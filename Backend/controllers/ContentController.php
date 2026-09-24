@@ -144,7 +144,7 @@ class ContentController
         return $body;
     }
 
-    /** GET /api/content?type=&category_id=&language=&search=&featured=&page=&status= */
+    /** GET /api/content?type=&category_id=&language=&search=&featured=&page=&status=&mine= */
     public function index(): void
     {
         $page  = max(1, (int) ($_GET['page'] ?? 1));
@@ -174,6 +174,18 @@ class ContentController
             )) {
                 $filters['status'] = $_GET['status'];
             }
+        }
+
+        // "My Posted Content" (admin CMS): mine=1 always resolves to the
+        // CALLER's own user id from their verified JWT, never a client-
+        // supplied author_id - this is a real ownership filter (logged-in
+        // admin -> user id -> content.author_id), not the "match the
+        // currently displayed admin name" pattern the spec explicitly
+        // rejected, and it never lets one admin query another's content by
+        // guessing an id.
+        if (!empty($_GET['mine'])) {
+            $payload = require_auth();
+            $filters['author_id'] = (int) $payload['sub'];
         }
 
         $items = $this->model->all($filters, $limit, ($page - 1) * $limit);

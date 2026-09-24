@@ -23,13 +23,22 @@ function normalize_media_url(?string $url): ?string
         return $url;
     }
 
+    // A row seeded/imported from a local dev database (or hand-edited)
+    // can carry a raw Windows filesystem path (e.g.
+    // "C:\xampp\htdocs\AIMTech\Backend\uploads\thumbnails\x.jpg")
+    // instead of a URL - backslashes would never match the 'uploads/'
+    // marker below, so this never displays anywhere until normalized.
+    $normalized = str_replace('\\', '/', $url);
+
     $marker = 'uploads/';
-    $pos = strpos($url, $marker);
+    // Case-insensitive: same reasoning, a hand-edited/imported row could
+    // carry "Uploads/" and would otherwise silently skip normalization.
+    $pos = stripos($normalized, $marker);
     if ($pos === false) {
         return $url;
     }
 
-    return rtrim(APP_URL, '/') . '/' . $marker . substr($url, $pos + strlen($marker));
+    return rtrim(APP_URL, '/') . '/' . $marker . substr($normalized, $pos + strlen($marker));
 }
 
 /** Applies normalize_media_url() to a content-like row's thumbnail/media_url fields, if present. */
