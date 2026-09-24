@@ -3,16 +3,19 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../models/PayLater.php';
 require_once __DIR__ . '/../models/Order.php';
+require_once __DIR__ . '/../models/Content.php';
 require_once __DIR__ . '/../helpers/response.php';
+require_once __DIR__ . '/../helpers/publish_notify.php';
 require_once __DIR__ . '/../config/database.php';
 
 /**
- * Runs time-based Shop tasks (Pay Later reminders/expiry, deposit-
- * deadline reminders) that would normally be driven by a server cron
- * job. This host has none (see README §7), so a scheduled GitHub
- * Actions workflow calls this endpoint instead, authenticated by a
- * shared secret (CRON_SECRET) rather than a user session — there is no
- * "logged-in admin" behind a cron trigger.
+ * Runs time-based tasks (Pay Later reminders/expiry, deposit-deadline
+ * reminders, publishing content scheduled for a now-past date) that
+ * would normally be driven by a server cron job. This host has none
+ * (see README §7), so a scheduled GitHub Actions workflow calls this
+ * endpoint instead, authenticated by a shared secret (CRON_SECRET)
+ * rather than a user session — there is no "logged-in admin" behind a
+ * cron trigger.
  */
 class CronController
 {
@@ -32,14 +35,43 @@ class CronController
 
         $payLaterResult = (new PayLater())->sweep();
         $depositResult = $this->sweepDepositReminders();
+        $scheduledResult = $this->sweepScheduledContent();
 
         $this->logRun('pay_later_sweep', $payLaterResult['reminders_sent'] + $payLaterResult['expired'], $payLaterResult);
         $this->logRun('deposit_reminder_sweep', $depositResult['reminders_sent'], $depositResult);
+        $this->logRun('scheduled_content_sweep', $scheduledResult['published'], $scheduledResult);
 
         json_ok([
-            'pay_later' => $payLaterResult,
-            'deposits'  => $depositResult,
+            'pay_later'         => $payLaterResult,
+            'deposits'          => $depositResult,
+            'scheduled_content' => $scheduledResult,
         ], 'Scheduled tasks completed.');
+    }
+
+    /**
+     * Publishes any content whose publish_date has arrived while it was
+     * still sitting in 'scheduled' status - nothing in this codebase did
+     * this automatically before (see Content::publishDueScheduled()'s own
+     * comment for why that mattered: a scheduled item never appeared on
+     * the public site on its own, no matter how far past its date). Each
+     * newly-published item also gets its normal one-time subscriber
+     * email/in-app notification, exactly as if an admin had clicked
+     * Publish by hand at that moment.
+     */
+    private function sweepScheduledContent(): array
+    {
+        $contentModel = new Content();
+        $ids = $contentModel->publishDueScheduled();
+
+        foreach ($ids as $id) {
+            try {
+                maybe_notify_subscribers_of_new_content($contentModel, $id);
+            } catch (Throwable $e) {
+                error_log('Scheduled-publish notify failed for content ' . $id . ': ' . $e->getMessage());
+            }
+        }
+
+        return ['published' => count($ids), 'ids' => $ids];
     }
 
     /**

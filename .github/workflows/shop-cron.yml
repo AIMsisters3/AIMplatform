@@ -1,10 +1,14 @@
-name: Shop scheduled tasks (Pay Later / deposit reminders)
+name: Scheduled tasks (Shop reminders / scheduled content publishing)
 
 # This host has no server-side cron (see README §7's known limitations),
-# so this workflow is the "cron" for the Shop's time-based tasks: Pay
-# Later payment reminders/expiry+stock-release, and on-order deposit
-# deadline reminders. It just calls one protected backend endpoint —
-# CronController::runDueTasks() — which does all the actual work.
+# so this workflow is the "cron" for every time-based task in the app:
+# Pay Later payment reminders/expiry+stock-release, on-order deposit
+# deadline reminders, AND publishing any News/Devotion/other content an
+# admin scheduled for a now-past date (a "Schedule for later" item
+# otherwise never goes live on its own — see
+# Content::publishDueScheduled()). It just calls one protected backend
+# endpoint — CronController::runDueTasks() — which does all the actual
+# work.
 #
 # One-time setup required (see README §7.5 for the FTP secrets this repo
 # already uses as a reference — this follows the same pattern):

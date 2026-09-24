@@ -95,6 +95,42 @@ function live_fetch_check(string $url): array
     ];
 }
 
+/** Same idea as live_fetch_check(), but for a JSON API endpoint rather than an image file. */
+function live_fetch_check_json(string $url): array
+{
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $body = curl_exec($ch);
+        $err = curl_error($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+
+        if ($err) {
+            return ['ok' => false, 'error' => $err, 'status' => null, 'content_type' => null, 'item_count' => null, 'body_preview' => null];
+        }
+        $decoded = json_decode((string) $body, true);
+        $itemCount = is_array($decoded['data']['items'] ?? null) ? count($decoded['data']['items']) : null;
+        return [
+            'ok'           => $status >= 200 && $status < 300 && is_array($decoded) && ($decoded['success'] ?? false) === true,
+            'status'       => $status,
+            'content_type' => $contentType,
+            'item_count'   => $itemCount,
+            'body_preview' => $decoded === null ? substr(preg_replace('/\s+/', ' ', strip_tags((string) $body)), 0, 300) : null,
+            'error'        => null,
+        ];
+    }
+
+    return ['ok' => false, 'error' => 'The curl PHP extension is not available on this server, so this live API test could not run — everything else on this page still works.', 'status' => null, 'content_type' => null, 'item_count' => null, 'body_preview' => null];
+}
+
 $folders = ['thumbnails', 'videos', 'audio', 'documents', 'general'];
 $scans = [];
 foreach ($folders as $f) {
@@ -122,6 +158,31 @@ try {
 } catch (Throwable $e) {
     $dbError = $e->getMessage();
 }
+
+// News — real DB rows (item 11: "check the actual database rows", not
+// what's assumed) plus a live self-test of the actual public API
+// response (item 12: "open/test the API directly").
+$newsRows = [];
+$newsError = null;
+$stuckScheduledCount = 0;
+try {
+    $db = Database::getConnection();
+    $stmt = $db->query(
+        "SELECT id, title, status, content_type, section, language, publish_date, created_at
+         FROM content WHERE section = 'news' AND deleted_at IS NULL
+         ORDER BY id DESC LIMIT 10"
+    );
+    $newsRows = $stmt->fetchAll();
+    $stuckScheduledCount = (int) $db->query(
+        "SELECT COUNT(*) FROM content WHERE section = 'news' AND status = 'scheduled'
+         AND publish_date IS NOT NULL AND publish_date <= NOW() AND deleted_at IS NULL"
+    )->fetchColumn();
+} catch (Throwable $e) {
+    $newsError = $e->getMessage();
+}
+
+$newsApiUrl = rtrim(APP_URL, '/') . '/index.php/api/news';
+$newsApiCheck = live_fetch_check_json($newsApiUrl);
 
 header('Content-Type: text/html; charset=utf-8');
 ?>
@@ -247,6 +308,55 @@ foreach ($scans as $folder => $info) {
 <p class="bad">No uploaded files were found in any uploads/ subfolder at all. Either nothing has been uploaded yet,
 or this script is looking in the wrong place (UPLOAD_DIR = <code><?= htmlspecialchars(UPLOAD_DIR) ?></code>) —
 confirm that path actually matches where your uploads/ folder lives on the server.</p>
+<?php endif; ?>
+
+<h2>5. News: real database rows + a live test of the actual public API</h2>
+<?php if ($newsError): ?>
+  <p class="bad">Could not query the database: <?= htmlspecialchars($newsError) ?></p>
+<?php else: ?>
+  <?php if ($stuckScheduledCount > 0): ?>
+    <p class="bad">
+      <?= $stuckScheduledCount ?> News item(s) are stuck in "scheduled" status with a publish date that has
+      already passed. A scheduled-task sweep (CronController::runDueTasks(), called every 30 minutes by this
+      repo's GitHub Actions workflow) now publishes these automatically — if this count stays above zero, check
+      that the workflow is actually running (repo → Actions tab) and that CRON_SECRET matches between the repo's
+      secret and this server's <code>Backend/.env</code>.
+    </p>
+  <?php endif; ?>
+  <p>The last 10 News rows in the database right now, regardless of status:</p>
+  <table>
+    <tr><th>ID</th><th>Title</th><th>Status</th><th>content_type</th><th>Language</th><th>Publish date</th></tr>
+    <?php if (!$newsRows): ?>
+      <tr><td colspan="6">No News content exists in the database at all yet.</td></tr>
+    <?php endif; ?>
+    <?php foreach ($newsRows as $row): ?>
+      <tr>
+        <td><?= (int) $row['id'] ?></td>
+        <td><?= htmlspecialchars($row['title']) ?></td>
+        <td class="<?= $row['status'] === 'published' ? 'ok' : ($row['status'] === 'scheduled' ? 'bad' : '') ?>"><?= htmlspecialchars($row['status']) ?></td>
+        <td><?= htmlspecialchars($row['content_type']) ?><?= $row['content_type'] !== 'news' ? ' <span class="bad">(expected "news")</span>' : '' ?></td>
+        <td><?= htmlspecialchars($row['language'] ?? '(none)') ?></td>
+        <td><?= htmlspecialchars($row['publish_date'] ?? $row['created_at']) ?></td>
+      </tr>
+    <?php endforeach; ?>
+  </table>
+
+  <p style="margin-top:20px;">Live test of the exact API the public News page calls: <code><?= htmlspecialchars($newsApiUrl) ?></code></p>
+  <p>
+    <?php if ($newsApiCheck['error']): ?>
+      <span class="bad">Could not test automatically — <?= htmlspecialchars($newsApiCheck['error']) ?></span>
+    <?php elseif ($newsApiCheck['ok']): ?>
+      <span class="ok">OK — HTTP <?= (int) $newsApiCheck['status'] ?>, returned <?= (int) $newsApiCheck['item_count'] ?> published item(s).</span>
+      <?php if ($newsApiCheck['item_count'] === 0): ?>
+        This is a valid, working response — it just means no News currently matches (published, and, if requested, a specific language). Compare against the table above: does any row actually have status "published"?
+      <?php endif; ?>
+    <?php else: ?>
+      <span class="bad">BROKEN — HTTP <?= $newsApiCheck['status'] !== null ? (int) $newsApiCheck['status'] : '(no response)' ?>, Content-Type: <?= htmlspecialchars($newsApiCheck['content_type'] ?? '(none)') ?></span>
+      <?php if ($newsApiCheck['body_preview']): ?>
+        <br>Response body started with: <code><?= htmlspecialchars($newsApiCheck['body_preview']) ?></code>
+      <?php endif; ?>
+    <?php endif; ?>
+  </p>
 <?php endif; ?>
 
 <p style="margin-top:40px; font-size:12px; color:#8b879e;">Delete this file (Backend/diagnostics.php) once you've finished checking — it's safe to leave, but no longer needed after deployment is confirmed working.</p>

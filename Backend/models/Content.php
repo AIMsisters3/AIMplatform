@@ -222,6 +222,38 @@ class Content
         return $stmt->execute(array_merge([$status], $ids));
     }
 
+    /**
+     * Flips every 'scheduled' item whose publish_date has already arrived
+     * to 'published', and returns their ids. Nothing in this codebase
+     * ever did this automatically before - picking "Schedule for later"
+     * in the admin upload form set publish_date and status='scheduled',
+     * but with no sweep to act on it, that item would sit in 'scheduled'
+     * forever (the public site's own query is a strict
+     * `status = 'published'`, so a scheduled item never appears on its
+     * own, no matter how far in the past its publish_date is) until an
+     * admin noticed and manually re-published it. Called from
+     * CronController's existing scheduled-task sweep (see
+     * routes/api.php's /cron/run-due-tasks), the same mechanism this
+     * project already uses for Pay Later/deposit reminders on a host
+     * with no server-side cron of its own.
+     */
+    public function publishDueScheduled(): array
+    {
+        $ids = $this->db->query(
+            "SELECT id FROM content WHERE status = 'scheduled' AND publish_date IS NOT NULL
+             AND publish_date <= NOW() AND deleted_at IS NULL"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->prepare("UPDATE content SET status = 'published' WHERE id IN ($placeholders)")->execute($ids);
+
+        return array_map('intval', $ids);
+    }
+
     public function duplicate(int $id): ?int
     {
         $original = $this->find($id);
