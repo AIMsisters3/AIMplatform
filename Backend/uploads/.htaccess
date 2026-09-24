@@ -1,22 +1,22 @@
 # Defense in depth: this directory only ever holds media/document files
 # saved by UploadController (which enforces an extension + MIME-type
 # whitelist and always renames to a server-generated filename), so this
-# is a backup layer, not the primary defense. Kept deliberately minimal
-# (no Options, no caching headers) - some very restrictive shared hosts
-# reject a .htaccess file entirely (500 error on every file in this
-# folder) if it uses a directive type outside a narrow allowed set, and
-# this bare FilesMatch block is the one thing worth risking that on.
-<IfModule mod_php.c>
-    php_flag engine off
-</IfModule>
-<IfModule mod_authz_core.c>
-    <FilesMatch "\.(php|phtml|php\d|phar|cgi|pl)$">
-        Require all denied
-    </FilesMatch>
-</IfModule>
-<IfModule !mod_authz_core.c>
-    <FilesMatch "\.(php|phtml|php\d|phar|cgi|pl)$">
-        Order allow,deny
-        Deny from all
-    </FilesMatch>
-</IfModule>
+# is a backup layer, not the primary defense. Kept deliberately minimal.
+#
+# This previously used <FilesMatch> + Require all denied / Order+Deny to
+# block PHP execution here - confirmed live (2026-09-24, a real uploaded
+# thumbnail returning the host's own 500/".htaccess error" page for every
+# request under this folder) that those directives need Apache's
+# Limit/AuthConfig AllowOverride classes, which this specific free host
+# does not permit at all: the whole .htaccess file was rejected, taking
+# every image in this folder down with it, not just PHP files. Replaced
+# with RemoveHandler/RemoveType, which only needs the FileInfo class -
+# the same class RewriteRule already needs in Backend/.htaccess, which
+# was working fine, confirming FileInfo IS permitted on this host. The
+# <IfModule mod_php.c> php_flag block that used to sit here is dropped
+# too - not implicated in the actual failure, but it adds no protection
+# RemoveHandler/RemoveType and UploadController's own extension/MIME
+# whitelist don't already cover, and this host has proven unusually
+# restrictive, so there's no reason to keep anything not doing real work.
+RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl
+RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl

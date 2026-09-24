@@ -1,12 +1,16 @@
-# Deny ALL direct web access to everything under storage/ (unlike
-# uploads/, which serves validated, renamed public files, this holds raw
-# in-progress upload chunks that have not been content-validated yet — they
-# must never be reachable by URL, not even as static files).
-<IfModule mod_authz_core.c>
-    Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-    Order allow,deny
-    Deny from all
-</IfModule>
-Options -ExecCGI -Indexes
+# This holds raw in-progress upload chunks that have not been
+# content-validated yet (see ChunkUploadController) - nothing in the app
+# ever links to a URL under here, so it's never meant to be reachable.
+#
+# This previously used Require all denied / Order+Deny to enforce that -
+# confirmed live (2026-09-24) that this exact host rejects those
+# directives outright (they need Apache's Limit/AuthConfig AllowOverride
+# classes, which this host doesn't permit - see Backend/uploads/.htaccess's
+# own comment for the 500 that caused there for every uploaded image).
+# Switched to RemoveHandler/RemoveType (needs only the FileInfo class,
+# confirmed working on this host), same as uploads/.htaccess. This is a
+# backup layer, not the primary defense either way: chunk filenames are
+# uniqid()-based and scoped under a per-user subdirectory, and nothing in
+# this app ever generates a public link into this folder.
+RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl
+RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl
