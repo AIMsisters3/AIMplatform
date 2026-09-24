@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus, Loader2, ChevronUp, ChevronDown, Trash2, ImagePlus, Package,
-  AlertCircle, ArrowLeft, Boxes,
+  AlertCircle, ArrowLeft, Boxes, RotateCcw,
 } from 'lucide-react';
 import api from '../../api/axios.js';
 import TagInput from '../Components/upload/TagInput.jsx';
@@ -112,9 +112,17 @@ const inputClass = 'w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:ou
 
 export default function ManageProducts() {
   const [products, setProducts] = useState([]);
+  const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // Deleted products (Product::delete() is a soft delete - see the model's
+  // own comment) are excluded from the normal view entirely, and until
+  // now had no way back short of editing the database directly:
+  // Product::restore() existed but nothing ever called it. This toggle
+  // is the minimal addition needed to reach it - not a redesign, just a
+  // second, narrower view of the same /products endpoint.
+  const [showDeleted, setShowDeleted] = useState(false);
   const [view, setView] = useState('list'); // list | form
   const [editingId, setEditingId] = useState(null);
 
@@ -128,11 +136,21 @@ export default function ManageProducts() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/products', { params: { search: search || undefined, status: 'all', limit: 50 } })
-      .then((r) => setProducts(r.data?.data?.items || []))
-      .catch(() => setProducts([]))
+    api.get('/products', {
+      params: {
+        search: search || undefined,
+        status: showDeleted ? undefined : 'all',
+        deleted: showDeleted ? 1 : undefined,
+        limit: 50,
+      },
+    })
+      .then((r) => {
+        setProducts(r.data?.data?.items || []);
+        setTotal(r.data?.data?.total ?? 0);
+      })
+      .catch(() => { setProducts([]); setTotal(0); })
       .finally(() => setLoading(false));
-  }, [search]);
+  }, [search, showDeleted]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -341,9 +359,14 @@ export default function ManageProducts() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this product? This cannot be undone.')) return;
+  async function handleDelete(id, name) {
+    if (!confirm(`Delete "${name}"?\n\nThis will remove it from the product catalogue. It can be restored later from the Deleted view.`)) return;
     await api.delete(`/products/${id}`);
+    load();
+  }
+
+  async function handleRestore(id) {
+    await api.post(`/products/${id}/restore`);
     load();
   }
 
@@ -564,21 +587,33 @@ export default function ManageProducts() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="font-display font-semibold text-lg">Manage Products</h2>
-        <button onClick={startCreate} className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass flex items-center gap-1.5">
-          <Plus className="w-4 h-4" /> New Product
-        </button>
+        <h2 className="font-display font-semibold text-lg">
+          {showDeleted ? 'Deleted Products' : 'Manage Products'} ({total})
+        </h2>
+        {!showDeleted && (
+          <button onClick={startCreate} className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass flex items-center gap-1.5">
+            <Plus className="w-4 h-4" /> New Product
+          </button>
+        )}
       </div>
 
       {message && <p className="text-sm text-secondary">{message}</p>}
 
-      <div className="glass-card p-4">
+      <div className="glass-card p-4 flex flex-col sm:flex-row gap-3">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search products..."
-          className="w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
+          placeholder="Search by name, SKU, barcode..."
+          className="flex-1 px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
         />
+        <button
+          onClick={() => setShowDeleted((v) => !v)}
+          className={`shrink-0 px-4 py-2.5 rounded-xl2 text-sm font-semibold transition ${
+            showDeleted ? 'bg-brand-gradient text-white shadow-glass' : 'border border-ink/10 text-ink/60 hover:text-ink'
+          }`}
+        >
+          {showDeleted ? 'Back to Active' : 'View Deleted'}
+        </button>
       </div>
 
       {loading ? (
@@ -593,7 +628,7 @@ export default function ManageProducts() {
       ) : products.length === 0 ? (
         <div className="glass-card p-10 text-center text-ink/50">
           <Boxes className="w-8 h-8 mx-auto mb-3 text-ink/25" />
-          No products yet. Create your first one above.
+          {showDeleted ? 'No deleted products.' : 'No products yet. Create your first one above.'}
         </div>
       ) : (
         <div className="glass-card overflow-x-auto">
@@ -601,8 +636,10 @@ export default function ManageProducts() {
             <thead>
               <tr className="text-left text-ink/50 border-b border-ink/10">
                 <th className="p-4">Product</th>
+                <th className="p-4">SKU</th>
                 <th className="p-4">Category</th>
                 <th className="p-4">Price</th>
+                <th className="p-4">Stock</th>
                 <th className="p-4">Availability</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -621,6 +658,7 @@ export default function ManageProducts() {
                         <span className="font-medium">{p.name}</span>
                       </div>
                     </td>
+                    <td className="p-4 text-ink/45 text-xs">{p.sku || '—'}</td>
                     <td className="p-4 text-ink/60">{p.category_name || '—'}</td>
                     <td className="p-4 text-ink/60">
                       N$ {Number(p.sale_price ?? p.price).toFixed(2)}
@@ -628,12 +666,21 @@ export default function ManageProducts() {
                         <span className="ml-1.5 text-xs text-ink/35 line-through">N$ {Number(p.price).toFixed(2)}</span>
                       )}
                     </td>
+                    <td className="p-4 text-ink/60">{p.sourcing_type === 'in_stock' ? (p.stock_quantity ?? 0) : '—'}</td>
                     <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-semibold ${avail.className}`}>{avail.label}</span></td>
                     <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_BADGE[p.status] || 'bg-ink/10'}`}>{p.status}</span></td>
                     <td className="p-4 text-right">
                       <div className="flex justify-end gap-3 text-xs font-semibold">
-                        <button onClick={() => startEdit(p)} className="text-secondary">Edit</button>
-                        <button onClick={() => handleDelete(p.id)} className="text-red-500">Delete</button>
+                        {showDeleted ? (
+                          <button onClick={() => handleRestore(p.id)} className="text-secondary flex items-center gap-1">
+                            <RotateCcw className="w-3.5 h-3.5" /> Restore
+                          </button>
+                        ) : (
+                          <>
+                            <button onClick={() => startEdit(p)} className="text-secondary">Edit</button>
+                            <button onClick={() => handleDelete(p.id, p.name)} className="text-red-500">Delete</button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

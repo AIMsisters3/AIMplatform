@@ -44,7 +44,11 @@ class Product
      */
     public function all(array $filters = [], int $limit = 20, int $offset = 0): array
     {
-        $where  = ['p.deleted_at IS NULL'];
+        // Deleted products are excluded by default (the public/normal-admin
+        // view); passing deleted=true flips this to show ONLY soft-deleted
+        // rows instead, for the admin's Deleted tab (ProductController::
+        // index() only ever honors this for an account with products.manage).
+        $where  = [!empty($filters['deleted']) ? 'p.deleted_at IS NOT NULL' : 'p.deleted_at IS NULL'];
         $params = [];
 
         if (!empty($filters['category_id'])) {
@@ -59,13 +63,16 @@ class Product
             $params['category_id2'] = $catId;
         }
         if (!empty($filters['search'])) {
-            $where[] = '(p.name LIKE :search OR p.description LIKE :search OR p.brand LIKE :search OR p.seo_keywords LIKE :search)';
+            $where[] = '(p.name LIKE :search OR p.description LIKE :search OR p.brand LIKE :search OR p.seo_keywords LIKE :search OR p.sku LIKE :search OR p.barcode LIKE :search)';
             $params['search'] = '%' . $filters['search'] . '%';
         }
-        if (!empty($filters['status'])) {
+        // 'all' (only ever reachable via ProductController's own
+        // products.manage gate, same convention as Content::all()) means no
+        // status restriction - the admin Manage Products / Deleted view.
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'p.status = :status';
             $params['status'] = $filters['status'];
-        } else {
+        } elseif (empty($filters['status'])) {
             $where[] = "p.status = 'active'";
         }
         if (!empty($filters['min_price'])) {
@@ -124,7 +131,7 @@ class Product
         // Mirrors all()'s WHERE-building so pagination totals match the
         // listing exactly — kept small/duplicated rather than sharing a
         // query builder, since the two diverge only in SELECT/ORDER BY.
-        $where  = ['p.deleted_at IS NULL'];
+        $where  = [!empty($filters['deleted']) ? 'p.deleted_at IS NOT NULL' : 'p.deleted_at IS NULL'];
         $params = [];
 
         if (!empty($filters['category_id'])) {
@@ -134,13 +141,13 @@ class Product
             $params['category_id2'] = $catId;
         }
         if (!empty($filters['search'])) {
-            $where[] = '(p.name LIKE :search OR p.description LIKE :search OR p.brand LIKE :search OR p.seo_keywords LIKE :search)';
+            $where[] = '(p.name LIKE :search OR p.description LIKE :search OR p.brand LIKE :search OR p.seo_keywords LIKE :search OR p.sku LIKE :search OR p.barcode LIKE :search)';
             $params['search'] = '%' . $filters['search'] . '%';
         }
-        if (!empty($filters['status'])) {
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'p.status = :status';
             $params['status'] = $filters['status'];
-        } else {
+        } elseif (empty($filters['status'])) {
             $where[] = "p.status = 'active'";
         }
         if (!empty($filters['sourcing_type'])) {

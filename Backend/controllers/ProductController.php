@@ -33,13 +33,17 @@ class ProductController
             'sort'           => $_GET['sort'] ?? null,
         ];
 
-        // "status" (including "all"/"draft"/"archived") is only honored
-        // for an account that can manage products — everyone else always
-        // gets the model's default active-only filter.
-        if (!empty($_GET['status'])) {
+        // "status" (including "all"/"draft"/"archived") and "deleted" (the
+        // admin's Deleted/restore view) are only honored for an account
+        // that can manage products — everyone else always gets the
+        // model's default active-only, non-deleted filter.
+        if (!empty($_GET['status']) || !empty($_GET['deleted'])) {
             $payload = optional_auth();
             if ($payload && user_has_permission($payload, 'products.manage')) {
-                $filters['status'] = $_GET['status'];
+                if (!empty($_GET['status'])) {
+                    $filters['status'] = $_GET['status'];
+                }
+                $filters['deleted'] = !empty($_GET['deleted']);
             }
         }
 
@@ -135,7 +139,7 @@ class ProductController
         json_ok(null, 'Product updated successfully.');
     }
 
-    /** DELETE /api/products/{id} (requires products.manage) */
+    /** DELETE /api/products/{id} (requires products.manage) — soft delete, see Product::delete(). */
     public function destroy(int $id): void
     {
         require_permission('products.manage');
@@ -145,7 +149,15 @@ class ProductController
         }
 
         $this->model->delete($id);
-        json_ok(null, 'Product deleted successfully.');
+        json_ok(null, 'Product removed from the catalogue.');
+    }
+
+    /** POST /api/products/{id}/restore (requires products.manage) — brings a soft-deleted product back. */
+    public function restore(int $id): void
+    {
+        require_permission('products.manage');
+        $this->model->restore($id);
+        json_ok(null, 'Product restored.');
     }
 
     // -----------------------------------------------------------------

@@ -122,6 +122,8 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'reviews' && $method === 'GET') return (new ReviewController())->forProduct((int) $id);
         if ($id !== null && $action === 'reviews' && $method === 'POST') return (new ReviewController())->store((int) $id);
 
+        if ($id !== null && $action === 'restore' && $method === 'POST') return $ctrl->restore((int) $id);
+
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
         if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
