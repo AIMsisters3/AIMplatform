@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Eye, Loader2, Upload } from 'lucide-react';
 import api from '../../api/axios.js';
-import { isLive } from '../../utils/mediaKind.js';
+import { isLive, wasLive } from '../../utils/mediaKind.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
 const SECTIONS = [
@@ -347,6 +347,9 @@ export default function ManageContent() {
                     {isLive(item) && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold align-middle">LIVE</span>
                     )}
+                    {!isLive(item) && wasLive(item) && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full bg-ink/60 text-white text-[9px] font-bold align-middle">WAS LIVE</span>
+                    )}
                   </td>
                   <td className="p-4 capitalize text-ink/60">{sectionLabel(item.section)}</td>
                   <td className="p-4 capitalize text-ink/60">{item.media_type?.replace('_', ' ')}</td>
@@ -381,6 +384,9 @@ export default function ManageContent() {
                     {item.title}
                     {isLive(item) && (
                       <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold align-middle">LIVE</span>
+                    )}
+                    {!isLive(item) && wasLive(item) && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full bg-ink/60 text-white text-[9px] font-bold align-middle">WAS LIVE</span>
                     )}
                   </h4>
                 </div>

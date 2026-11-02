@@ -38,6 +38,13 @@
  * item.is_live starts reflecting real time-bounded state with no
  * changes needed on their end - one source of truth, computed once,
  * here.
+ *
+ * was_live: true once a broadcast's own window has genuinely passed (the
+ * admin did mark it live, it had a real duration, and that time is now
+ * behind us) - distinct from "never was live" (plain 0) and from "still
+ * live right now" (is_live=1). Powers the "WAS LIVE" badge (ContentCard.jsx,
+ * ManageContent.jsx) without a new DB column or a second status field -
+ * purely derived from the same two timestamps.
  */
 function decorate_live_status(array $row): array
 {
@@ -45,6 +52,7 @@ function decorate_live_status(array $row): array
 
     if (!$adminFlag) {
         $row['is_live'] = 0;
+        $row['was_live'] = 0;
         $row['live_start_time'] = null;
         $row['live_end_time'] = null;
         return $row;
@@ -62,6 +70,7 @@ function decorate_live_status(array $row): array
     $currentlyLive = $startTs !== false && $now >= $startTs && ($endTs === null || $now < $endTs);
 
     $row['is_live'] = $currentlyLive ? 1 : 0;
+    $row['was_live'] = (!$currentlyLive && $endTs !== null && $now >= $endTs) ? 1 : 0;
     $row['live_start_time'] = $startTs !== false ? date('Y-m-d H:i:s', $startTs) : null;
     $row['live_end_time'] = $endTs !== null ? date('Y-m-d H:i:s', $endTs) : null;
 

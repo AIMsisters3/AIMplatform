@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PlayCircle, FileText, Headphones, Eye, MessageCircle } from 'lucide-react';
-import { getItemKind, isLive } from '../utils/mediaKind.js';
+import { getItemKind, isLive, wasLive } from '../utils/mediaKind.js';
 import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 
 const KIND_ICON = {
@@ -54,6 +54,11 @@ export default function ContentCard({ item, onClick }) {
         {isLive(item) && (
           <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-500 text-white text-[10px] font-bold tracking-wide flex items-center gap-1 shadow-glass">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
+          </span>
+        )}
+        {!isLive(item) && wasLive(item) && (
+          <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-ink/70 text-white text-[10px] font-bold tracking-wide shadow-glass">
+            WAS LIVE
           </span>
         )}
 

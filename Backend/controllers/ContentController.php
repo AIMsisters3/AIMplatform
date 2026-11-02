@@ -144,6 +144,52 @@ class ContentController
         return $body;
     }
 
+    /**
+     * LIVE items need a real expiration the backend can enforce on its own
+     * — the frontend asking for a duration isn't enough by itself (spec:
+     * "The backend must validate and enforce the expiration"). $existing
+     * is the current row on an update(); a request that doesn't touch
+     * is_live or duration_seconds at all (e.g. a row-level {status:
+     * 'draft'} toggle, or renaming an old pre-fix LIVE item that was
+     * saved with no duration) is left alone entirely, so this can't
+     * retroactively lock editing of existing rows that predate the fix.
+     * It only fires when the request is actually the one setting is_live
+     * and/or duration_seconds.
+     *
+     * Backend/helpers/live_status.php's decorate_live_status() already
+     * treats a NULL duration_seconds as "never auto-expires" — exactly
+     * the bug this closes. A max of 48 hours is a sanity cap, not a real
+     * product requirement: it exists only to catch an obvious typo (e.g.
+     * minutes entered where hours were meant), not to limit a genuinely
+     * long broadcast.
+     */
+    private function validateLiveDuration(array $body, ?array $existing = null): void
+    {
+        $touchesLive = array_key_exists('is_live', $body) || array_key_exists('duration_seconds', $body);
+        if (!$touchesLive && $existing !== null) {
+            return;
+        }
+
+        $isLive = array_key_exists('is_live', $body)
+            ? !empty($body['is_live'])
+            : !empty($existing['is_live'] ?? null);
+
+        if (!$isLive) {
+            return;
+        }
+
+        $duration = array_key_exists('duration_seconds', $body)
+            ? $body['duration_seconds']
+            : ($existing['duration_seconds'] ?? null);
+
+        if ($duration === null || !is_numeric($duration) || (int) $duration <= 0) {
+            json_error('Please set how long this live broadcast should run.', 422);
+        }
+        if ((int) $duration > 48 * 3600) {
+            json_error('Live duration looks too long (max 48 hours) — please double-check it.', 422);
+        }
+    }
+
     /** GET /api/content?type=&category_id=&language=&search=&featured=&page=&status=&mine= */
     public function index(): void
     {
@@ -246,6 +292,7 @@ class ContentController
         }
 
         $body = $this->normalizeClassification($body);
+        $this->validateLiveDuration($body);
 
         $body['slug'] = $body['slug'] ?? $this->slugify($body['title']);
         $body['author_id'] = $payload['sub'];
@@ -320,6 +367,8 @@ class ContentController
                 json_error('This item has no thumbnail. Please add one (use the thumbnail button in Manage Content) before publishing.', 422);
             }
         }
+
+        $this->validateLiveDuration($body, $existing);
 
         // A partial update might only send one of section/media_type (or
         // neither) - re-validate the pair using whichever value wasn't

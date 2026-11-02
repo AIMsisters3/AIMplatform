@@ -5,6 +5,14 @@ export function isLive(item) {
   return item?.is_live === 1 || item?.is_live === '1' || item?.is_live === true;
 }
 
+// Same loose-equality normalization as isLive() above, for the
+// was_live field (Backend/helpers/live_status.php) — true once a
+// broadcast's own window has genuinely passed, distinct from "never was
+// live" and from "still live right now".
+export function wasLive(item) {
+  return item?.was_live === 1 || item?.was_live === '1' || item?.was_live === true;
+}
+
 export function getYouTubeEmbed(url = '') {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
   return match ? `https://www.youtube.com/embed/${match[1]}` : null;

@@ -7,7 +7,7 @@ import ShareButton from './ShareButton.jsx';
 import DownloadButton from './DownloadButton.jsx';
 import ArticleDownloadButton from './ArticleDownloadButton.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
-import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
+import { getItemKind, getYouTubeEmbed, isLive, wasLive } from '../utils/mediaKind.js';
 import logo from '../assets/lg.png';
 
 // pdfjs-dist (KidsBookReader's one dependency) is ~400KB — lazy-loaded
@@ -44,9 +44,11 @@ function MediaErrorFallback({ label }) {
 }
 
 export default function ContentViewerModal({ item, onClose }) {
-  // liveOverride: null = trust item.is_live as originally fetched; once a
-  // poll actually runs, it always wins (even to flip live -> not live).
+  // liveOverride/wasLiveOverride: null = trust item's originally-fetched
+  // is_live/was_live; once a poll actually runs, it always wins (even to
+  // flip live -> not live, mid-viewing, with nothing the visitor has to do).
   const [liveOverride, setLiveOverride] = useState(null);
+  const [wasLiveOverride, setWasLiveOverride] = useState(null);
   const [mediaError, setMediaError] = useState(false);
   const [bookReaderOpen, setBookReaderOpen] = useState(false);
 
@@ -57,12 +59,16 @@ export default function ContentViewerModal({ item, onClose }) {
 
   useEffect(() => {
     setLiveOverride(null);
+    setWasLiveOverride(null);
     if (!item || !isLive(item)) return undefined;
     const interval = setInterval(() => {
       api.get(`/content/${item.id}`)
         .then((r) => {
           const fresh = r.data?.data?.item;
-          if (fresh) setLiveOverride(isLive(fresh));
+          if (fresh) {
+            setLiveOverride(isLive(fresh));
+            setWasLiveOverride(wasLive(fresh));
+          }
         })
         .catch(() => {});
     }, LIVE_POLL_INTERVAL_MS);
@@ -73,6 +79,7 @@ export default function ContentViewerModal({ item, onClose }) {
   const kind = getItemKind(item);
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
   const live = liveOverride !== null ? liveOverride : isLive(item);
+  const justEnded = wasLiveOverride !== null ? wasLiveOverride : wasLive(item);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
   const isOfficialDocument = OFFICIAL_DOCUMENT_MEDIA_TYPES.includes(item.media_type);
   // Kids Bible Lessons open as a page-by-page book, never the raw PDF
@@ -196,6 +203,11 @@ export default function ContentViewerModal({ item, onClose }) {
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
                 </span>
               )}
+              {!live && justEnded && (
+                <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-ink/70 text-white text-[10px] font-bold tracking-wide">
+                  WAS LIVE
+                </span>
+              )}
               <iframe
                 src={youtubeSrc}
                 title={item.title}
@@ -228,19 +240,26 @@ export default function ContentViewerModal({ item, onClose }) {
               direct file; otherwise offer the same link a viewer can open
               to check whether a replay is available there. */}
           {kind === 'video' && !youtubeSrc && !live && item.media_url && (
-            /\.(mp4|webm|ogg|mov)(\?|$)/i.test(item.media_url) ? (
-              mediaError ? (
-                <MediaErrorFallback label="This video could not be loaded. It may still be processing, or the file is temporarily unavailable." />
+            <div className="relative">
+              {justEnded && (
+                <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-ink/70 text-white text-[10px] font-bold tracking-wide">
+                  WAS LIVE
+                </span>
+              )}
+              {/\.(mp4|webm|ogg|mov)(\?|$)/i.test(item.media_url) ? (
+                mediaError ? (
+                  <MediaErrorFallback label="This video could not be loaded. It may still be processing, or the file is temporarily unavailable." />
+                ) : (
+                  <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} onError={() => setMediaError(true)} />
+                )
               ) : (
-                <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} onError={() => setMediaError(true)} />
-              )
-            ) : (
-              <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
-                <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
-                  Watch Recording
-                </a>
-              </div>
-            )
+                <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
+                  <a href={item.media_url} target="_blank" rel="noopener noreferrer" className="px-6 py-2.5 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition">
+                    Watch Recording
+                  </a>
+                </div>
+              )}
+            </div>
           )}
 
           {isKidsBibleLessonPdf ? (

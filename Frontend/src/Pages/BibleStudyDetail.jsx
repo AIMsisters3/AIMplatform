@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil, NotebookText, Check, Loader2 } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getItemKind, getYouTubeEmbed, isLive } from '../utils/mediaKind.js';
+import { getItemKind, getYouTubeEmbed, isLive, wasLive } from '../utils/mediaKind.js';
 import CommentsSection from '../Components/CommentsSection.jsx';
 import ShareButton from '../Components/ShareButton.jsx';
 import DownloadButton from '../Components/DownloadButton.jsx';
@@ -58,6 +58,26 @@ export default function BibleStudyDetail() {
   }, [slugOrId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Unlike ContentViewerModal.jsx (a modal, closed/reopened per view),
+  // this is a full page a visitor can sit on indefinitely — without this,
+  // the LIVE NOW badge would stay stuck here until they manually
+  // refreshed, even well after the broadcast's real window has passed.
+  // Same 30s-poll pattern, same reasoning (Backend/helpers/live_status.php
+  // has no push/webhook to tell the page the instant a broadcast ends).
+  useEffect(() => {
+    if (!item || !isLive(item)) return undefined;
+    const interval = setInterval(() => {
+      api.get(`/bible-studies/${slugOrId}`)
+        .then((r) => {
+          const fresh = r.data?.data?.item;
+          if (fresh) setItem((curr) => (curr ? { ...curr, is_live: fresh.is_live, was_live: fresh.was_live } : curr));
+        })
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, item?.is_live]);
 
   useEffect(() => {
     if (!item || !user) return;
@@ -159,6 +179,11 @@ export default function BibleStudyDetail() {
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
               </span>
             )}
+            {!live && wasLive(item) && (
+              <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-ink/70 text-white text-[10px] font-bold tracking-wide">
+                WAS LIVE
+              </span>
+            )}
             <iframe src={youtubeSrc} title={item.title} className="w-full h-full" allow="accelerate-compute; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
           </div>
         )}
@@ -173,17 +198,24 @@ export default function BibleStudyDetail() {
           </div>
         )}
         {kind === 'video' && !youtubeSrc && !live && item.media_url && (
-          <video
-            controls
-            className="w-full max-h-[50vh] bg-ink"
-            src={item.media_url}
-            onTimeUpdate={(e) => { savedPositionRef.current = Math.floor(e.target.currentTime); }}
-            onPause={(e) => {
-              if (!user || !e.target.duration) return;
-              const pct = Math.min(100, Math.round((e.target.currentTime / e.target.duration) * 100));
-              saveProgress(pct >= 95 ? 'completed' : 'in_progress', pct);
-            }}
-          />
+          <div className="relative">
+            {wasLive(item) && (
+              <span className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full bg-ink/70 text-white text-[10px] font-bold tracking-wide">
+                WAS LIVE
+              </span>
+            )}
+            <video
+              controls
+              className="w-full max-h-[50vh] bg-ink"
+              src={item.media_url}
+              onTimeUpdate={(e) => { savedPositionRef.current = Math.floor(e.target.currentTime); }}
+              onPause={(e) => {
+                if (!user || !e.target.duration) return;
+                const pct = Math.min(100, Math.round((e.target.currentTime / e.target.duration) * 100));
+                saveProgress(pct >= 95 ? 'completed' : 'in_progress', pct);
+              }}
+            />
+          </div>
         )}
         {kind === 'audio' && item.media_url && <audio controls className="w-full p-6" src={item.media_url} />}
         {kind === 'pdf' && item.media_url && <iframe src={item.media_url} title={item.title} className="w-full h-[60vh]" />}

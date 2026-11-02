@@ -241,7 +241,12 @@ const DEFAULT_FORM = {
   series_id: '', season_number: '1', episode_number: '',
   media_type_bible_study: 'video',
   kids_subtype: '', // see KIDS_SUBTYPES — falls back to that type's first option when unset
-  is_live: false, live_url: '',
+  // Default 120 minutes (2 hours) — a sensible starting point the admin
+  // can change, never left blank: duration_seconds is what actually
+  // makes a LIVE item expire on its own (see Backend/helpers/
+  // live_status.php) — a blank/zero value here would recreate the exact
+  // "LIVE never disappears" bug this field exists to fix.
+  is_live: false, live_url: '', live_duration_minutes: '120',
   notes_mode: 'file', // 'file' | 'text' — see TEXT_OPTIONAL_MEDIA_TYPES
 };
 
@@ -356,7 +361,7 @@ export default function UploadContent() {
   // instead of leaving the admin to hunt for a small red text somewhere on
   // the page. Order matches the form's actual top-to-bottom layout.
   const fieldRefs = useRef({});
-  const FIELD_ORDER = ['title', 'body', 'category_id', 'language', 'thumbnail', 'media', 'publish_date', 'episode_number'];
+  const FIELD_ORDER = ['title', 'body', 'category_id', 'language', 'thumbnail', 'media', 'live_duration_minutes', 'publish_date', 'episode_number'];
 
   function focusFirstError(errs) {
     const key = FIELD_ORDER.find((k) => errs[k]);
@@ -595,6 +600,12 @@ export default function UploadContent() {
         if (!plain) next.body = 'Please type the notes, or switch to uploading a file.';
       } else if (isLive) {
         if (!form.live_url.trim()) next.media = 'Please enter the live stream URL.';
+        const minutes = Number(form.live_duration_minutes);
+        if (!form.live_duration_minutes || !Number.isFinite(minutes) || minutes <= 0) {
+          next.live_duration_minutes = 'Please set how long this will be live (in minutes).';
+        } else if (minutes > 48 * 60) {
+          next.live_duration_minutes = 'That looks too long (max 48 hours / 2880 minutes) — please double-check it.';
+        }
       } else if (mediaKind && !media.uploadedUrl) {
         const label = mediaKind === 'video' ? 'a video' : mediaKind === 'audio' ? 'an audio file' : (mediaKind === 'document' || mediaKind === 'document_or_text') ? 'a PDF' : 'an image';
         next.media = `Please upload ${label}.`;
@@ -648,10 +659,16 @@ export default function UploadContent() {
       body: requiresBody || isTextNotes ? form.body : null,
       transcript: !requiresBody && !isTextNotes && mediaKind ? (form.transcript.trim() || null) : null,
       // Real duration read client-side from the actual file (see
-      // readMediaDuration()) - null for anything that isn't a video or
-      // audio/song upload (previously video-only, which meant a song's
-      // card could never show a duration no matter what was uploaded).
-      duration_seconds: (mediaKind === 'video' || mediaKind === 'audio') ? (media.durationSeconds ?? null) : null,
+      // readMediaDuration()) for a normal upload - null for anything that
+      // isn't a video or audio/song upload. For LIVE, there's no file to
+      // read a duration from at all, so the admin's own "how long will
+      // this be live" minutes field (above) is the source instead - this
+      // is the one value that makes decorate_live_status() actually
+      // expire the broadcast; see that file's docblock for why a missing
+      // duration here means it would otherwise never expire.
+      duration_seconds: isLive
+        ? Math.round(Number(form.live_duration_minutes) * 60) || null
+        : (mediaKind === 'video' || mediaKind === 'audio') ? (media.durationSeconds ?? null) : null,
     };
 
     if (isBibleStudy) {
@@ -1123,6 +1140,38 @@ export default function UploadContent() {
                 </Field>
               );
             })()}
+
+            {/* How long this stays live — the one input that actually
+                drives auto-expiry (duration_seconds -> decorate_live_status()
+                in Backend/helpers/live_status.php). Without this, a LIVE
+                item has no duration at all and never stops being "live"
+                on its own — exactly the bug this field exists to close. */}
+            {isLive && (
+              <Field
+                ref={(el) => { fieldRefs.current.live_duration_minutes = el; }}
+                label="How long will this be live?"
+                required
+                error={errors.live_duration_minutes}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min="1" max={48 * 60}
+                    value={form.live_duration_minutes}
+                    onChange={(e) => update('live_duration_minutes', e.target.value)}
+                    className={`${inputClass(errors.live_duration_minutes)} w-32`}
+                  />
+                  <span className="text-sm text-ink/50">minutes</span>
+                  {Number(form.live_duration_minutes) > 0 && (
+                    <span className="text-xs text-ink/35">
+                      (≈ {(Number(form.live_duration_minutes) / 60).toFixed(1)} hours)
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-ink/35 mt-2">
+                  The LIVE badge automatically disappears from the site this many minutes after publishing — no need to come back and turn it off by hand.
+                </p>
+              </Field>
+            )}
           </div>
 
           {/* Series */}
