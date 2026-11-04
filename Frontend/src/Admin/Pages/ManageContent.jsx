@@ -153,6 +153,28 @@ export default function ManageContent() {
     }
   }
 
+  // There was never any way to manually end a LIVE item from this panel -
+  // a broadcast with no duration_seconds set (any item created before that
+  // field existed, or a brand-new one someone forgot to fill in) stays
+  // flagged live forever per Backend/helpers/live_status.php's documented
+  // "missing duration = never auto-expire" fallback, with no screen to turn
+  // it off from. This reuses the same generic PUT the other row actions
+  // already use - Content::update() is a plain field-whitelist pass-through,
+  // so setting is_live straight to false needs no backend change.
+  async function endLive(item) {
+    if (!confirm('End this live broadcast now? It will stop showing as LIVE immediately and be kept as regular content.')) return;
+    setBusyId(item.id);
+    try {
+      await api.put(`/content/${item.id}`, { is_live: false });
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_live: false, was_live: 1 } : i)));
+      setMessage('Live broadcast ended.');
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Could not end the live broadcast.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // A thumbnail-less item can reach this list two ways: it was drafted
   // without one (allowed - UploadContent.jsx's validate() only requires it
   // on Publish) and never published, or - the actual bug this closes - it
@@ -235,6 +257,9 @@ export default function ManageContent() {
         <button disabled={busy} onClick={() => toggleStatus(item)} className="text-secondary disabled:opacity-50">
           {item.status === 'published' ? 'Unpublish' : 'Publish'}
         </button>
+        {isLive(item) && (
+          <button disabled={busy} onClick={() => endLive(item)} className="text-red-600 disabled:opacity-50">End Live</button>
+        )}
         {item.status !== 'archived' && (
           <button disabled={busy} onClick={() => archiveItem(item.id)} className="text-amber-600 disabled:opacity-50">Archive</button>
         )}
