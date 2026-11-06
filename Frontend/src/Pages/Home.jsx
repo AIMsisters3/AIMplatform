@@ -6,14 +6,14 @@ import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import heroBg from '../assets/bg.png';
+// Portrait-composed artwork made specifically for phones (logo near the
+// top, globe/Bible/flower toward the bottom, open space in between for the
+// hero text to sit over) — a tall 941x1672 image, close to a typical phone
+// screen's own aspect ratio, so bg-cover keeps its full top-to-bottom
+// composition on virtually every phone size and only trims a little off
+// the left/right decorative vines.
+import heroBgMobile from '../assets/bg-mobile.webp';
 import { useAuth } from '../context/AuthContext.jsx';
-
-// Separate image per breakpoint, not just a repositioned crop of the same
-// file — rendered as two independent elements below (one hidden below md,
-// one hidden at md and up) so each screen size only ever loads its own
-// image. Both point at the same file for now; swap heroBgMobile for a
-// dedicated asset whenever one is provided, with no other changes needed.
-const heroBgMobile = heroBg;
 
 // The four category cards, in the requested order — icon/gradient per
 // category since there's no per-category photo asset in the project and
@@ -216,15 +216,13 @@ export default function Home() {
 
   return (
     <div className="relative">
-      {/* Different composition per screen size, not the same crop
-          stretched to fit: mobile favors a tighter, higher crop (keeps
-          the hero itself compact, per spec) while desktop shows the
-          fuller frame centered. Two separate elements (not one element
-          with a responsive background-position) so each breakpoint can
-          also point at an entirely different image file, not just a
-          different crop of the same one. */}
+      {/* Two separate images, not a repositioned crop of one file: the
+          mobile artwork is its own portrait composition (logo top,
+          Bible/flower bottom), so it's centered to keep that whole
+          composition on screen; desktop keeps the original landscape
+          photo centered. */}
       <div
-        className="fixed inset-0 -z-10 bg-cover bg-[position:65%_top] md:hidden"
+        className="fixed inset-0 -z-10 bg-cover bg-[position:70%_center] md:hidden"
         style={{ backgroundImage: `url(${heroBgMobile})` }}
       />
       <div
