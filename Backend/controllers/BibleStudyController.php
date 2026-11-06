@@ -4,6 +4,7 @@ require_once __DIR__ . '/../models/BibleStudy.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/visitor.php';
 
 class BibleStudyController
 {
@@ -25,6 +26,7 @@ class BibleStudyController
             'category_id' => $_GET['category_id'] ?? null,
             'language'    => $_GET['language'] ?? null,
             'search'      => $_GET['search'] ?? null,
+            'is_live'     => $_GET['live'] ?? null,
         ];
 
         if (!empty($_GET['status'])) {
@@ -49,16 +51,23 @@ class BibleStudyController
     {
         require_once __DIR__ . '/../models/Content.php';
         $contentModel = new Content();
-        $item = ctype_digit($slugOrId) ? $contentModel->find((int) $slugOrId) : $contentModel->findBySlug($slugOrId);
+
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+
+        $item = ctype_digit($slugOrId)
+            ? $contentModel->find((int) $slugOrId, $userId ? (int) $userId : null)
+            : $contentModel->findBySlug($slugOrId, $userId ? (int) $userId : null);
 
         if (!$item || $item['content_type'] !== 'bible_study') {
             json_error('Bible study not found.', 404);
         }
 
-        $study = $this->model->findByContentId((int) $item['id']);
-        $contentModel->incrementViews((int) $item['id']);
+        $study = $this->model->findByContentId((int) $item['id'], $userId ? (int) $userId : null);
 
-        $payload = optional_auth();
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+        $contentModel->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
+
         $progress = $payload ? $this->model->getProgress((int) $payload['sub'], (int) $item['id']) : null;
 
         json_ok(['item' => $study, 'progress' => $progress]);
@@ -99,20 +108,23 @@ class BibleStudyController
         json_ok(['items' => $this->model->notesFor((int) $payload['sub'], $contentId)]);
     }
 
-    /** POST /api/bible-studies/{id}/notes (auth) body: {body} */
+    /** POST /api/bible-studies/{id}/notes (auth) body: {body, title?} */
     public function createNote(int $contentId): void
     {
         $payload = require_auth();
-        $body = trim((get_json_body())['body'] ?? '');
+        $requestBody = get_json_body();
+        $body = trim($requestBody['body'] ?? '');
 
         if ($body === '') {
             json_error('Note text is required.', 422);
         }
-        if (mb_strlen($body) > 5000) {
-            json_error('Note is too long (max 5000 characters).', 422);
+        if (mb_strlen($body) > 20000) {
+            json_error('Note is too long (max 20,000 characters).', 422);
         }
 
-        $id = $this->model->createNote((int) $payload['sub'], $contentId, $body);
+        $title = trim((string) ($requestBody['title'] ?? '')) ?: null;
+
+        $id = $this->model->createNote((int) $payload['sub'], $contentId, $body, $title);
         json_created(['id' => $id], 'Note saved.');
     }
 }

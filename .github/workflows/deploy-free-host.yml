@@ -1,0 +1,75 @@
+name: Deploy to free PHP hosting
+
+# Automates README.md §7 (deploying to a free shared PHP/MySQL host — e.g.
+# InfinityFree, ProFreeHost, Byethost) so a push to main ships the site
+# without any manual FTP/File Manager step. It does NOT touch the database
+# (schema/migrations still go through phpMyAdmin, per §7 Step 4) and it
+# never creates or overwrites Backend/.env — that stays a one-time,
+# server-only file exactly as documented.
+#
+# One-time setup required before this workflow can run (see README §7.5):
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#     FTP_SERVER    your host's FTP hostname (control panel → FTP Accounts —
+#                   NOT your domain; e.g. ftpupload.net for InfinityFree)
+#     FTP_USERNAME  FTP username from that same page
+#     FTP_PASSWORD  FTP password
+#   Optional repo VARIABLE (Settings → ... → Variables), only if your
+#   backend URL differs from the default baked into Frontend/.env.example:
+#     VITE_BACKEND_URL  e.g. https://your-domain/backend
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: Frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: Frontend
+        env:
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || 'https://aimsisters.ct.ws/backend' }}
+        run: npm run build
+
+      - name: Deploy frontend (htdocs/)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./Frontend/dist/
+          server-dir: ./htdocs/
+          dangerous-clean-slate: false
+
+      - name: Deploy backend (htdocs/backend/)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./Backend/
+          server-dir: ./htdocs/backend/
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.env
+            **/.env.*
+            database/seed_admin.php
+            uploads/**
+            storage/chunk_uploads/**
+            storage/logs/**

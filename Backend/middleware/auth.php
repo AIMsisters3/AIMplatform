@@ -8,19 +8,42 @@ require_once __DIR__ . '/../helpers/jwt.php';
 require_once __DIR__ . '/../helpers/response.php';
 
 /**
- * Reads the Authorization: Bearer <token> header and returns the decoded payload.
- * Sends a 401 JSON response and exits if missing/invalid.
+ * Reads the bearer token off the request, preferring the standard
+ * Authorization header but falling back to a custom X-Auth-Token header
+ * (sent by the frontend alongside it - see Frontend/src/api/axios.js) for
+ * hosts that strip Authorization before it reaches PHP at all, a known
+ * quirk on some shared/CGI-style hosts.
+ */
+function get_bearer_token(): string
+{
+    $headers = function_exists('getallheaders') ? getallheaders() : [];
+    $authHeader = $headers['Authorization']
+        ?? $headers['authorization']
+        ?? $_SERVER['HTTP_AUTHORIZATION']
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+        ?? '';
+
+    if ($authHeader && stripos($authHeader, 'Bearer ') === 0) {
+        return trim(substr($authHeader, 7));
+    }
+
+    $fallback = $headers['X-Auth-Token'] ?? $headers['x-auth-token'] ?? $_SERVER['HTTP_X_AUTH_TOKEN'] ?? '';
+    return trim($fallback);
+}
+
+/**
+ * Reads the Authorization: Bearer <token> header (or its fallback, see
+ * get_bearer_token()) and returns the decoded payload. Sends a 401 JSON
+ * response and exits if missing/invalid.
  */
 function require_auth(): array
 {
-    $headers = function_exists('getallheaders') ? getallheaders() : [];
-    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    $token = get_bearer_token();
 
-    if (!$authHeader || stripos($authHeader, 'Bearer ') !== 0) {
+    if (!$token) {
         json_error('Authentication required.', 401);
     }
 
-    $token = trim(substr($authHeader, 7));
     $payload = JWT::decode($token);
 
     if (!$payload) {
@@ -52,12 +75,7 @@ function require_role(array $allowedRoles): array
  */
 function optional_auth(): ?array
 {
-    $headers = function_exists('getallheaders') ? getallheaders() : [];
-    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    $token = get_bearer_token();
 
-    if (!$authHeader || stripos($authHeader, 'Bearer ') !== 0) {
-        return null;
-    }
-
-    return JWT::decode(trim(substr($authHeader, 7)));
+    return $token ? JWT::decode($token) : null;
 }

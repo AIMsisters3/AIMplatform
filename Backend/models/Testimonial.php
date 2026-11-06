@@ -30,7 +30,7 @@ class Testimonial
     /** All testimonials for the admin moderation screen. */
     public function all(?string $status = null): array
     {
-        $sql = 'SELECT t.id, t.body, t.status, t.created_at, u.name AS user_name, u.email AS user_email
+        $sql = 'SELECT t.id, t.body, t.status, t.rejection_reason, t.created_at, u.name AS user_name, u.email AS user_email
                 FROM testimonials t
                 JOIN users u ON u.id = t.user_id';
         $params = [];
@@ -54,10 +54,24 @@ class Testimonial
         return (int) $this->db->lastInsertId();
     }
 
+    /**
+     * Sets status and clears any prior rejection_reason - used for every
+     * transition except reject() below, which is the only one that ever
+     * needs to set a reason. Archive/restore both go through here:
+     * restoring an archived testimony puts it back to 'approved' (the
+     * only status it could have been archived from).
+     */
     public function updateStatus(int $id, string $status): void
     {
-        $stmt = $this->db->prepare('UPDATE testimonials SET status = :status WHERE id = :id');
+        $stmt = $this->db->prepare('UPDATE testimonials SET status = :status, rejection_reason = NULL WHERE id = :id');
         $stmt->execute(['status' => $status, 'id' => $id]);
+    }
+
+    /** Rejecting always carries a reason (spec: "rejection requires a stored reason"). */
+    public function reject(int $id, string $reason): void
+    {
+        $stmt = $this->db->prepare("UPDATE testimonials SET status = 'rejected', rejection_reason = :reason WHERE id = :id");
+        $stmt->execute(['reason' => $reason, 'id' => $id]);
     }
 
     public function delete(int $id): void

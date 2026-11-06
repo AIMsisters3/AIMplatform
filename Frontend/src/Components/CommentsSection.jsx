@@ -100,6 +100,21 @@ export default function CommentsSection({ contentId, allowComments }) {
     refresh().finally(() => setLoading(false));
   }, [contentId]);
 
+  // Comments update without a manual refresh - polls quietly in the
+  // background while this is open. No live push channel (WebSockets)
+  // available on this shared PHP host, so polling is the real mechanism,
+  // same pattern already used for LIVE status elsewhere (see
+  // ContentViewerModal.jsx's own LIVE_POLL_INTERVAL_MS). A background
+  // refresh() never touches `loading`, so it can't cause a flicker - and
+  // each CommentRow's own open-reply-box/typed-text state survives it
+  // untouched since React reconciles by comment.id, not by replacing the
+  // whole tree.
+  useEffect(() => {
+    if (!allowComments) return undefined;
+    const interval = setInterval(() => { refresh(); }, 8_000);
+    return () => clearInterval(interval);
+  }, [contentId, allowComments]);
+
     async function refresh() {
     const r = await api.get(`/content/${contentId}/comments`);
     setComments(r.data?.data?.items || []);

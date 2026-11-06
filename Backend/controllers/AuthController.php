@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/jwt.php';
-require_once __DIR__ . '/../helpers/rate_limit.php';
+require_once __DIR__ . '/../helpers/rate_limit_v2.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 class AuthController

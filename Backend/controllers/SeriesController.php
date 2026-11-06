@@ -1,9 +1,11 @@
 <?php
 
 require_once __DIR__ . '/../models/Series.php';
+require_once __DIR__ . '/../models/Content.php';
 require_once __DIR__ . '/../helpers/response.php';
-require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/publish_notify.php';
+require_once __DIR__ . '/../middleware/auth.php';
 
 class SeriesController
 {
@@ -14,12 +16,19 @@ class SeriesController
         $this->model = new Series();
     }
 
-    /** GET /api/series?category_id=&search=&status= */
+    /** GET /api/series?category_id=&search=&status=&section= */
     public function index(): void
     {
         $page  = max(1, (int) ($_GET['page'] ?? 1));
         $limit = min(50, (int) ($_GET['limit'] ?? 12));
-        $filters = ['category_id' => $_GET['category_id'] ?? null, 'search' => $_GET['search'] ?? null];
+        $filters = [
+            'category_id' => $_GET['category_id'] ?? null,
+            'search'      => $_GET['search'] ?? null,
+            // e.g. ?section=bible_study - lets Bible Studies surface only
+            // series flagged as belonging there, while the main Series
+            // page (no filter) keeps showing every series as before.
+            'section'     => $_GET['section'] ?? null,
+        ];
 
         if (!empty($_GET['status'])) {
             $payload = optional_auth();
@@ -95,6 +104,27 @@ class SeriesController
             isset($body['season_number']) ? (int) $body['season_number'] : 1,
             isset($body['episode_number']) ? (int) $body['episode_number'] : 1
         );
+
+        // Covers the "already published, then attached to a series" order
+        // of operations — see maybe_notify_new_episode()'s docblock. Must
+        // never break the attach itself if notifying fails.
+        try {
+            maybe_notify_new_episode(new Content(), $contentId);
+        } catch (Throwable $e) {
+            error_log('Episode notify failed for content ' . $contentId . ': ' . $e->getMessage());
+        }
+
         json_ok(null, 'Episode attached to series.');
+    }
+
+    /** DELETE /api/series/{id}/episodes/{contentId} (requires content.edit) — detaches an episode without deleting the underlying content item. */
+    public function detachEpisode(int $seriesId, int $contentId): void
+    {
+        require_permission('content.edit');
+        if (!$this->model->find($seriesId)) {
+            json_error('Series not found.', 404);
+        }
+        $this->model->setEpisodePosition($contentId, null, null, null);
+        json_ok(null, 'Episode removed from series.');
     }
 }
