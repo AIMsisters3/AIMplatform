@@ -237,7 +237,7 @@ export default function Home() {
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 w-full">
           <div className="max-w-xl text-left">
             <motion.h1
-              className="text-4xl sm:text-5xl md:text-6xl font-display font-extrabold leading-none mb-5"
+              className="text-4xl sm:text-5xl md:text-6xl font-display font-extrabold leading-none mb-5 break-words"
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
             >
               <span className="text-white">AIM</span>

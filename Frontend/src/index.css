@@ -6,6 +6,16 @@ html {
   scroll-behavior: smooth;
 }
 
+/* No element anywhere is meant to be wider than the viewport - this is a
+   last-resort guard, not a fix for any specific page. Without it, a larger
+   iOS "Larger Text" accessibility setting or a per-site browser zoom can
+   push a heading's rendered width past its container (our breakpoints are
+   all fixed rem sizes, which don't account for that), and the overflow
+   becomes sideways-scrollable page content instead of just wrapping. */
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   @apply bg-surface text-ink font-body antialiased;
 }
