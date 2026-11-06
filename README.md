@@ -5,7 +5,7 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
 ## 1. Backend setup (XAMPP)
 
 1. Copy the `Backend/` folder into your XAMPP `htdocs`, e.g.:
-   `C:\xampp\htdocs\AIMTech\Backend` (Windows) or `/Applications/XAMPP/htdocs/AIMTech/Backend` (Mac).
+   `C:\xampp\htdocs\AIMplatform\Backend` (Windows) or `/Applications/XAMPP/htdocs/AIMplatform/Backend` (Mac).
 2. Start **Apache** and **MySQL** in the XAMPP control panel.
 3. Open phpMyAdmin (`http://localhost/phpmyadmin`) → **Import**, and import these files **in order**:
    1. `Backend/database/schema.sql` — creates the `aimsisters_db` database, all base tables, and seeds
@@ -40,7 +40,7 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
    # or with your own credentials:
    php seed_admin.php you@example.com "SomeOtherPassword!" "Your Name"
    ```
-   No CLI PHP handy? Visit `http://localhost/AIMTech/Backend/database/seed_admin.php` in a browser instead
+   No CLI PHP handy? Visit `http://localhost/AIMplatform/Backend/database/seed_admin.php` in a browser instead
    (optionally add `?email=...&password=...&name=...`). Either way this hashes the password correctly with
    PHP's `password_hash()` — no more copy-pasting hashes into phpMyAdmin. Delete or move the script out of
    the web root once you're done with it; you can re-run it any time to reset the admin password.
@@ -49,7 +49,7 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
    ```sql
    UPDATE users u JOIN roles r ON r.slug = 'superadmin' SET u.role_id = r.id WHERE u.email = 'admin@aimsisters.org';
    ```
-6. Test the API is live: visit `http://localhost/AIMTech/Backend/api/content` — you should get a JSON response.
+6. Test the API is live: visit `http://localhost/AIMplatform/Backend/api/content` — you should get a JSON response.
 
 ## 2. Frontend setup
 
@@ -60,7 +60,7 @@ npm run dev
 ```
 
 The dev server runs at `http://localhost:5173` and proxies `/api/*` requests to
-`http://localhost/AIMTech/Backend` (configured in `vite.config.js`).
+`http://localhost/AIMplatform/Backend` (configured in `vite.config.js`).
 
 - Public site: `http://localhost:5173/`
 - Admin CMS: `http://localhost:5173/admin/login`
@@ -68,7 +68,7 @@ The dev server runs at `http://localhost:5173` and proxies `/api/*` requests to
 ## 3. Project structure
 
 ```
-AIMTech/
+AIMplatform/
 ├── Backend/            PHP 8 REST API (XAMPP/Apache)
 │   ├── config/          DB + app config (env.php loads Backend/.env — see §1)
 │   ├── controllers/     Request handlers

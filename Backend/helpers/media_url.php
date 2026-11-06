@@ -25,7 +25,7 @@ function normalize_media_url(?string $url): ?string
 
     // A row seeded/imported from a local dev database (or hand-edited)
     // can carry a raw Windows filesystem path (e.g.
-    // "C:\xampp\htdocs\AIMTech\Backend\uploads\thumbnails\x.jpg")
+    // "C:\xampp\htdocs\AIMplatform\Backend\uploads\thumbnails\x.jpg")
     // instead of a URL - backslashes would never match the 'uploads/'
     // marker below, so this never displays anywhere until normalized.
     $normalized = str_replace('\\', '/', $url);

@@ -80,11 +80,20 @@ function bootstrap_local_env_if_missing(string $envPath): void
 
     $secret = bin2hex(random_bytes(32));
     $serverName = $_SERVER['SERVER_NAME'] ?? 'localhost (CLI)';
+    // Derived from the actual checkout folder name (Backend/config/env.php's
+    // own grandparent directory), not hardcoded - a previous version of
+    // this hardcoded "AIMTech" from an earlier project name, which silently
+    // broke every thumbnail/media URL (they're built from APP_URL) for
+    // anyone whose checkout folder was actually named something else, e.g.
+    // XAMPP's htdocs/AIMplatform. This way the generated APP_URL always
+    // matches wherever this was actually checked out, whatever it's named.
+    $projectFolder = basename(dirname(__DIR__, 2));
     $contents = <<<ENV
         # Auto-generated for local development on {$serverName}.
         # This file is git-ignored. Never commit it. Copy .env.example for
         # a template of every variable this app reads.
         APP_ENV=local
+        APP_URL=http://localhost/{$projectFolder}/Backend
         DB_HOST=localhost
         DB_NAME=aimsisters_db
         DB_USER=root

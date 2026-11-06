@@ -62,7 +62,7 @@ define('JWT_EXPIRY_SECONDS', 60 * 60 * 24 * 7); // 7 days
 // ".../server//uploads/..." below and in MAIL_LOGO_URL further down —
 // harmless on some server configs, a genuine 404 on others. Defensive
 // either way, and a no-op for an already-correct value.
-define('APP_URL', rtrim(env('APP_URL', 'http://localhost/AIMTech/Backend'), '/'));
+define('APP_URL', rtrim(env('APP_URL', 'http://localhost/AIMplatform/Backend'), '/'));
 define('FRONTEND_URL', rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/'));
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');
 define('UPLOAD_URL', APP_URL . '/uploads/');
