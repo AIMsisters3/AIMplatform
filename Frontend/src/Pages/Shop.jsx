@@ -86,7 +86,7 @@ export default function Shop() {
         />
         <div className="relative max-w-7xl mx-auto px-6">
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-xl">
-            <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3">
+            <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3 break-words">
               AIMsisters <span className="bg-gradient-to-r from-accent via-pink-300 to-white bg-clip-text text-transparent">Shop</span>
             </h1>
             <p className="text-white/85 text-base sm:text-lg">

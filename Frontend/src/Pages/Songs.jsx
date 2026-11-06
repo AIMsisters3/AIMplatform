@@ -45,7 +45,7 @@ export default function Songs() {
             <span className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 shadow-glass">
               <Music2 className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </span>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-none tracking-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-none tracking-tight break-words">
               Songs
             </h1>
           </div>

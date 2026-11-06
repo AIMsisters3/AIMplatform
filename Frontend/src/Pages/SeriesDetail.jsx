@@ -80,7 +80,7 @@ export default function SeriesDetail() {
               </span>
             )}
           </div>
-          <h1 className="text-2xl md:text-4xl font-display font-bold text-white mb-2">{series.title}</h1>
+          <h1 className="text-2xl md:text-4xl font-display font-bold text-white mb-2 break-words">{series.title}</h1>
           {series.description && <p className="text-white/80 text-sm md:text-base max-w-2xl line-clamp-2">{series.description}</p>}
         </div>
       </div>

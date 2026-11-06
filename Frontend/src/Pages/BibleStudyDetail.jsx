@@ -226,7 +226,7 @@ export default function BibleStudyDetail() {
               <span className="inline-block text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
                 {FORMAT_LABELS[item.format] || item.format}
               </span>
-              <h1 className="text-2xl md:text-3xl font-display font-bold text-ink">{item.title}</h1>
+              <h1 className="text-2xl md:text-3xl font-display font-bold text-ink break-words">{item.title}</h1>
             </div>
             {user && (
               <button

@@ -110,7 +110,7 @@ export default function Kids() {
             >
               <Baby className="w-8 h-8 text-white" />
             </motion.span>
-            <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3">
+            <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3 break-words">
               AIMsisters Children's Zone
             </h1>
             <p className="text-white/90 text-base sm:text-lg max-w-xl mx-auto">

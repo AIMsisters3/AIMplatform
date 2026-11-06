@@ -62,7 +62,7 @@ export default function Contact() {
           </motion.div>
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }}
-            className="font-display italic text-3xl sm:text-5xl font-extrabold text-white leading-tight mb-4 max-w-xl"
+            className="font-display italic text-3xl sm:text-5xl font-extrabold text-white leading-tight mb-4 max-w-xl break-words"
           >
             We'd Love to Hear From You
           </motion.h1>

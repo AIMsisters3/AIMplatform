@@ -44,7 +44,7 @@ export default function About() {
           </motion.div>
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }}
-            className="text-3xl sm:text-5xl font-display font-extrabold text-white leading-tight mb-3 max-w-2xl"
+            className="text-3xl sm:text-5xl font-display font-extrabold text-white leading-tight mb-3 max-w-2xl break-words"
           >
             Welcome to <span className="bg-gradient-to-r from-accent via-pink-300 to-white bg-clip-text text-transparent">AIMsisters</span> Ministry
           </motion.h1>

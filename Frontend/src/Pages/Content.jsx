@@ -341,7 +341,7 @@ export default function Content() {
         <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 shadow-glass">
           <PlayCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </span>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-extrabold text-white leading-none tracking-tight">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-extrabold text-white leading-none tracking-tight break-words">
           Content
         </h1>
       </div>

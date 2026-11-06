@@ -42,7 +42,7 @@ function LeadStory({ item, onClick }) {
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent text-white text-[11px] font-bold uppercase tracking-wide mb-3 shadow-glass">
           Latest Story
         </span>
-        <h2 className="font-display font-extrabold text-white text-2xl sm:text-3xl md:text-4xl leading-tight mb-2 line-clamp-3">
+        <h2 className="font-display font-extrabold text-white text-2xl sm:text-3xl md:text-4xl leading-tight mb-2 line-clamp-3 break-words">
           {item.title}
         </h2>
         {item.description && (
@@ -88,7 +88,7 @@ export default function News() {
             animate="visible"
             variants={fadeUp}
             transition={{ delay: 0.05 }}
-            className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-none tracking-tight mb-3"
+            className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-none tracking-tight mb-3 break-words"
           >
             Ministry News
           </motion.h1>

@@ -45,7 +45,7 @@ export default function Devotions() {
             <span className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 shadow-glass">
               <Sunrise className="w-6 h-6 text-white" />
             </span>
-            <h1 className="text-3xl sm:text-4xl font-display font-extrabold text-white leading-none tracking-tight">
+            <h1 className="text-3xl sm:text-4xl font-display font-extrabold text-white leading-none tracking-tight break-words">
               Devotions
             </h1>
           </motion.div>

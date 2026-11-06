@@ -265,14 +265,19 @@ export default function Home() {
               <br /><span className="not-italic font-semibold">— Mark 16:15</span>
             </motion.blockquote>
             <motion.div
-              className="flex flex-wrap gap-4"
+              className="flex flex-col sm:flex-row gap-4"
               initial="hidden" whileInView="visible" viewport={{ once: true }}
               variants={fadeUp} transition={{ delay: 0.3 }}
             >
-              <Link to="/content" className="px-8 py-3 rounded-full bg-secondary text-white font-semibold shadow-glass hover:opacity-90 transition">
+              {/* w-full/sm:w-auto so the pair reads as one deliberate block
+                  on a phone (equal-width, stacked) instead of a wide pill
+                  sitting over a much narrower one - that mismatch only
+                  happened because flex-wrap let each button size itself to
+                  its own text once there wasn't room side by side. */}
+              <Link to="/content" className="w-full sm:w-auto text-center px-8 py-3 rounded-full bg-secondary text-white font-semibold shadow-glass hover:opacity-90 transition">
                 Explore Content
               </Link>
-              <Link to="/devotions" className="px-8 py-3 rounded-full border-2 border-white text-white font-semibold hover:bg-white/10 transition">
+              <Link to="/devotions" className="w-full sm:w-auto text-center px-8 py-3 rounded-full border-2 border-white text-white font-semibold hover:bg-white/10 transition">
                 Daily Devotion
               </Link>
             </motion.div>

@@ -122,7 +122,7 @@ export default function ContentViewerModal({ item, onClose }) {
                   AIMsisters Article
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-display font-bold text-ink leading-snug mb-2">
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-ink leading-snug mb-2 break-words">
                 {item.title}
               </h1>
               {(item.publish_date || item.created_at) && (
@@ -310,7 +310,7 @@ export default function ContentViewerModal({ item, onClose }) {
                 {item.category_name}
               </span>
             )}
-            <h2 className="text-2xl md:text-3xl font-display font-bold text-ink mb-3">{item.title}</h2>
+            <h2 className="text-2xl md:text-3xl font-display font-bold text-ink mb-3 break-words">{item.title}</h2>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-4">
               {(item.speaker || item.author) && (

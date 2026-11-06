@@ -204,7 +204,7 @@ export default function BibleStudies() {
           </motion.div>
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }}
-            className="text-2xl sm:text-3xl md:text-4xl font-display font-extrabold text-white leading-tight mb-2"
+            className="text-2xl sm:text-3xl md:text-4xl font-display font-extrabold text-white leading-tight mb-2 break-words"
           >
             Dig deeper in God's Word
           </motion.h1>

@@ -49,7 +49,7 @@ export default function CategoryPage() {
           </Link>
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp}
-            className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white"
+            className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white break-words"
           >
             {category?.name || 'Category'}
           </motion.h1>
