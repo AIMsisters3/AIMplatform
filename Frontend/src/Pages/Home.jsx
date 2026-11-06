@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { HeartPulse, Shirt, Sparkles, ScrollText, Quote, Mail, Send, PenLine } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
+import ProductCard from '../Components/ProductCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import heroBg from '../assets/bg.png';
 // Portrait-composed artwork made specifically for phones (logo near the
@@ -98,13 +99,21 @@ function AnimatedGrid({ items, cols = 'md:grid-cols-3', onItemClick }) {
     >
       {items.map((item) => (
         <motion.div
-          key={item.id}
+          key={`${item.item_type || 'content'}-${item.id}`}
           variants={fadeUp}
           whileHover={{ y: -8, scale: 1.015 }}
           transition={{ type: 'spring', stiffness: 260, damping: 20 }}
           className="rounded-xl2 bg-white/90 backdrop-blur-md shadow-glass"
         >
-          <ContentCard item={item} onClick={() => onItemClick?.(item)} />
+          {/* Only the blended Featured Content section (GET /api/featured)
+              ever sends item_type: 'product' - every other AnimatedGrid
+              caller (Devotions/News/etc) never has that field, so this is
+              a no-op branch for them, same ContentCard as before. */}
+          {item.item_type === 'product' ? (
+            <ProductCard product={item} />
+          ) : (
+            <ContentCard item={item} onClick={() => onItemClick?.(item)} />
+          )}
         </motion.div>
       ))}
     </motion.div>
@@ -160,7 +169,10 @@ export default function Home() {
   const [testimonyMessage, setTestimonyMessage] = useState('');
 
   useEffect(() => {
-    api.get('/content', { params: { featured: 1, limit: 3 } }).then((r) => setFeatured(r.data.data.items)).catch(() => {});
+    // Blended content+product ranking (GET /api/featured, FeaturedController)
+    // - not the old plain ?featured=1 content filter, which was a pure
+    // manual admin toggle with no popularity signal behind it at all.
+    api.get('/featured', { params: { limit: 6 } }).then((r) => setFeatured(r.data.data.items)).catch(() => {});
     api.get('/devotions', { params: { limit: 3 } }).then((r) => setDevotions(r.data.data.items)).catch(() => {});
     api.get('/news', { params: { limit: 3 } }).then((r) => setNews(r.data.data.items)).catch(() => {});
     api.get('/gallery', { params: { limit: 4 } }).then((r) => setGallery(r.data.data.items)).catch(() => {});

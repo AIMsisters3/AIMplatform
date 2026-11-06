@@ -80,7 +80,8 @@ class Content
         }
 
         $sql = 'SELECT c.*, cat.name AS category_name,
-                    (SELECT COUNT(*) FROM comments cm WHERE cm.content_id = c.id AND cm.status = \'approved\') AS comments_count
+                    (SELECT COUNT(*) FROM comments cm WHERE cm.content_id = c.id AND cm.status = \'approved\') AS comments_count,
+                    (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count
                 FROM content c
                 LEFT JOIN categories cat ON cat.id = c.category_id
                 WHERE ' . implode(' AND ', $where) . '
@@ -98,26 +99,74 @@ class Content
         return array_map([self::class, 'decorateRow'], $stmt->fetchAll());
     }
 
-    /** normalize_media_url() for URLs + decorate_live_status() for the real, time-bounded is_live - applied identically everywhere a content row leaves this model. */
+    /**
+     * normalize_media_url() for URLs + decorate_live_status() for the
+     * real, time-bounded is_live - applied identically everywhere a
+     * content row leaves this model. Also normalizes likes_count/
+     * liked_by_me to real int/bool when the query included them (find()/
+     * findBySlug() do; a row from a query that didn't select those two
+     * columns just skips this part - array_key_exists guards it).
+     */
     private static function decorateRow(array $row): array
     {
-        return decorate_live_status(normalize_media_row($row));
+        $row = decorate_live_status(normalize_media_row($row));
+        if (array_key_exists('likes_count', $row)) {
+            $row['likes_count'] = (int) $row['likes_count'];
+        }
+        if (array_key_exists('liked_by_me', $row)) {
+            $row['liked_by_me'] = (bool) $row['liked_by_me'];
+        }
+        return $row;
     }
 
-    public function find(int $id): ?array
+    /** $currentUserId powers liked_by_me (Backend/content_likes) - null/omitted for a guest, same EXISTS-against-0 pattern as Comment::forContent(). */
+    public function find(int $id, ?int $currentUserId = null): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM content WHERE id = :id AND deleted_at IS NULL LIMIT 1');
-        $stmt->execute(['id' => $id]);
+        $stmt = $this->db->prepare(
+            'SELECT c.*,
+                (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.user_id = :current_user) AS liked_by_me
+             FROM content c WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute(['id' => $id, 'current_user' => $currentUserId ?? 0]);
         $row = $stmt->fetch();
         return $row ? self::decorateRow($row) : null;
     }
 
-    public function findBySlug(string $slug): ?array
+    public function findBySlug(string $slug, ?int $currentUserId = null): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM content WHERE slug = :slug AND deleted_at IS NULL LIMIT 1');
-        $stmt->execute(['slug' => $slug]);
+        $stmt = $this->db->prepare(
+            'SELECT c.*,
+                (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.user_id = :current_user) AS liked_by_me
+             FROM content c WHERE c.slug = :slug AND c.deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute(['slug' => $slug, 'current_user' => $currentUserId ?? 0]);
         $row = $stmt->fetch();
         return $row ? self::decorateRow($row) : null;
+    }
+
+    /** Toggles the current user's like on a content item - mirrors Comment::toggleLike() exactly, same table shape, same semantics. */
+    public function toggleLike(int $contentId, int $userId): array
+    {
+        $check = $this->db->prepare('SELECT id FROM content_likes WHERE content_id = :c AND user_id = :u');
+        $check->execute(['c' => $contentId, 'u' => $userId]);
+        $existing = $check->fetch();
+
+        if ($existing) {
+            $del = $this->db->prepare('DELETE FROM content_likes WHERE id = :id');
+            $del->execute(['id' => $existing['id']]);
+            $liked = false;
+        } else {
+            $ins = $this->db->prepare('INSERT INTO content_likes (content_id, user_id) VALUES (:c, :u)');
+            $ins->execute(['c' => $contentId, 'u' => $userId]);
+            $liked = true;
+        }
+
+        $count = $this->db->prepare('SELECT COUNT(*) FROM content_likes WHERE content_id = :c');
+        $count->execute(['c' => $contentId]);
+
+        return ['liked' => $liked, 'likes_count' => (int) $count->fetchColumn()];
     }
 
     public function create(array $data): int
@@ -370,6 +419,42 @@ class Content
      * views from content_views directly rather than the lifetime
      * content.views counter, so it reflects actual recent activity.
      */
+    /**
+     * Ranked for the homepage's blended "Featured" section (see
+     * FeaturedController, which merges this with Product::popularityRanked()
+     * onto one shared scale). Score = views + likes*5 (likes are a much
+     * stronger engagement signal than a passive view - same 5x weighting
+     * Product::featured() already uses for a sale vs. a view), plus a flat
+     * +1,000,000 for an admin's own is_featured pin, so a manually-featured
+     * item always outranks organic popularity rather than just tie-breaking
+     * against it. Kept as one single scored query (not Product::featured()'s
+     * two-phase "pinned first, then backfill" shape) specifically so
+     * FeaturedController can merge-sort this against products by score
+     * directly, without reimplementing that two-phase logic across two
+     * entity types. Returns popularity_score on each row - the caller
+     * strips it before sending to the frontend, same as
+     * Product::featured() already does for its own internal score.
+     */
+    public function featuredRanked(int $limit): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT c.*, cat.name AS category_name,
+                (SELECT COUNT(*) FROM comments cm WHERE cm.content_id = c.id AND cm.status = 'approved') AS comments_count,
+                (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5
+                    + IF(c.is_featured = 1, 1000000, 0)) AS popularity_score
+             FROM content c
+             LEFT JOIN categories cat ON cat.id = c.category_id
+             WHERE c.deleted_at IS NULL AND c.status = 'published'
+             ORDER BY popularity_score DESC, COALESCE(c.publish_date, c.created_at) DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return array_map([self::class, 'decorateRow'], $stmt->fetchAll());
+    }
+
     public function popularThisWeek(?string $section, int $minViews, int $days, int $limit): array
     {
         $where = ["c.deleted_at IS NULL", "c.status = 'published'", 'cv.viewed_at >= (NOW() - INTERVAL :days DAY)'];

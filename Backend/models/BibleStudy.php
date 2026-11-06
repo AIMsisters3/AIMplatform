@@ -75,16 +75,25 @@ class BibleStudy
         return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
-    public function findByContentId(int $contentId): ?array
+    /** $currentUserId powers liked_by_me (content_likes) - same pattern as Content::find()/findBySlug(). */
+    public function findByContentId(int $contentId, ?int $currentUserId = null): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT c.*, bs.format, bs.study_guide_url
+            'SELECT c.*, bs.format, bs.study_guide_url,
+                (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.user_id = :current_user) AS liked_by_me
              FROM content c JOIN bible_studies bs ON bs.content_id = c.id
              WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
         );
-        $stmt->execute(['id' => $contentId]);
+        $stmt->execute(['id' => $contentId, 'current_user' => $currentUserId ?? 0]);
         $row = $stmt->fetch();
-        return $row ? decorate_live_status(normalize_media_row($row)) : null;
+        if (!$row) {
+            return null;
+        }
+        $row = decorate_live_status(normalize_media_row($row));
+        $row['likes_count'] = (int) $row['likes_count'];
+        $row['liked_by_me'] = (bool) $row['liked_by_me'];
+        return $row;
     }
 
     /** Called right after Content::create() for a content_type='bible_study' row. */

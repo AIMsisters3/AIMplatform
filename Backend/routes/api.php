@@ -33,6 +33,7 @@ require_once __DIR__ . '/../controllers/SettingController.php';
 require_once __DIR__ . '/../controllers/RefundController.php';
 require_once __DIR__ . '/../controllers/ReviewController.php';
 require_once __DIR__ . '/../controllers/WishlistController.php';
+require_once __DIR__ . '/../controllers/FeaturedController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
@@ -81,6 +82,7 @@ function route(string $method, string $path)
         // segment at all (a bare /content/{id}).
         if ($id !== null && $action === 'comments' && $method === 'GET') return (new CommentController())->index((int) $id);
         if ($id !== null && $action === 'comments' && $method === 'POST') return (new CommentController())->store((int) $id);
+        if ($id !== null && $action === 'like' && $method === 'POST') return $ctrl->toggleLike((int) $id);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
         if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
@@ -99,6 +101,16 @@ function route(string $method, string $path)
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
 
         json_error('Comment route not found.', 404);
+    }
+
+    // ---------- FEATURED (homepage) ----------
+    // Blended content+product ranking - see FeaturedController for why
+    // this isn't just ContentController::index()'s own ?featured= filter
+    // (that stays a pure content-only admin-flag filter, used elsewhere;
+    // this is a different, algorithmic, cross-domain thing).
+    if ($resource === 'featured') {
+        if ($id === null && $method === 'GET') return (new FeaturedController())->index();
+        json_error('Featured route not found.', 404);
     }
 
     // ---------- PRODUCTS ----------

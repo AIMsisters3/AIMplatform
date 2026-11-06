@@ -51,16 +51,20 @@ class BibleStudyController
     {
         require_once __DIR__ . '/../models/Content.php';
         $contentModel = new Content();
-        $item = ctype_digit($slugOrId) ? $contentModel->find((int) $slugOrId) : $contentModel->findBySlug($slugOrId);
+
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+
+        $item = ctype_digit($slugOrId)
+            ? $contentModel->find((int) $slugOrId, $userId ? (int) $userId : null)
+            : $contentModel->findBySlug($slugOrId, $userId ? (int) $userId : null);
 
         if (!$item || $item['content_type'] !== 'bible_study') {
             json_error('Bible study not found.', 404);
         }
 
-        $study = $this->model->findByContentId((int) $item['id']);
+        $study = $this->model->findByContentId((int) $item['id'], $userId ? (int) $userId : null);
 
-        $payload = optional_auth();
-        $userId = $payload['sub'] ?? null;
         $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
         $contentModel->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
 

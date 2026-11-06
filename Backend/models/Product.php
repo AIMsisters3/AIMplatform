@@ -332,6 +332,41 @@ class Product
         }, $picked);
     }
 
+    /**
+     * Ranked for the homepage's blended "Featured" section (see
+     * FeaturedController, which merges this with Content::featuredRanked()
+     * onto one shared scale) - same popularity_score formula featured()
+     * already uses (views + units sold*5, sold from stock_movements
+     * reason='sale'), plus a flat +1,000,000 for an admin's own
+     * is_featured pin. A single scored query rather than featured()'s own
+     * "pinned first, then backfill" two-phase shape, specifically so the
+     * caller can merge-sort this against content by score directly.
+     * Unlike featured(), popularity_score is left on each row - the
+     * caller strips it after merging/sorting both sides.
+     */
+    public function popularityRanked(int $limit): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT p.*, cat.name AS category_name, cat.slug AS category_slug,
+                (p.views + COALESCE(sold.units, 0) * 5 + IF(p.is_featured = 1, 1000000, 0)) AS popularity_score
+             FROM products p
+             LEFT JOIN categories cat ON cat.id = p.category_id
+             LEFT JOIN (
+                 SELECT product_id, SUM(-quantity_change) AS units
+                 FROM stock_movements
+                 WHERE reason = 'sale'
+                 GROUP BY product_id
+             ) sold ON sold.product_id = p.id
+             WHERE p.deleted_at IS NULL AND p.status = 'active'
+             ORDER BY popularity_score DESC, p.created_at DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return array_map(fn (array $row): array => $this->decorate($row), $stmt->fetchAll());
+    }
+
     public function create(array $data): int
     {
         $sql = 'INSERT INTO products

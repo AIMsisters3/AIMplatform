@@ -258,20 +258,31 @@ class ContentController
     /** GET /api/content/{slug} */
     public function show(string $slugOrId): void
     {
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+
         $item = ctype_digit($slugOrId)
-            ? $this->model->find((int) $slugOrId)
-            : $this->model->findBySlug($slugOrId);
+            ? $this->model->find((int) $slugOrId, $userId ? (int) $userId : null)
+            : $this->model->findBySlug($slugOrId, $userId ? (int) $userId : null);
 
         if (!$item) {
             json_error('Content not found.', 404);
         }
 
-        $payload = optional_auth();
-        $userId = $payload['sub'] ?? null;
         $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
         $this->model->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
 
         json_ok(['item' => $item]);
+    }
+
+    /** POST /api/content/{id}/like (auth required) - mirrors CommentController::like() exactly. */
+    public function toggleLike(int $id): void
+    {
+        $payload = require_auth();
+        if (!$this->model->find($id)) {
+            json_error('Content not found.', 404);
+        }
+        json_ok($this->model->toggleLike($id, (int) $payload['sub']));
     }
 
     /** POST /api/content (requires content.create) */

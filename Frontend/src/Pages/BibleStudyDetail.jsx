@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil, NotebookText, Check, Loader2 } from 'lucide-react';
+import { Bookmark, BookmarkCheck, FileText, User, Calendar, CheckCircle2, Trash2, Pencil, NotebookText, Check, Loader2, Heart } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getItemKind, getYouTubeEmbed, isLive, wasLive } from '../utils/mediaKind.js';
@@ -36,6 +36,10 @@ export default function BibleStudyDetail() {
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [bookmarked, setBookmarked] = useState(false);
+  // null = trust item.liked_by_me/likes_count as fetched; set once the
+  // viewer taps the like button - same override pattern ContentViewerModal
+  // uses for its own LikeButton.
+  const [likeOverride, setLikeOverride] = useState(null);
   const [notes, setNotes] = useState([]);
   const [noteTitle, setNoteTitle] = useState('');
   const [noteText, setNoteText] = useState('');
@@ -48,6 +52,7 @@ export default function BibleStudyDetail() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setLikeOverride(null);
     api.get(`/bible-studies/${slugOrId}`)
       .then((r) => {
         setItem(r.data.data.item);
@@ -93,6 +98,22 @@ export default function BibleStudyDetail() {
     if (!item) return;
     const { data } = await api.post(`/bookmarks/${item.id}`);
     setBookmarked(data.data.bookmarked);
+  }
+
+  async function handleToggleLike() {
+    if (!user) {
+      alert('Please sign in to like this.');
+      return;
+    }
+    const liked = likeOverride ? likeOverride.liked : !!item.liked_by_me;
+    const likesCount = likeOverride ? likeOverride.likes_count : (item.likes_count || 0);
+    setLikeOverride({ liked: !liked, likes_count: likesCount + (!liked ? 1 : -1) });
+    try {
+      const r = await api.post(`/content/${item.id}/like`);
+      setLikeOverride(r.data?.data || null);
+    } catch {
+      setLikeOverride({ liked, likes_count: likesCount });
+    }
   }
 
   async function saveProgress(status, percent) {
@@ -165,6 +186,8 @@ export default function BibleStudyDetail() {
   const kind = getItemKind(item);
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
   const live = isLive(item);
+  const liked = likeOverride ? likeOverride.liked : !!item.liked_by_me;
+  const likesCount = likeOverride ? likeOverride.likes_count : (item.likes_count || 0);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
 
   return (
@@ -249,7 +272,16 @@ export default function BibleStudyDetail() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mb-6">
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <button
+              onClick={handleToggleLike}
+              className={`flex items-center gap-1.5 text-sm font-semibold transition ${
+                liked ? 'text-accent' : 'text-ink/50 hover:text-accent'
+              }`}
+            >
+              <Heart className="w-4 h-4" fill={liked ? 'currentColor' : 'none'} />
+              {likesCount > 0 ? likesCount : 'Like'}
+            </button>
             <ShareButton item={item} />
             <DownloadButton item={item} />
           </div>

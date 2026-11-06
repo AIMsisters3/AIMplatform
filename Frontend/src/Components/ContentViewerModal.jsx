@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Calendar, BookOpen, FileText, Eye, AlertTriangle, Loader2 } from 'lucide-react';
+import { User, Calendar, BookOpen, FileText, Eye, AlertTriangle, Loader2, Heart } from 'lucide-react';
 import api from '../api/axios.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
 import DownloadButton from './DownloadButton.jsx';
@@ -51,10 +52,16 @@ export default function ContentViewerModal({ item, onClose }) {
   const [wasLiveOverride, setWasLiveOverride] = useState(null);
   const [mediaError, setMediaError] = useState(false);
   const [bookReaderOpen, setBookReaderOpen] = useState(false);
+  // null = trust item.liked_by_me/likes_count as originally fetched; set
+  // once the viewer actually taps the like button, same override pattern
+  // as liveOverride above.
+  const [likeOverride, setLikeOverride] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     setMediaError(false);
     setBookReaderOpen(false);
+    setLikeOverride(null);
   }, [item?.id]);
 
   useEffect(() => {
@@ -80,11 +87,43 @@ export default function ContentViewerModal({ item, onClose }) {
   const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
   const live = liveOverride !== null ? liveOverride : isLive(item);
   const justEnded = wasLiveOverride !== null ? wasLiveOverride : wasLive(item);
+  const liked = likeOverride ? likeOverride.liked : !!item.liked_by_me;
+  const likesCount = likeOverride ? likeOverride.likes_count : (item.likes_count || 0);
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
   const isOfficialDocument = OFFICIAL_DOCUMENT_MEDIA_TYPES.includes(item.media_type);
   // Kids Bible Lessons open as a page-by-page book, never the raw PDF
   // iframe used everywhere else (spec: "not a raw PDF viewer").
   const isKidsBibleLessonPdf = kind === 'pdf' && item.section === 'kids' && item.media_type === 'bible_lesson';
+
+  async function handleToggleLike() {
+    if (!user) {
+      alert('Please sign in to like this.');
+      return;
+    }
+    // Optimistic, same pattern as CommentsSection's handleLike — flips
+    // immediately, and only reconciles against the server on failure.
+    setLikeOverride({ liked: !liked, likes_count: likesCount + (!liked ? 1 : -1) });
+    try {
+      const r = await api.post(`/content/${item.id}/like`);
+      setLikeOverride(r.data?.data || null);
+    } catch {
+      setLikeOverride({ liked, likes_count: likesCount });
+    }
+  }
+
+  function LikeButton({ className = '' }) {
+    return (
+      <button
+        onClick={handleToggleLike}
+        className={`flex items-center gap-1.5 text-sm font-semibold transition ${
+          liked ? 'text-accent' : 'text-ink/50 hover:text-accent'
+        } ${className}`}
+      >
+        <Heart className="w-4 h-4" fill={liked ? 'currentColor' : 'none'} />
+        {likesCount > 0 ? likesCount : 'Like'}
+      </button>
+    );
+  }
 
   if (isOfficialDocument) {
     return (
@@ -140,7 +179,8 @@ export default function ContentViewerModal({ item, onClose }) {
                 {item.views !== undefined && (
                   <span className="flex items-center gap-1.5"><Eye className="w-4 h-4 text-secondary" />{item.views} {Number(item.views) === 1 ? 'view' : 'views'}</span>
                 )}
-                <span className="ml-auto flex items-center gap-2">
+                <span className="ml-auto flex items-center gap-3">
+                  <LikeButton />
                   <ShareButton item={item} />
                   <ArticleDownloadButton item={item} />
                 </span>
@@ -333,7 +373,8 @@ export default function ContentViewerModal({ item, onClose }) {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 mb-6">
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              <LikeButton />
               <ShareButton item={item} />
               <DownloadButton item={item} />
             </div>
