@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { HeartPulse, Shirt, Sparkles, ScrollText, Quote, Mail, Send } from 'lucide-react';
+import { HeartPulse, Shirt, Sparkles, ScrollText, Quote, Mail, Send, PenLine } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
@@ -67,7 +67,12 @@ function GlassSection({ children, glow = false, className = '' }) {
 function SectionHeading({ children, subtitle, action }) {
   return (
     <motion.div
-      className="flex items-end justify-between mb-10 gap-4"
+      // Stacked on mobile (action gets its own full-width row below the
+      // title instead of being squeezed into a narrow bottom-aligned
+      // column beside it - that's what made a longer action like "Share
+      // Your Testimony" wrap awkwardly) - back to one row, bottom-aligned,
+      // from sm up.
+      className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-8 sm:mb-10 gap-3 sm:gap-4"
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true }}
@@ -416,11 +421,19 @@ export default function Home() {
               subtitle={testimonials.length > 0 ? 'Real stories from our community.' : undefined}
               action={
                 user ? (
-                  <button onClick={() => setShowTestimonyForm((v) => !v)} className="text-secondary text-sm font-semibold">
-                    {showTestimonyForm ? 'Cancel' : 'Share Your Testimony'}
+                  <button
+                    onClick={() => setShowTestimonyForm((v) => !v)}
+                    className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full bg-secondary/10 text-secondary text-sm font-semibold hover:bg-secondary/15 transition"
+                  >
+                    {showTestimonyForm ? 'Cancel' : <><PenLine className="w-4 h-4" /> Share Your Testimony</>}
                   </button>
                 ) : (
-                  <Link to="/login" className="text-secondary text-sm font-semibold">Sign in to share yours</Link>
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full bg-secondary/10 text-secondary text-sm font-semibold hover:bg-secondary/15 transition"
+                  >
+                    <PenLine className="w-4 h-4" /> Sign in to share yours
+                  </Link>
                 )
               }
             >
