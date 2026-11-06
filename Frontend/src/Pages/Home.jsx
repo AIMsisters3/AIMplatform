@@ -8,6 +8,13 @@ import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import heroBg from '../assets/bg.png';
 import { useAuth } from '../context/AuthContext.jsx';
 
+// Separate image per breakpoint, not just a repositioned crop of the same
+// file — rendered as two independent elements below (one hidden below md,
+// one hidden at md and up) so each screen size only ever loads its own
+// image. Both point at the same file for now; swap heroBgMobile for a
+// dedicated asset whenever one is provided, with no other changes needed.
+const heroBgMobile = heroBg;
+
 // The four category cards, in the requested order — icon/gradient per
 // category since there's no per-category photo asset in the project and
 // sourcing new stock photography isn't something this session can verify
@@ -212,9 +219,16 @@ export default function Home() {
       {/* Different composition per screen size, not the same crop
           stretched to fit: mobile favors a tighter, higher crop (keeps
           the hero itself compact, per spec) while desktop shows the
-          fuller frame centered. */}
+          fuller frame centered. Two separate elements (not one element
+          with a responsive background-position) so each breakpoint can
+          also point at an entirely different image file, not just a
+          different crop of the same one. */}
       <div
-        className="fixed inset-0 -z-10 bg-cover bg-[position:65%_top] md:bg-center"
+        className="fixed inset-0 -z-10 bg-cover bg-[position:65%_top] md:hidden"
+        style={{ backgroundImage: `url(${heroBgMobile})` }}
+      />
+      <div
+        className="fixed inset-0 -z-10 bg-cover bg-center hidden md:block"
         style={{ backgroundImage: `url(${heroBg})` }}
       />
 
