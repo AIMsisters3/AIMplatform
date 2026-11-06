@@ -237,19 +237,23 @@ export default function Home() {
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 w-full">
           <div className="max-w-xl text-left">
             <motion.h1
-              className="text-5xl md:text-6xl font-display font-extrabold leading-none mb-5"
+              className="text-4xl sm:text-5xl md:text-6xl font-display font-extrabold leading-none mb-5"
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
             >
               <span className="text-white">AIM</span>
               <span className="text-accent">sisters</span>
             </motion.h1>
             <motion.p
-              className="text-2xl md:text-3xl text-white font-semibold leading-snug mb-6"
+              className="text-xl sm:text-2xl md:text-3xl text-white font-semibold leading-snug mb-6"
               initial="hidden" whileInView="visible" viewport={{ once: true }}
               variants={fadeUp} transition={{ delay: 0.1 }}
             >
-              Sharing the Everlasting Gospel
-              <br />Through Faith and Technology
+              {/* The explicit line break only kicks in at md+ - below that,
+                  the smaller size lets this wrap naturally instead of
+                  forcing "Sharing the Everlasting Gospel" itself to wrap
+                  an extra, uneven time before reaching the break. */}
+              Sharing the Everlasting Gospel{' '}
+              <br className="hidden md:block" />Through Faith and Technology
             </motion.p>
             <motion.blockquote
               className="text-white/85 italic text-base mb-8 border-l-2 border-white/40 pl-4"
