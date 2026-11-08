@@ -11,22 +11,30 @@ class Comment
         $this->db = Database::getConnection();
     }
 
-    /** Top-level comments with nested replies (one level deep, YouTube-style). */
-    public function forContent(int $contentId, ?int $currentUserId = null): array
+    /**
+     * Top-level comments with nested replies (one level deep, TikTok/
+     * Instagram-style - a reply-to-a-reply still flattens into this same
+     * one level, see create()'s reply_to_user_id handling below).
+     * $currentVisitorKey powers liked_by_me - "user:<id>"/"guest:<cookie>",
+     * same scheme content_likes uses.
+     */
+    public function forContent(int $contentId, string $currentVisitorKey = ''): array
     {
         $stmt = $this->db->prepare(
             'SELECT c.id, c.parent_id, c.body, c.created_at, c.user_id, u.name AS user_name,
+                    c.reply_to_user_id, ru.name AS reply_to_user_name,
                     (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS likes_count,
                     EXISTS(
                       SELECT 1 FROM comment_likes cl2
-                      WHERE cl2.comment_id = c.id AND cl2.user_id = :current_user
+                      WHERE cl2.comment_id = c.id AND cl2.visitor_key = :current_visitor
                     ) AS liked_by_me
              FROM comments c
              JOIN users u ON u.id = c.user_id
+             LEFT JOIN users ru ON ru.id = c.reply_to_user_id
              WHERE c.content_id = :content_id AND c.status = \'approved\'
              ORDER BY c.created_at ASC'
         );
-        $stmt->execute(['content_id' => $contentId, 'current_user' => $currentUserId ?? 0]);
+        $stmt->execute(['content_id' => $contentId, 'current_visitor' => $currentVisitorKey]);
         $rows = $stmt->fetchAll();
 
         $byId = [];
@@ -55,23 +63,32 @@ class Comment
 
     public function create(int $contentId, int $userId, string $body, ?int $parentId = null): int
     {
-        // flatten a reply-to-a-reply onto the original top-level comment,
-        // same behavior YouTube uses instead of infinite nesting
+        // Flatten a reply-to-a-reply onto the original top-level comment -
+        // still one level deep in storage, no infinite nesting - but
+        // remember whose reply it was actually directed at so the UI can
+        // show "Replying to @name", TikTok/Instagram-style, instead of
+        // silently losing that context the way a plain flatten would.
+        // Replying directly to a top-level comment leaves this null - no
+        // "Replying to" label needed there either, same as those apps.
+        $replyToUserId = null;
         if ($parentId) {
             $parent = $this->find($parentId);
             if ($parent && $parent['parent_id']) {
+                $replyToUserId = (int) $parent['user_id'];
                 $parentId = (int) $parent['parent_id'];
             }
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO comments (content_id, user_id, parent_id, body) VALUES (:content_id, :user_id, :parent_id, :body)'
+            'INSERT INTO comments (content_id, user_id, parent_id, reply_to_user_id, body)
+             VALUES (:content_id, :user_id, :parent_id, :reply_to_user_id, :body)'
         );
         $stmt->execute([
-            'content_id' => $contentId,
-            'user_id'    => $userId,
-            'parent_id'  => $parentId,
-            'body'       => $body,
+            'content_id'       => $contentId,
+            'user_id'          => $userId,
+            'parent_id'        => $parentId,
+            'reply_to_user_id' => $replyToUserId,
+            'body'             => $body,
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -115,10 +132,11 @@ class Comment
         return $stmt->execute(['status' => $status, 'id' => $id]);
     }
 
-    public function toggleLike(int $commentId, int $userId): array
+    /** Toggles a like identified by $visitorKey - anyone can like, signed in or not, same as Content::toggleLike(). */
+    public function toggleLike(int $commentId, string $visitorKey, ?int $userId = null): array
     {
-        $check = $this->db->prepare('SELECT id FROM comment_likes WHERE comment_id = :c AND user_id = :u');
-        $check->execute(['c' => $commentId, 'u' => $userId]);
+        $check = $this->db->prepare('SELECT id FROM comment_likes WHERE comment_id = :c AND visitor_key = :v');
+        $check->execute(['c' => $commentId, 'v' => $visitorKey]);
         $existing = $check->fetch();
 
         if ($existing) {
@@ -126,8 +144,8 @@ class Comment
             $del->execute(['id' => $existing['id']]);
             $liked = false;
         } else {
-            $ins = $this->db->prepare('INSERT INTO comment_likes (comment_id, user_id) VALUES (:c, :u)');
-            $ins->execute(['c' => $commentId, 'u' => $userId]);
+            $ins = $this->db->prepare('INSERT INTO comment_likes (comment_id, visitor_key, user_id) VALUES (:c, :v, :u)');
+            $ins->execute(['c' => $commentId, 'v' => $visitorKey, 'u' => $userId]);
             $liked = true;
         }
 

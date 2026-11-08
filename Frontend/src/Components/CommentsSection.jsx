@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle } from 'lucide-react';
+import { Heart, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -15,10 +15,14 @@ function timeAgo(dateStr) {
 }
 
 function CommentRow({ comment, onReply, onLike, isReply }) {
-  const [comments, setComments] = useState([]);
   const { user } = useAuth();
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
+  // Collapsed by default, TikTok/Instagram-style - a reply-to-a-reply
+  // still flattens into this same replies array server-side (see
+  // Comment::create()'s reply_to_user_id handling), it isn't its own
+  // nested level, so this toggle only ever applies at the top level.
+  const [repliesVisible, setRepliesVisible] = useState(false);
 
   async function submitReply(e) {
     e.preventDefault();
@@ -26,7 +30,10 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
     await onReply(comment.id, replyText.trim());
     setReplyText('');
     setShowReplyBox(false);
+    setRepliesVisible(true);
   }
+
+  const replyCount = comment.replies?.length || 0;
 
   return (
     <div className={isReply ? 'ml-11 mt-3' : ''}>
@@ -39,6 +46,12 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
             <span className="text-sm font-semibold text-ink">{comment.user_name}</span>
             <span className="text-xs text-ink/40">{timeAgo(comment.created_at)}</span>
           </div>
+          {/* Only a reply-to-a-reply carries this - a direct reply to the
+              top-level comment reads as "replying to the thread" on its
+              own, same as TikTok/Instagram never label that case either. */}
+          {comment.reply_to_user_name && (
+            <p className="text-xs text-secondary font-medium">Replying to @{comment.reply_to_user_name}</p>
+          )}
           <p className="text-sm text-ink/70">{comment.body}</p>
           <div className="flex items-center gap-4 mt-1">
             <button
@@ -50,7 +63,11 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
               <Heart className="w-3.5 h-3.5" fill={comment.liked_by_me ? 'currentColor' : 'none'} />
               {comment.likes_count > 0 && comment.likes_count}
             </button>
-            {!isReply && user && (
+            {/* Reply is now available on a reply too, not just a
+                top-level comment - posting still requires an account
+                (same as a top-level comment always has), only liking is
+                open to guests. */}
+            {user && (
               <button
                 onClick={() => setShowReplyBox((v) => !v)}
                 className="flex items-center gap-1 text-xs font-medium text-ink/40 hover:text-secondary transition"
@@ -74,10 +91,20 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
               </button>
             </form>
           )}
+
+          {!isReply && replyCount > 0 && (
+            <button
+              onClick={() => setRepliesVisible((v) => !v)}
+              className="flex items-center gap-1 text-xs font-semibold text-secondary mt-2"
+            >
+              {repliesVisible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {repliesVisible ? 'Hide replies' : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`}
+            </button>
+          )}
         </div>
       </div>
 
-      {comment.replies?.length > 0 && (
+      {!isReply && replyCount > 0 && repliesVisible && (
         <div className="space-y-3">
           {comment.replies.map((reply) => (
             <CommentRow key={reply.id} comment={reply} onReply={onReply} onLike={onLike} isReply />
@@ -156,10 +183,8 @@ export default function CommentsSection({ contentId, allowComments }) {
   }
 
   async function handleLike(commentId) {
-    if (!user) {
-      alert('Please sign in to like comments.');
-      return;
-    }
+    // Anyone can like a comment, signed in or not - same guest-cookie
+    // identity the backend already uses for content likes/view counts.
     setComments((prev) => prev.map((c) => updateLikeInTree(c, commentId)));
     try {
       await api.post(`/comments/${commentId}/like`);
