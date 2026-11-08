@@ -214,23 +214,6 @@ export default function Login() {
               {mode === 'login' ? 'Sign in to continue your journey with us.' : 'Join the AIMsisters community.'}
             </p>
 
-            {/* Empty + hidden when VITE_GOOGLE_CLIENT_ID isn't set (local
-                dev before it's configured, see .env.example) - Google's own
-                script fills this div once it loads, so there's nothing to
-                conditionally render here beyond the container itself. */}
-            {GOOGLE_CLIENT_ID && (
-              <>
-                <div className="flex justify-center mb-5">
-                  <div ref={googleButtonRef} />
-                </div>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="flex-1 h-px bg-white/15" />
-                  <span className="text-xs text-white/40 font-medium">OR CONTINUE WITH EMAIL</span>
-                  <div className="flex-1 h-px bg-white/15" />
-                </div>
-              </>
-            )}
-
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'register' && (
                 <>
@@ -307,6 +290,23 @@ export default function Login() {
                 {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
               </button>
             </form>
+
+            {/* Hidden when VITE_GOOGLE_CLIENT_ID isn't set (local dev
+                before it's configured, see .env.example) - Google's own
+                script fills this div once it loads, so there's nothing to
+                conditionally render here beyond the container itself. */}
+            {GOOGLE_CLIENT_ID && (
+              <>
+                <div className="flex items-center gap-3 mt-6 mb-5">
+                  <div className="flex-1 h-px bg-white/15" />
+                  <span className="text-xs text-white/40 font-medium">OR CONTINUE WITH GOOGLE</span>
+                  <div className="flex-1 h-px bg-white/15" />
+                </div>
+                <div className="flex justify-center">
+                  <div ref={googleButtonRef} />
+                </div>
+              </>
+            )}
 
             <p className="text-center text-sm text-white/60 mt-6">
               {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
