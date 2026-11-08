@@ -24,6 +24,23 @@ class User
         return $user ?: null;
     }
 
+    public function findByUsername(string $username): ?array
+    {
+        $stmt = $this->db->prepare(self::SELECT_WITH_ROLE . ' WHERE u.username = :username LIMIT 1');
+        $stmt->execute(['username' => $username]);
+        $user = $stmt->fetch();
+        return $user ?: null;
+    }
+
+    /** Login accepts either - one lookup against both columns rather than guessing which the input looks like. */
+    public function findByEmailOrUsername(string $identifier): ?array
+    {
+        $stmt = $this->db->prepare(self::SELECT_WITH_ROLE . ' WHERE u.email = :id OR u.username = :id LIMIT 1');
+        $stmt->execute(['id' => $identifier]);
+        $user = $stmt->fetch();
+        return $user ?: null;
+    }
+
     public function findById(int $id): ?array
     {
         $stmt = $this->db->prepare(self::SELECT_WITH_ROLE . ' WHERE u.id = :id LIMIT 1');
@@ -39,19 +56,20 @@ class User
      * of anything the client sends; only an existing Admin/Super Admin
      * (via a future users.manage-gated endpoint) can promote an account.
      */
-    public function create(string $name, string $email, string $password, string $roleSlug = 'user'): int
+    public function create(string $name, string $username, string $email, string $password, string $roleSlug = 'user'): int
     {
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $role = (new Role())->findBySlug($roleSlug) ?? (new Role())->findBySlug('user');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO users (name, email, password_hash, role_id) VALUES (:name, :email, :hash, :role_id)'
+            'INSERT INTO users (name, username, email, password_hash, role_id) VALUES (:name, :username, :email, :hash, :role_id)'
         );
         $stmt->execute([
-            'name'    => $name,
-            'email'   => $email,
-            'hash'    => $hash,
-            'role_id' => $role['id'] ?? null,
+            'name'     => $name,
+            'username' => $username,
+            'email'    => $email,
+            'hash'     => $hash,
+            'role_id'  => $role['id'] ?? null,
         ]);
 
         return (int) $this->db->lastInsertId();

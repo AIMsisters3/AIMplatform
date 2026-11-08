@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
+import { Lock, Mail, User, AtSign, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/axios.js';
 import heroBg from '../assets/bg.png';
@@ -24,7 +24,11 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function Login() {
   const [mode, setMode] = useState('login'); // login | register
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  // `email` doubles as "email or username" in login mode (one combined
+  // field, same backend endpoint resolves either - see
+  // AuthController::login()); register mode uses it as a real email,
+  // alongside its own separate `username` field.
+  const [form, setForm] = useState({ name: '', username: '', email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -229,23 +233,46 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'register' && (
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                  <input
-                    required
-                    placeholder="Full name"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-                  />
-                </div>
+                <>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                    <input
+                      required
+                      placeholder="Full name"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                    />
+                  </div>
+                  <div className="relative">
+                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                    <input
+                      required
+                      placeholder="Username"
+                      value={form.username}
+                      onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase() })}
+                      pattern="[a-z][a-z0-9_]{2,29}"
+                      title="3-30 characters, start with a letter, letters/numbers/underscores only"
+                      className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                    />
+                  </div>
+                </>
               )}
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                {/* In login mode this doubles as "email or username" (one
+                    combined field, same AuthController::login() resolves
+                    either) - a plain text field rather than type="email",
+                    which would block typing a username at all. Register
+                    mode keeps a real, dedicated email field. */}
+                {mode === 'login' ? (
+                  <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                ) : (
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                )}
                 <input
                   required
-                  type="email"
-                  placeholder="Email address"
+                  type={mode === 'login' ? 'text' : 'email'}
+                  placeholder={mode === 'login' ? 'Email or Username' : 'Email address'}
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"

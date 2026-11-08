@@ -24,11 +24,19 @@ class AuthController
         $body = get_json_body();
 
         $name     = trim($body['name'] ?? '');
+        $username = trim(strtolower($body['username'] ?? ''));
         $email    = trim(strtolower($body['email'] ?? ''));
         $password = $body['password'] ?? '';
 
-        if (!$name || !$email || !$password) {
-            json_error('Name, email, and password are required.', 422);
+        if (!$name || !$username || !$email || !$password) {
+            json_error('Name, username, email, and password are required.', 422);
+        }
+        // Letters/digits/underscore only, must start with a letter - a
+        // username is also how someone logs in going forward (alongside
+        // email), so it can't be ambiguous with an email address or
+        // contain characters that would be awkward to type/share.
+        if (!preg_match('/^[a-z][a-z0-9_]{2,29}$/', $username)) {
+            json_error('Username must be 3-30 characters, start with a letter, and contain only letters, numbers, and underscores.', 422);
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             json_error('Invalid email address.', 422);
@@ -36,11 +44,14 @@ class AuthController
         if (strlen($password) < 8) {
             json_error('Password must be at least 8 characters.', 422);
         }
+        if ($this->userModel->findByUsername($username)) {
+            json_error('This username is already taken.', 409);
+        }
         if ($this->userModel->findByEmail($email)) {
             json_error('An account with this email already exists.', 409);
         }
 
-        $id = $this->userModel->create($name, $email, $password);
+        $id = $this->userModel->create($name, $username, $email, $password);
         $user = $this->userModel->findById($id);
 
         json_created([
@@ -49,27 +60,33 @@ class AuthController
         ], 'Account created successfully.');
     }
 
+    /**
+     * POST /api/auth/login  body: {email, password} - "email" is really
+     * "email or username" (the field name is kept as-is on the wire so
+     * nothing else calling this - AdminLogin.jsx included - needs to
+     * change; findByEmailOrUsername() resolves either).
+     */
     public function login(): void
     {
         $body = get_json_body();
 
-        $email    = trim(strtolower($body['email'] ?? ''));
-        $password = $body['password'] ?? '';
+        $identifier = trim(strtolower($body['email'] ?? ''));
+        $password   = $body['password'] ?? '';
 
-        if (!$email || !$password) {
-            json_error('Email and password are required.', 422);
+        if (!$identifier || !$password) {
+            json_error('Email/username and password are required.', 422);
         }
 
-        // Rate-limit by IP+email so a brute-force attempt against one
+        // Rate-limit by IP+identifier so a brute-force attempt against one
         // account can't be spread across attempts and still slip through,
         // while a shared office IP trying different accounts isn't
         // penalized for someone else's typos.
-        rate_limit_check('login:' . client_ip() . ':' . $email, 8, 300);
+        rate_limit_check('login:' . client_ip() . ':' . $identifier, 8, 300);
 
-        $user = $this->userModel->findByEmail($email);
+        $user = $this->userModel->findByEmailOrUsername($identifier);
 
         if (!$user || !$this->userModel->verifyPassword($user, $password)) {
-            json_error('Invalid email or password.', 401);
+            json_error('Invalid email/username or password.', 401);
         }
 
         if ($user['status'] !== 'active') {
@@ -200,11 +217,12 @@ class AuthController
     private function publicUser(array $user): array
     {
         return [
-            'id'    => (int) $user['id'],
-            'name'  => $user['name'],
-            'email' => $user['email'],
-            'role'  => $user['role_slug'] ?? 'user',
-            'avatar'=> $user['avatar'],
+            'id'       => (int) $user['id'],
+            'name'     => $user['name'],
+            'username' => $user['username'] ?? null,
+            'email'    => $user['email'],
+            'role'     => $user['role_slug'] ?? 'user',
+            'avatar'   => $user['avatar'],
         ];
     }
 }
