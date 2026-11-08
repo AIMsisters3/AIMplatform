@@ -60,6 +60,23 @@ export default function ContentViewerModal({ item, onClose }) {
     setMediaError(false);
     setBookReaderOpen(false);
     setLikeOverride(null);
+    // Every page that opens this modal does so straight from already-
+    // fetched list data (ContentCard/FeaturedCard/etc.), so without this
+    // the detail endpoint - and therefore Content::recordView() - never
+    // actually ran, and the view was never counted. Firing it here once,
+    // centrally, means every opener gets accurate views for free rather
+    // than each page having to remember to call it itself.
+    if (!item?.id) return undefined;
+    let cancelled = false;
+    api.get(`/content/${item.id}`)
+      .then((r) => {
+        const fresh = r.data?.data?.item;
+        if (!cancelled && fresh) {
+          setLikeOverride({ liked: !!fresh.liked_by_me, likes_count: fresh.likes_count || 0 });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [item?.id]);
 
   useEffect(() => {

@@ -75,6 +75,14 @@ class User
         return (int) $this->db->lastInsertId();
     }
 
+    /** Sets a new password on an account — used by the "forgot password" reset flow (AuthController::resetPassword()). */
+    public function updatePassword(int $id, string $newPassword): void
+    {
+        $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+        $stmt = $this->db->prepare('UPDATE users SET password_hash = :hash WHERE id = :id');
+        $stmt->execute(['hash' => $hash, 'id' => $id]);
+    }
+
     public function verifyPassword(array $user, string $password): bool
     {
         // A Google-only account has no password_hash at all (NULL) -

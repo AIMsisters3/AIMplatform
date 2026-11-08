@@ -63,6 +63,8 @@ function route(string $method, string $path)
         if ($id === 'login' && $method === 'POST') return $auth->login();
         if ($id === 'google' && $method === 'POST') return $auth->google();
         if ($id === 'me' && $method === 'GET') return $auth->me();
+        if ($id === 'forgot-password' && $method === 'POST') return $auth->forgotPassword();
+        if ($id === 'reset-password' && $method === 'POST') return $auth->resetPassword();
         json_error('Auth route not found.', 404);
     }
 

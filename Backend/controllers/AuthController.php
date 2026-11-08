@@ -1,9 +1,12 @@
 <?php
 
 require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/PasswordReset.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/jwt.php';
 require_once __DIR__ . '/../helpers/rate_limit_v2.php';
+require_once __DIR__ . '/../helpers/mailer.php';
+require_once __DIR__ . '/../emails/password_reset_template.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
 class AuthController
@@ -201,6 +204,72 @@ class AuthController
         }
 
         json_ok(['user' => $this->publicUser($user)]);
+    }
+
+    /**
+     * POST /api/auth/forgot-password  body: {email} — always responds the
+     * same way whether or not that email has an account (same reasoning
+     * Google/GitHub/etc. use for this exact endpoint): confirming an
+     * address's existence here would let anyone probe who has an account
+     * just by submitting emails and watching which ones differ. Receiving
+     * (or not receiving) the email itself is the only real signal.
+     */
+    public function forgotPassword(): void
+    {
+        rate_limit_check('forgot_password:' . client_ip(), 5, 3600);
+
+        $body = get_json_body();
+        $email = trim(strtolower($body['email'] ?? ''));
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            json_error('A valid email address is required.', 422);
+        }
+
+        // Also rate-limited by the submitted address itself, so repeated
+        // requests for one inbox can't be used to spam it even from
+        // different/rotating IPs.
+        rate_limit_check('forgot_password_email:' . $email, 5, 3600);
+
+        $user = $this->userModel->findByEmail($email);
+
+        // A Google-only account (no password_hash — see migration 035)
+        // has no password to reset; silently skipped same as "no account
+        // at all" rather than telling the submitter which case it was.
+        if ($user && $user['password_hash']) {
+            $token = (new PasswordReset())->issue((int) $user['id']);
+            $url = rtrim(FRONTEND_URL, '/') . '/reset-password?token=' . urlencode($token);
+            $html = password_reset_email_html($user['name'], $url);
+            send_email($user['email'], 'Reset your AIMsisters password', $html);
+        }
+
+        json_ok([], "If an account exists for that email, we've sent a password reset link.");
+    }
+
+    /** POST /api/auth/reset-password  body: {token, password} — consumes a link forgotPassword() emailed out. */
+    public function resetPassword(): void
+    {
+        rate_limit_check('reset_password:' . client_ip(), 10, 3600);
+
+        $body = get_json_body();
+        $token = $body['token'] ?? '';
+        $password = $body['password'] ?? '';
+
+        if (!$token) {
+            json_error('Missing reset token.', 422);
+        }
+        if (strlen($password) < 8) {
+            json_error('Password must be at least 8 characters.', 422);
+        }
+
+        $reset = (new PasswordReset())->findValid($token);
+        if (!$reset) {
+            json_error('This reset link is invalid or has expired. Please request a new one.', 400);
+        }
+
+        $this->userModel->updatePassword((int) $reset['user_id'], $password);
+        (new PasswordReset())->markUsed((int) $reset['id']);
+
+        json_ok([], 'Your password has been reset. You can now sign in.');
     }
 
     private function issueToken(array $user): string

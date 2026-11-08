@@ -23,32 +23,64 @@ const staggerContainer = {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function Login() {
-  const [mode, setMode] = useState('login'); // login | register
+  const [mode, setMode] = useState('login'); // login | register | forgot
   // `email` doubles as "email or username" in login mode (one combined
   // field, same backend endpoint resolves either - see
   // AuthController::login()); register mode uses it as a real email,
-  // alongside its own separate `username` field.
-  const [form, setForm] = useState({ name: '', username: '', email: '', password: '' });
+  // alongside its own separate `username` field. `forgot` mode only ever
+  // reads `email`.
+  const [form, setForm] = useState({ name: '', username: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  // Sentinel rather than part of the plain error string - lets the error
+  // message render an actual "Forgot your password?" link/button instead
+  // of plain text, only for the one case (register hit a 409 - this email
+  // already has an account) where that's the single most useful next step.
+  const [emailTaken, setEmailTaken] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const googleButtonRef = useRef(null);
 
+  function switchMode(next) {
+    setMode(next);
+    setError('');
+    setEmailTaken(false);
+    setForgotSent(false);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setEmailTaken(false);
     setLoading(true);
     try {
+      if (mode === 'forgot') {
+        await api.post('/auth/forgot-password', { email: form.email });
+        setForgotSent(true);
+        return;
+      }
       if (mode === 'login') {
         await login(form.email, form.password);
       } else {
+        if (form.password !== form.confirmPassword) {
+          setError('Passwords do not match.');
+          return;
+        }
         await api.post('/auth/register', form);
         await login(form.email, form.password);
       }
       navigate('/');
     } catch (err) {
+      // register() returns 409 for either a taken username OR a taken
+      // email (AuthController::register() checks username first) - only
+      // the email case makes "forgot your password?" a sensible next
+      // step, so this only fires for that one, identified by the message
+      // text since the response doesn't otherwise distinguish the two.
+      if (mode === 'register' && err.response?.status === 409 && /email/i.test(err.response?.data?.message || '')) {
+        setEmailTaken(true);
+      }
       setError(err.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
@@ -182,12 +214,18 @@ export default function Login() {
                 <img src={logo} alt="AIMsisters" className="relative w-14 h-14 rounded-full object-cover shadow-glass" />
               </div>
               <motion.h2 variants={fadeUp} className="text-3xl font-display font-bold text-white leading-tight mb-3">
-                Join <span className="text-accent">AIMsisters</span>
+                {mode === 'register' ? (
+                  <>Join <span className="text-accent">AIMsisters</span></>
+                ) : (
+                  <>We <span className="text-accent">Welcome</span> You</>
+                )}
               </motion.h2>
               <motion.p variants={fadeUp} className="text-white/70 text-sm max-w-xs">
-                {mode === 'login'
-                  ? 'Sign in to continue your journey with us.'
-                  : 'Create an account to start your journey with us.'}
+                {mode === 'register'
+                  ? 'Create an account to start your journey with us.'
+                  : mode === 'forgot'
+                  ? "We'll help you get back into your account."
+                  : 'Sign in to continue your journey with us.'}
               </motion.p>
             </motion.div>
 
@@ -208,94 +246,162 @@ export default function Login() {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-display font-bold text-white text-center md:text-left mb-1">
-              {mode === 'login' ? 'Sign In' : 'Create an Account'}
+              {mode === 'login' ? 'Sign In' : mode === 'register' ? 'Create an Account' : 'Reset Password'}
             </h1>
             <p className="text-white/60 text-sm text-center md:text-left mb-7">
-              {mode === 'login' ? 'Sign in to continue your journey with us.' : 'Join the AIMsisters community.'}
+              {mode === 'login'
+                ? 'Sign in to continue your journey with us.'
+                : mode === 'register'
+                ? 'Join the AIMsisters community.'
+                : "Enter your email and we'll send you a reset link."}
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {mode === 'register' && (
-                <>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                    <input
-                      required
-                      placeholder="Full name"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-                    />
-                  </div>
-                  <div className="relative">
-                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                    <input
-                      required
-                      placeholder="Username"
-                      value={form.username}
-                      onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase() })}
-                      pattern="[a-z][a-z0-9_]{2,29}"
-                      title="3-30 characters, start with a letter, letters/numbers/underscores only"
-                      className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-                    />
-                  </div>
-                </>
-              )}
-              <div className="relative">
-                {/* In login mode this doubles as "email or username" (one
-                    combined field, same AuthController::login() resolves
-                    either) - a plain text field rather than type="email",
-                    which would block typing a username at all. Register
-                    mode keeps a real, dedicated email field. */}
-                {mode === 'login' ? (
-                  <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                ) : (
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                )}
-                <input
-                  required
-                  type={mode === 'login' ? 'text' : 'email'}
-                  placeholder={mode === 'login' ? 'Email or Username' : 'Email address'}
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-                />
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                <input
-                  required
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full pl-11 pr-11 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-                />
+            {mode === 'forgot' && forgotSent ? (
+              <div className="text-center space-y-5">
+                <p className="text-white/80 text-sm leading-relaxed">
+                  If an account exists for <span className="text-white font-semibold">{form.email}</span>,
+                  we've sent a password reset link to it. Check your inbox (and spam folder).
+                </p>
                 <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onClick={() => switchMode('login')}
+                  className="text-accent font-semibold hover:text-white transition text-sm"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  Back to Sign In
                 </button>
               </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {mode === 'register' && (
+                  <>
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                      <input
+                        required
+                        placeholder="Full name"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                      />
+                    </div>
+                    <div className="relative">
+                      <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                      <input
+                        required
+                        placeholder="Username"
+                        value={form.username}
+                        onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase() })}
+                        pattern="[a-z][a-z0-9_]{2,29}"
+                        title="3-30 characters, start with a letter, letters/numbers/underscores only"
+                        className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="relative">
+                  {/* In login mode this doubles as "email or username" (one
+                      combined field, same AuthController::login() resolves
+                      either) - a plain text field rather than type="email",
+                      which would block typing a username at all. Register
+                      and forgot-password modes keep a real, dedicated
+                      email field. */}
+                  {mode === 'login' ? (
+                    <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                  ) : (
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                  )}
+                  <input
+                    required
+                    type={mode === 'login' ? 'text' : 'email'}
+                    placeholder={mode === 'login' ? 'Email or Username' : 'Email address'}
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                  />
+                </div>
+                {mode !== 'forgot' && (
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                    <input
+                      required
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Password"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      className="w-full pl-11 pr-11 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                )}
+                {mode === 'register' && (
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                    <input
+                      required
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Confirm password"
+                      value={form.confirmPassword}
+                      onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                      className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                    />
+                  </div>
+                )}
+                {mode === 'login' && (
+                  <div className="text-right -mt-1">
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="text-xs text-white/60 hover:text-accent transition"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
 
-              {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
+                {error && (
+                  <p className="text-sm text-rose-300 text-center">
+                    {error}{' '}
+                    {emailTaken && (
+                      <button
+                        type="button"
+                        onClick={() => { setForm((f) => ({ ...f, password: '', confirmPassword: '' })); switchMode('forgot'); }}
+                        className="underline text-rose-200 hover:text-white transition"
+                      >
+                        Forgot your password?
+                      </button>
+                    )}
+                  </p>
+                )}
 
-              <button
-                disabled={loading}
-                className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
-              >
-                {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
-              </button>
-            </form>
+                <button
+                  disabled={loading}
+                  className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
+                >
+                  {loading
+                    ? 'Please wait...'
+                    : mode === 'login'
+                    ? 'Login'
+                    : mode === 'register'
+                    ? 'Create Account'
+                    : 'Send Reset Link'}
+                </button>
+              </form>
+            )}
 
             {/* Hidden when VITE_GOOGLE_CLIENT_ID isn't set (local dev
                 before it's configured, see .env.example) - Google's own
                 script fills this div once it loads, so there's nothing to
-                conditionally render here beyond the container itself. */}
-            {GOOGLE_CLIENT_ID && (
+                conditionally render here beyond the container itself.
+                Only offered for login/register - signing in with Google
+                has nothing to do with resetting an email/password account's
+                password. */}
+            {GOOGLE_CLIENT_ID && mode !== 'forgot' && (
               <>
                 <div className="flex items-center gap-3 mt-6 mb-5">
                   <div className="flex-1 h-px bg-white/15" />
@@ -309,13 +415,21 @@ export default function Login() {
             )}
 
             <p className="text-center text-sm text-white/60 mt-6">
-              {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-              <button
-                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                className="text-accent font-semibold hover:text-white transition"
-              >
-                {mode === 'login' ? 'Sign up' : 'Sign in'}
-              </button>
+              {mode === 'forgot' ? (
+                <button onClick={() => switchMode('login')} className="text-accent font-semibold hover:text-white transition">
+                  Back to Sign In
+                </button>
+              ) : (
+                <>
+                  {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
+                  <button
+                    onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
+                    className="text-accent font-semibold hover:text-white transition"
+                  >
+                    {mode === 'login' ? 'Sign up' : 'Sign in'}
+                  </button>
+                </>
+              )}
             </p>
           </div>
         </div>

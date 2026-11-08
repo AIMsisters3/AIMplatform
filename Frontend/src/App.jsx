@@ -43,6 +43,7 @@ const SearchResults = lazy(() => import('./Pages/SearchResults.jsx'));
 const About = lazy(() => import('./Pages/About.jsx'));
 const Contact = lazy(() => import('./Pages/Contact.jsx'));
 const Login = lazy(() => import('./Pages/Login.jsx'));
+const ResetPassword = lazy(() => import('./Pages/ResetPassword.jsx'));
 
 // ---------- Admin CMS pages ----------
 const Dashboard = lazy(() => import('./Admin/Pages/Dashboard.jsx'));
@@ -133,6 +134,7 @@ export default function App() {
             <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
             <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
             <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
+            <Route path="/reset-password" element={<PublicLayout><ResetPassword /></PublicLayout>} />
 
             {/* ---------- Admin CMS (separate shell, no public navbar/footer) ---------- */}
             <Route path="/admin/login" element={<AdminLogin />} />
