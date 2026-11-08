@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlayCircle, FileText, Headphones, Eye, MessageCircle } from 'lucide-react';
+import { PlayCircle, FileText, Headphones, Eye, MessageCircle, Heart } from 'lucide-react';
 import { getItemKind, isLive, wasLive } from '../utils/mediaKind.js';
 import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 
@@ -23,13 +23,15 @@ export default function ContentCard({ item, onClick }) {
   const relativeDate = formatRelativeDate(item.publish_date || item.created_at);
   const viewCount = formatCount(item.views);
   const commentCount = formatCount(item.comments_count);
-  // One combined "1.2K views • 14 comments • 12:45" line — built as an
-  // array and joined so a missing piece (e.g. no comment count yet)
-  // never leaves a stray separator behind.
+  const likeCount = formatCount(item.likes_count);
+  // One combined "1.2K views • 14 comments • 8 likes" line — built as an
+  // array and joined so a missing piece (e.g. no comment count yet) never
+  // leaves a stray separator behind. Duration lives only on the thumbnail
+  // badge below now, not duplicated here as text too.
   const metaParts = [
     viewCount !== null && `${viewCount} ${Number(item.views) === 1 ? 'view' : 'views'}`,
     commentCount !== null && `${commentCount} ${Number(item.comments_count) === 1 ? 'comment' : 'comments'}`,
-    duration,
+    likeCount !== null && `${likeCount} ${Number(item.likes_count) === 1 ? 'like' : 'likes'}`,
   ].filter(Boolean);
 
   return (
@@ -70,11 +72,11 @@ export default function ContentCard({ item, onClick }) {
           </span>
         )}
 
-        {/* YouTube-style duration chip on the thumbnail itself (in
-            addition to appearing in the metadata line below) — only
-            ever a real, captured duration (see readMediaDuration() in
-            UploadContent.jsx); omitted entirely for anything uploaded
-            before that existed. */}
+        {/* YouTube-style duration chip on the thumbnail itself - the only
+            place duration appears now (the metadata line below shows
+            likes instead) — only ever a real, captured duration (see
+            readMediaDuration() in UploadContent.jsx); omitted entirely
+            for anything uploaded before that existed. */}
         {duration && (
           <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/75 text-white text-[11px] font-semibold tabular-nums">
             {duration}
@@ -95,9 +97,8 @@ export default function ContentCard({ item, onClick }) {
           <p className="text-sm text-ink/60 line-clamp-2 mb-2">{item.description}</p>
         )}
         {item.speaker && <p className="text-xs text-ink/50 mb-1">{item.speaker}</p>}
-        {/* Views • comments • duration, all on one line (spec example:
-            "1.2K views 14 comments 12:45") — wraps gracefully only if
-            the screen is genuinely too narrow, never forced onto
+        {/* Views • comments • likes, all on one line — wraps gracefully
+            only if the screen is genuinely too narrow, never forced onto
             separate lines otherwise. */}
         {(metaParts.length > 0 || relativeDate) && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink/45">
@@ -107,6 +108,7 @@ export default function ContentCard({ item, onClick }) {
                 <span className="flex items-center gap-1">
                   {i === 0 && metaParts[0]?.includes('view') && <Eye className="w-3.5 h-3.5" />}
                   {part.includes('comment') && <MessageCircle className="w-3.5 h-3.5" />}
+                  {part.includes('like') && <Heart className="w-3.5 h-3.5" />}
                   {part}
                 </span>
               </React.Fragment>

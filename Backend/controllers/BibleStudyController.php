@@ -54,18 +54,18 @@ class BibleStudyController
 
         $payload = optional_auth();
         $userId = $payload['sub'] ?? null;
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
 
         $item = ctype_digit($slugOrId)
-            ? $contentModel->find((int) $slugOrId, $userId ? (int) $userId : null)
-            : $contentModel->findBySlug($slugOrId, $userId ? (int) $userId : null);
+            ? $contentModel->find((int) $slugOrId, $visitorKey)
+            : $contentModel->findBySlug($slugOrId, $visitorKey);
 
         if (!$item || $item['content_type'] !== 'bible_study') {
             json_error('Bible study not found.', 404);
         }
 
-        $study = $this->model->findByContentId((int) $item['id'], $userId ? (int) $userId : null);
+        $study = $this->model->findByContentId((int) $item['id'], $visitorKey);
 
-        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
         $contentModel->recordView((int) $item['id'], $visitorKey, $userId ? (int) $userId : null);
 
         $progress = $payload ? $this->model->getProgress((int) $payload['sub'], (int) $item['id']) : null;

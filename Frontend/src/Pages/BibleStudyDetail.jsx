@@ -101,10 +101,8 @@ export default function BibleStudyDetail() {
   }
 
   async function handleToggleLike() {
-    if (!user) {
-      alert('Please sign in to like this.');
-      return;
-    }
+    // Anyone can like, signed in or not - same guest-cookie identity the
+    // backend already uses for view-count dedup.
     const liked = likeOverride ? likeOverride.liked : !!item.liked_by_me;
     const likesCount = likeOverride ? likeOverride.likes_count : (item.likes_count || 0);
     setLikeOverride({ liked: !liked, likes_count: likesCount + (!liked ? 1 : -1) });
@@ -262,28 +260,31 @@ export default function BibleStudyDetail() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-4">
-            {item.speaker && <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-secondary" />{item.speaker}</span>}
+          {/* One line, always - flex-nowrap + overflow-x-auto rather than
+              flex-wrap, so this never breaks into two lines regardless of
+              screen width; it scrolls sideways instead on anything too
+              narrow to fit it all. */}
+          <div className="flex flex-nowrap items-center gap-x-5 gap-2 text-sm text-ink/50 mb-6 overflow-x-auto">
+            {item.speaker && <span className="flex items-center gap-1.5 shrink-0"><User className="w-4 h-4 text-secondary" />{item.speaker}</span>}
             {item.publish_date && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 shrink-0">
                 <Calendar className="w-4 h-4 text-secondary" />
                 {new Date(item.publish_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
             )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            <button
-              onClick={handleToggleLike}
-              className={`flex items-center gap-1.5 text-sm font-semibold transition ${
-                liked ? 'text-accent' : 'text-ink/50 hover:text-accent'
-              }`}
-            >
-              <Heart className="w-4 h-4" fill={liked ? 'currentColor' : 'none'} />
-              {likesCount > 0 ? likesCount : 'Like'}
-            </button>
-            <ShareButton item={item} />
-            <DownloadButton item={item} />
+            <span className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={handleToggleLike}
+                className={`flex items-center gap-1.5 text-sm font-semibold transition shrink-0 ${
+                  liked ? 'text-accent' : 'text-ink/50 hover:text-accent'
+                }`}
+              >
+                <Heart className="w-4 h-4" fill={liked ? 'currentColor' : 'none'} />
+                {likesCount > 0 ? likesCount : 'Like'}
+              </button>
+              <ShareButton item={item} />
+              <DownloadButton item={item} />
+            </span>
           </div>
 
           {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}

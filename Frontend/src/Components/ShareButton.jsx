@@ -21,19 +21,23 @@ export default function ShareButton({ item }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 shrink-0">
+      {/* Short labels ("WhatsApp"/"Copy", not "Share on WhatsApp"/"Copy
+          link") - this sits in a single-line action row alongside Like/
+          Download/view count, and the fuller text was most of why that
+          row didn't fit on one line. */}
       <button
         onClick={handleWhatsApp}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#25D366] text-white text-xs font-semibold shadow-glass hover:opacity-90 transition"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#25D366] text-white text-xs font-semibold shadow-glass hover:opacity-90 transition whitespace-nowrap"
       >
-        Share on WhatsApp
+        WhatsApp
       </button>
       <button
         onClick={handleCopy}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface text-ink/70 text-xs font-semibold border border-ink/10 hover:bg-ink/5 transition"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-surface text-ink/70 text-xs font-semibold border border-ink/10 hover:bg-ink/5 transition whitespace-nowrap"
       >
         {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-        {copied ? 'Copied' : 'Copy link'}
+        {copied ? 'Copied' : 'Copy'}
       </button>
     </div>
   );

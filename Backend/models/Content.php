@@ -119,38 +119,53 @@ class Content
         return $row;
     }
 
-    /** $currentUserId powers liked_by_me (Backend/content_likes) - null/omitted for a guest, same EXISTS-against-0 pattern as Comment::forContent(). */
-    public function find(int $id, ?int $currentUserId = null): ?array
+    /**
+     * $currentVisitorKey powers liked_by_me (Backend/content_likes) -
+     * "user:<id>" for a signed-in viewer or "guest:<cookie>" for an
+     * anonymous one (see Backend/helpers/visitor.php), same identity
+     * scheme content_views already uses for view-count dedup. Omitted
+     * (empty string, matches nothing) for a request with no visitor
+     * context at all.
+     */
+    public function find(int $id, string $currentVisitorKey = ''): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT c.*,
                 (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
-                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.user_id = :current_user) AS liked_by_me
+                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.visitor_key = :current_visitor) AS liked_by_me
              FROM content c WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
         );
-        $stmt->execute(['id' => $id, 'current_user' => $currentUserId ?? 0]);
+        $stmt->execute(['id' => $id, 'current_visitor' => $currentVisitorKey]);
         $row = $stmt->fetch();
         return $row ? self::decorateRow($row) : null;
     }
 
-    public function findBySlug(string $slug, ?int $currentUserId = null): ?array
+    public function findBySlug(string $slug, string $currentVisitorKey = ''): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT c.*,
                 (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
-                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.user_id = :current_user) AS liked_by_me
+                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.visitor_key = :current_visitor) AS liked_by_me
              FROM content c WHERE c.slug = :slug AND c.deleted_at IS NULL LIMIT 1'
         );
-        $stmt->execute(['slug' => $slug, 'current_user' => $currentUserId ?? 0]);
+        $stmt->execute(['slug' => $slug, 'current_visitor' => $currentVisitorKey]);
         $row = $stmt->fetch();
         return $row ? self::decorateRow($row) : null;
     }
 
-    /** Toggles the current user's like on a content item - mirrors Comment::toggleLike() exactly, same table shape, same semantics. */
-    public function toggleLike(int $contentId, int $userId): array
+    /**
+     * Toggles a like on a content item, identified by $visitorKey - same
+     * "user:<id>"/"guest:<cookie>" identity content_views already uses, so
+     * anyone can like whether signed in or not (per explicit request),
+     * while still only once per person. $userId is stored alongside
+     * purely for reference (e.g. a future "who liked this" list) when the
+     * liker happens to be signed in - it's never part of the identity
+     * check itself, visitor_key is.
+     */
+    public function toggleLike(int $contentId, string $visitorKey, ?int $userId = null): array
     {
-        $check = $this->db->prepare('SELECT id FROM content_likes WHERE content_id = :c AND user_id = :u');
-        $check->execute(['c' => $contentId, 'u' => $userId]);
+        $check = $this->db->prepare('SELECT id FROM content_likes WHERE content_id = :c AND visitor_key = :v');
+        $check->execute(['c' => $contentId, 'v' => $visitorKey]);
         $existing = $check->fetch();
 
         if ($existing) {
@@ -158,8 +173,8 @@ class Content
             $del->execute(['id' => $existing['id']]);
             $liked = false;
         } else {
-            $ins = $this->db->prepare('INSERT INTO content_likes (content_id, user_id) VALUES (:c, :u)');
-            $ins->execute(['c' => $contentId, 'u' => $userId]);
+            $ins = $this->db->prepare('INSERT INTO content_likes (content_id, visitor_key, user_id) VALUES (:c, :v, :u)');
+            $ins->execute(['c' => $contentId, 'v' => $visitorKey, 'u' => $userId]);
             $liked = true;
         }
 

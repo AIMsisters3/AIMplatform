@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Calendar, BookOpen, FileText, Eye, AlertTriangle, Loader2, Heart } from 'lucide-react';
 import api from '../api/axios.js';
-import { useAuth } from '../context/AuthContext.jsx';
 import CommentsSection from './CommentsSection.jsx';
 import ShareButton from './ShareButton.jsx';
 import DownloadButton from './DownloadButton.jsx';
@@ -56,7 +55,6 @@ export default function ContentViewerModal({ item, onClose }) {
   // once the viewer actually taps the like button, same override pattern
   // as liveOverride above.
   const [likeOverride, setLikeOverride] = useState(null);
-  const { user } = useAuth();
 
   useEffect(() => {
     setMediaError(false);
@@ -96,10 +94,10 @@ export default function ContentViewerModal({ item, onClose }) {
   const isKidsBibleLessonPdf = kind === 'pdf' && item.section === 'kids' && item.media_type === 'bible_lesson';
 
   async function handleToggleLike() {
-    if (!user) {
-      alert('Please sign in to like this.');
-      return;
-    }
+    // Anyone can like, signed in or not (per explicit request) - the
+    // backend identifies a guest the same way it already dedupes view
+    // counts (Backend/helpers/visitor.php's cookie), so no sign-in gate
+    // here any more.
     // Optimistic, same pattern as CommentsSection's handleLike — flips
     // immediately, and only reconciles against the server on failure.
     setLikeOverride({ liked: !liked, likes_count: likesCount + (!liked ? 1 : -1) });
@@ -172,15 +170,19 @@ export default function ContentViewerModal({ item, onClose }) {
             </div>
 
             <div className="px-8 sm:px-12 py-8">
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-6">
+              {/* One line, always - flex-nowrap + overflow-x-auto rather
+                  than flex-wrap, so this never breaks into two lines
+                  regardless of screen width; it scrolls sideways instead
+                  on anything too narrow to fit it all. */}
+              <div className="flex flex-nowrap items-center gap-x-5 gap-2 text-sm text-ink/50 mb-6 overflow-x-auto">
                 {(item.speaker || item.author) && (
-                  <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-secondary" />{item.speaker || item.author}</span>
+                  <span className="flex items-center gap-1.5 shrink-0"><User className="w-4 h-4 text-secondary" />{item.speaker || item.author}</span>
                 )}
                 {item.views !== undefined && (
-                  <span className="flex items-center gap-1.5"><Eye className="w-4 h-4 text-secondary" />{item.views} {Number(item.views) === 1 ? 'view' : 'views'}</span>
+                  <span className="flex items-center gap-1.5 shrink-0"><Eye className="w-4 h-4 text-secondary" />{item.views} {Number(item.views) === 1 ? 'view' : 'views'}</span>
                 )}
-                <span className="ml-auto flex items-center gap-3">
-                  <LikeButton />
+                <span className="ml-auto flex items-center gap-3 shrink-0">
+                  <LikeButton className="shrink-0" />
                   <ShareButton item={item} />
                   <ArticleDownloadButton item={item} />
                 </span>
@@ -352,31 +354,34 @@ export default function ContentViewerModal({ item, onClose }) {
             )}
             <h2 className="text-2xl md:text-3xl font-display font-bold text-ink mb-3 break-words">{item.title}</h2>
 
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-4">
+            {/* One line, always - flex-nowrap + overflow-x-auto rather than
+                flex-wrap, so this never breaks into two lines regardless
+                of screen width; it scrolls sideways instead on anything
+                too narrow to fit it all. */}
+            <div className="flex flex-nowrap items-center gap-x-5 gap-2 text-sm text-ink/50 mb-6 overflow-x-auto">
               {(item.speaker || item.author) && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 shrink-0">
                   <User className="w-4 h-4 text-secondary" />
                   {item.speaker || item.author}
                 </span>
               )}
               {item.publish_date && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 shrink-0">
                   <Calendar className="w-4 h-4 text-secondary" />
                   {new Date(item.publish_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
               )}
               {item.views !== undefined && (
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 shrink-0">
                   <Eye className="w-4 h-4 text-secondary" />
                   {item.views} {Number(item.views) === 1 ? 'view' : 'views'}
                 </span>
               )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-              <LikeButton />
-              <ShareButton item={item} />
-              <DownloadButton item={item} />
+              <span className="flex items-center gap-3 shrink-0">
+                <LikeButton className="shrink-0" />
+                <ShareButton item={item} />
+                <DownloadButton item={item} />
+              </span>
             </div>
 
             {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}
