@@ -178,11 +178,7 @@ export default function Login() {
                 <img src={logo} alt="AIMsisters" className="relative w-14 h-14 rounded-full object-cover shadow-glass" />
               </div>
               <motion.h2 variants={fadeUp} className="text-3xl font-display font-bold text-white leading-tight mb-3">
-                {mode === 'login' ? (
-                  <>Welcome <span className="text-accent">Back</span></>
-                ) : (
-                  <>Join <span className="text-accent">AIMsisters</span></>
-                )}
+                Join <span className="text-accent">AIMsisters</span>
               </motion.h2>
               <motion.p variants={fadeUp} className="text-white/70 text-sm max-w-xs">
                 {mode === 'login'
