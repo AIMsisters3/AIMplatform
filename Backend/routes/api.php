@@ -61,6 +61,7 @@ function route(string $method, string $path)
         $auth = new AuthController();
         if ($id === 'register' && $method === 'POST') return $auth->register();
         if ($id === 'login' && $method === 'POST') return $auth->login();
+        if ($id === 'google' && $method === 'POST') return $auth->google();
         if ($id === 'me' && $method === 'GET') return $auth->me();
         json_error('Auth route not found.', 404);
     }

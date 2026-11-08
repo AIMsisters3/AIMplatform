@@ -17,6 +17,18 @@ export function AuthProvider({ children }) {
     return data.data.user;
   }, []);
 
+  // credential is the ID token Google's Sign in with Google button hands
+  // back - the backend verifies it with Google itself (AuthController::
+  // google()) and returns the exact same {token, user} shape login() does,
+  // so everything below is identical either way.
+  const loginWithGoogle = useCallback(async (credential) => {
+    const { data } = await api.post('/auth/google', { credential });
+    localStorage.setItem('aim_token', data.data.token);
+    localStorage.setItem('aim_user', JSON.stringify(data.data.user));
+    setUser(data.data.user);
+    return data.data.user;
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem('aim_token');
     localStorage.removeItem('aim_user');
@@ -26,7 +38,7 @@ export function AuthProvider({ children }) {
   const isAdmin = user && ['admin', 'superadmin'].includes(user.role);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

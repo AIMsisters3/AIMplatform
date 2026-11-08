@@ -16,6 +16,9 @@ name: Deploy to free PHP hosting
 #   Optional repo VARIABLE (Settings → ... → Variables), only if your
 #   backend URL differs from the default baked into Frontend/.env.example:
 #     VITE_BACKEND_URL  e.g. https://your-domain/backend
+#   Repo VARIABLE needed for Sign in with Google to work on the live site
+#   (not a secret — the OAuth Client ID is a public value):
+#     VITE_GOOGLE_CLIENT_ID  from Google Cloud Console → Credentials
 
 on:
   push:
@@ -44,6 +47,7 @@ jobs:
         working-directory: Frontend
         env:
           VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL || 'https://aimsisters.ct.ws/backend' }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
         run: npm run build
 
       - name: Deploy frontend (htdocs/)

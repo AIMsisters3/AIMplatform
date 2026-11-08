@@ -155,3 +155,13 @@ define('SMTP_FROM_NAME', env('SMTP_FROM_NAME', 'AIMsisters'));
 // real public backend URL or point MAIL_LOGO_URL at any publicly reachable
 // HTTPS image directly (e.g. a CDN copy of the logo) — no code change needed.
 define('MAIL_LOGO_URL', env('MAIL_LOGO_URL', APP_URL . '/assets/logo.png'));
+
+// --- Sign in with Google ---
+// The OAuth Client ID from Google Cloud Console (Credentials -> that
+// Web application client) - not secret, the same value is also baked
+// into the frontend build as VITE_GOOGLE_CLIENT_ID (see Frontend/
+// .env.example). Required here so AuthController::google() can confirm
+// a submitted ID token was actually issued for OUR client, not some
+// other app that also happens to use Google sign-in - see its own
+// verifyGoogleIdToken() docblock for why that check matters.
+define('GOOGLE_CLIENT_ID', env('GOOGLE_CLIENT_ID', ''));

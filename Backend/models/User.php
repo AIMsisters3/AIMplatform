@@ -59,7 +59,61 @@ class User
 
     public function verifyPassword(array $user, string $password): bool
     {
+        // A Google-only account has no password_hash at all (NULL) -
+        // password_verify() would throw a TypeError on null rather than
+        // just returning false, so this is checked explicitly first.
+        if (!$user['password_hash']) {
+            return false;
+        }
         return password_verify($password, $user['password_hash']);
+    }
+
+    public function findByGoogleId(string $googleId): ?array
+    {
+        $stmt = $this->db->prepare(self::SELECT_WITH_ROLE . ' WHERE u.google_id = :google_id LIMIT 1');
+        $stmt->execute(['google_id' => $googleId]);
+        $user = $stmt->fetch();
+        return $user ?: null;
+    }
+
+    /**
+     * Finds-or-creates a user for a verified Google sign-in (the caller
+     * - AuthController::google() - has already confirmed this email via
+     * Google's own id token before calling this). An existing
+     * password-based account under the same email gets google_id
+     * attached rather than a duplicate account being created, since
+     * Google only ever reports an email after verifying it belongs to
+     * the person signing in. A brand-new account gets role 'user'
+     * (same as a normal self-registration) and no password_hash at all.
+     */
+    public function findOrCreateByGoogle(string $googleId, string $email, string $name, ?string $avatar): int
+    {
+        $byGoogle = $this->findByGoogleId($googleId);
+        if ($byGoogle) {
+            return (int) $byGoogle['id'];
+        }
+
+        $byEmail = $this->findByEmail($email);
+        if ($byEmail) {
+            $stmt = $this->db->prepare('UPDATE users SET google_id = :google_id WHERE id = :id');
+            $stmt->execute(['google_id' => $googleId, 'id' => $byEmail['id']]);
+            return (int) $byEmail['id'];
+        }
+
+        $role = (new Role())->findBySlug('user');
+        $stmt = $this->db->prepare(
+            'INSERT INTO users (name, email, password_hash, google_id, role_id, avatar)
+             VALUES (:name, :email, NULL, :google_id, :role_id, :avatar)'
+        );
+        $stmt->execute([
+            'name'      => $name,
+            'email'     => $email,
+            'google_id' => $googleId,
+            'role_id'   => $role['id'] ?? null,
+            'avatar'    => $avatar,
+        ]);
+
+        return (int) $this->db->lastInsertId();
     }
 
     public function updateLastLogin(int $id): void

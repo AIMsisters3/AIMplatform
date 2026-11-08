@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
@@ -11,14 +11,20 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
 };
 
+// Not secret - the OAuth Client ID is a public value, baked into the
+// built JS bundle same as VITE_BACKEND_URL. Unset locally until you've
+// created one and added it to Frontend/.env - see Frontend/.env.example.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 export default function Login() {
   const [mode, setMode] = useState('login'); // login | register
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const googleButtonRef = useRef(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -38,6 +44,67 @@ export default function Login() {
       setLoading(false);
     }
   }
+
+  // Google's Identity Services script is loaded on demand (only the
+  // login page ever needs it, same lazy-loading reasoning already used
+  // elsewhere in this codebase - e.g. articlePdf.js) rather than added
+  // to index.html for every page. The script renders Google's own
+  // official button into googleButtonRef - its styling is Google's,
+  // not ours, per their brand guidelines, which is why it doesn't
+  // match the glass theme around it.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) return undefined;
+
+    async function handleCredential(response) {
+      setError('');
+      setLoading(true);
+      try {
+        await loginWithGoogle(response.credential);
+        navigate('/');
+      } catch (err) {
+        setError(err.response?.data?.message || 'Google sign-in failed. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function renderButton() {
+      if (!googleButtonRef.current || !window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredential });
+      googleButtonRef.current.innerHTML = '';
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline', size: 'large', shape: 'pill', width: 320,
+      });
+    }
+
+    // Already loaded (Strict Mode's mount -> cleanup -> mount in dev, or
+    // navigating back to this page) - nothing to wait for.
+    if (window.google?.accounts?.id) {
+      renderButton();
+      return undefined;
+    }
+
+    // A <script>'s load event only ever fires once - if it already fired
+    // before this run's listener was attached (exactly what Strict
+    // Mode's double-invoke causes: the first run's `onload =` assignment
+    // gets silently replaced), a plain `onload =` here would just as
+    // silently never fire either. addEventListener lets this run's own
+    // listener coexist with (not overwrite) one left behind by another
+    // run, and the explicit google.accounts.id check above already
+    // covers the "it fired before we even got here" case.
+    let script = document.getElementById('google-identity-script');
+    if (!script) {
+      script = document.createElement('script');
+      script.id = 'google-identity-script';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
+    script.addEventListener('load', renderButton);
+    return () => script.removeEventListener('load', renderButton);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden py-16 px-6">
@@ -80,6 +147,23 @@ export default function Login() {
           <p className="text-white/60 text-sm text-center mb-7">
             {mode === 'login' ? 'Sign in to continue your journey with us.' : 'Join the AIMsisters community.'}
           </p>
+
+          {/* Empty + hidden when VITE_GOOGLE_CLIENT_ID isn't set (local
+              dev before it's configured, see .env.example) - Google's own
+              script fills this div once it loads, so there's nothing to
+              conditionally render here beyond the container itself. */}
+          {GOOGLE_CLIENT_ID && (
+            <>
+              <div className="flex justify-center mb-5">
+                <div ref={googleButtonRef} />
+              </div>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="flex-1 h-px bg-white/15" />
+                <span className="text-xs text-white/40 font-medium">OR CONTINUE WITH EMAIL</span>
+                <div className="flex-1 h-px bg-white/15" />
+              </div>
+            </>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
