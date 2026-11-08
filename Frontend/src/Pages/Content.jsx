@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, HeartPulse, Shirt,
   ScrollText, PlayCircle, FileText, Headphones, Inbox,
-  Sparkles, Image as ImageIcon, Loader2, X, Eye, MessageCircle, LayoutGrid,
+  Sparkles, Image as ImageIcon, Loader2, X, Eye, MessageCircle, LayoutGrid, Heart,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
@@ -170,8 +170,8 @@ function FeaturedCard({ item, onClick }) {
       <div className="p-4">
         <h3 className="font-display font-semibold text-sm leading-snug mb-1 line-clamp-1">{item.title}</h3>
         <p className="text-xs text-ink/50 line-clamp-2 mb-1">{item.description}</p>
-        {/* Views • comments • duration, all on one line (spec example:
-            "1.2K views 14 comments 12:45"). */}
+        {/* Views • comments • likes, all on one line. Duration lives only
+            on the thumbnail badge above now, not duplicated here too. */}
         <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-[11px] text-ink/45">
           {item.views !== undefined && (
             <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {formatCount(item.views)} {Number(item.views) === 1 ? 'view' : 'views'}</span>
@@ -182,15 +182,15 @@ function FeaturedCard({ item, onClick }) {
               <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatCount(item.comments_count)} {Number(item.comments_count) === 1 ? 'comment' : 'comments'}</span>
             </>
           )}
-          {duration && (
+          {item.likes_count !== undefined && (
             <>
               {(item.views !== undefined || item.comments_count !== undefined) && <span className="text-ink/25">&bull;</span>}
-              <span>{duration}</span>
+              <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {formatCount(item.likes_count)} {Number(item.likes_count) === 1 ? 'like' : 'likes'}</span>
             </>
           )}
           {relativeDate && (
             <>
-              {(item.views !== undefined || item.comments_count !== undefined || duration) && <span className="text-ink/25">&bull;</span>}
+              {(item.views !== undefined || item.comments_count !== undefined || item.likes_count !== undefined) && <span className="text-ink/25">&bull;</span>}
               <span>{relativeDate}</span>
             </>
           )}
