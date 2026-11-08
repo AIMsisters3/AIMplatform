@@ -1257,14 +1257,6 @@ export default function UploadContent() {
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-4 pt-1">
-              <div>
-                <p className="text-sm font-medium text-ink">Featured Content</p>
-                <p className="text-xs text-ink/40">Featured content may appear in prominent areas of the platform.</p>
-              </div>
-              <Toggle checked={form.is_featured} onChange={(v) => update('is_featured', v)} label="Featured content" />
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
               <Field label="Visibility" hint="Who can access this once published.">
                 <select value={form.visibility} onChange={(e) => update('visibility', e.target.value)} className={inputClass(false)}>
