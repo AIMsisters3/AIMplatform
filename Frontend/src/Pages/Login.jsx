@@ -5,10 +5,16 @@ import { Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/axios.js';
 import heroBg from '../assets/bg.png';
+import logo from '../assets/lg.png';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
 };
 
 // Not secret - the OAuth Client ID is a public value, baked into the
@@ -133,101 +139,162 @@ export default function Login() {
 
       <motion.div
         initial="hidden" animate="visible" variants={fadeUp}
-        className="relative z-10 w-full max-w-md"
+        className="relative z-10 w-full max-w-4xl"
       >
-        <div className="rounded-3xl bg-white/10 backdrop-blur-2xl border border-white/20 shadow-glass p-8 sm:p-10">
-          <div className="flex justify-center mb-5">
-            <span className="w-14 h-14 rounded-2xl bg-brand-gradient flex items-center justify-center shadow-glass">
-              <Lock className="w-6 h-6 text-white" />
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white text-center mb-1">
-            {mode === 'login' ? 'User Login' : 'Create an Account'}
-          </h1>
-          <p className="text-white/60 text-sm text-center mb-7">
-            {mode === 'login' ? 'Sign in to continue your journey with us.' : 'Join the AIMsisters community.'}
-          </p>
+        <div className="rounded-3xl bg-white/10 backdrop-blur-2xl border border-white/20 shadow-glass overflow-hidden md:grid md:grid-cols-2">
+          {/* Left panel - the reference's split-layout idea (logo, welcome
+              message, decorative shapes on one side; the actual form on
+              the other), but transparent/glass over the same photo
+              background instead of a solid color block, and hidden below
+              md so mobile keeps the single, compact panel it already had. */}
+          <motion.div
+            initial="hidden" animate="visible" variants={staggerContainer}
+            className="hidden md:flex relative flex-col justify-between p-10 overflow-hidden border-r border-white/10"
+          >
+            {/* Panel-local floating glow, on top of the page-wide orbs
+                behind it - "something live" per request, a slow
+                continuous drift rather than a one-off entrance. */}
+            <motion.div
+              className="absolute -top-10 -left-10 w-48 h-48 rounded-full bg-accent/30 blur-3xl pointer-events-none"
+              animate={{ x: [0, 20, 0], y: [0, 15, 0] }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.div
+              className="absolute bottom-0 right-0 w-40 h-40 rounded-full bg-secondary/30 blur-3xl pointer-events-none"
+              animate={{ x: [0, -15, 0], y: [0, -10, 0] }}
+              transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
+            />
 
-          {/* Empty + hidden when VITE_GOOGLE_CLIENT_ID isn't set (local
-              dev before it's configured, see .env.example) - Google's own
-              script fills this div once it loads, so there's nothing to
-              conditionally render here beyond the container itself. */}
-          {GOOGLE_CLIENT_ID && (
-            <>
-              <div className="flex justify-center mb-5">
-                <div ref={googleButtonRef} />
+            <motion.div variants={fadeUp} className="relative z-10">
+              <div className="relative inline-flex mb-8">
+                {/* Pulsing ring behind the logo - a small, literal "live"
+                    cue, same idea as the LIVE badge's pulsing dot used
+                    elsewhere on the site. */}
+                <motion.span
+                  className="absolute inset-0 rounded-full bg-accent/40"
+                  animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <img src={logo} alt="AIMsisters" className="relative w-14 h-14 rounded-full object-cover shadow-glass" />
               </div>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex-1 h-px bg-white/15" />
-                <span className="text-xs text-white/40 font-medium">OR CONTINUE WITH EMAIL</span>
-                <div className="flex-1 h-px bg-white/15" />
-              </div>
-            </>
-          )}
+              <motion.h2 variants={fadeUp} className="text-3xl font-display font-bold text-white leading-tight mb-3">
+                {mode === 'login' ? (
+                  <>Welcome <span className="text-accent">Back</span></>
+                ) : (
+                  <>Join <span className="text-accent">AIMsisters</span></>
+                )}
+              </motion.h2>
+              <motion.p variants={fadeUp} className="text-white/70 text-sm max-w-xs">
+                {mode === 'login'
+                  ? 'Sign in to continue your journey with us.'
+                  : 'Create an account to start your journey with us.'}
+              </motion.p>
+            </motion.div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'register' && (
+            <motion.div variants={fadeUp} className="relative z-10">
+              <blockquote className="italic text-white/70 text-sm border-l-2 border-accent/60 pl-4">
+                "Go ye into all the world, and preach the gospel to every creature."
+                <footer className="not-italic text-accent font-semibold text-xs mt-1">— Mark 16:15</footer>
+              </blockquote>
+              <p className="text-xs text-white/40 mt-6">AIMsisters &middot; Christ is all in all</p>
+            </motion.div>
+          </motion.div>
+
+          {/* Right panel - the actual form, unchanged logic throughout. */}
+          <div className="p-8 sm:p-10">
+            <div className="flex md:hidden justify-center mb-5">
+              <span className="w-14 h-14 rounded-2xl bg-brand-gradient flex items-center justify-center shadow-glass">
+                <Lock className="w-6 h-6 text-white" />
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-white text-center md:text-left mb-1">
+              {mode === 'login' ? 'Sign In' : 'Create an Account'}
+            </h1>
+            <p className="text-white/60 text-sm text-center md:text-left mb-7">
+              {mode === 'login' ? 'Sign in to continue your journey with us.' : 'Join the AIMsisters community.'}
+            </p>
+
+            {/* Empty + hidden when VITE_GOOGLE_CLIENT_ID isn't set (local
+                dev before it's configured, see .env.example) - Google's own
+                script fills this div once it loads, so there's nothing to
+                conditionally render here beyond the container itself. */}
+            {GOOGLE_CLIENT_ID && (
+              <>
+                <div className="flex justify-center mb-5">
+                  <div ref={googleButtonRef} />
+                </div>
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="flex-1 h-px bg-white/15" />
+                  <span className="text-xs text-white/40 font-medium">OR CONTINUE WITH EMAIL</span>
+                  <div className="flex-1 h-px bg-white/15" />
+                </div>
+              </>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'register' && (
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                  <input
+                    required
+                    placeholder="Full name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                  />
+                </div>
+              )}
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
                 <input
                   required
-                  placeholder="Full name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  type="email"
+                  placeholder="Email address"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                   className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
                 />
               </div>
-            )}
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-              <input
-                required
-                type="email"
-                placeholder="Email address"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full pl-11 pr-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-              />
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-              <input
-                required
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full pl-11 pr-11 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
-              />
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                <input
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="w-full pl-11 pr-11 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-accent transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
+
               <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                disabled={loading}
+                className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
               </button>
-            </div>
+            </form>
 
-            {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
-
-            <button
-              disabled={loading}
-              className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
-            >
-              {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-white/60 mt-6">
-            {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-            <button
-              onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-              className="text-accent font-semibold hover:text-white transition"
-            >
-              {mode === 'login' ? 'Sign up' : 'Sign in'}
-            </button>
-          </p>
+            <p className="text-center text-sm text-white/60 mt-6">
+              {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
+              <button
+                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                className="text-accent font-semibold hover:text-white transition"
+              >
+                {mode === 'login' ? 'Sign up' : 'Sign in'}
+              </button>
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>
