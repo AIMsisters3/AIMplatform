@@ -1,28 +1,15 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Download } from 'lucide-react';
-import { useAuth } from '../context/AuthContext.jsx';
 
 /**
- * Shown on every piece of uploaded media (video/audio/pdf/image) regardless
- * of login state, per spec: anyone sees the button, but only a signed-in
- * visitor's click actually downloads - a guest is asked to log in first
- * instead of the button just being hidden/disabled with no explanation.
+ * Shown on every piece of uploaded media (video/audio/pdf/image) - anyone
+ * can download, signed in or not, same as sharing/copying a link already
+ * work without an account.
  */
 export default function DownloadButton({ item }) {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
   if (!item?.media_url) return null;
 
   function handleClick() {
-    if (!user) {
-      if (window.confirm('Please log in to download this. Go to the login page now?')) {
-        navigate('/login');
-      }
-      return;
-    }
-
     const link = document.createElement('a');
     link.href = item.media_url;
     link.download = item.title || '';

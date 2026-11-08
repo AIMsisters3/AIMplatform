@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, BookOpen, Search, HeartPulse, Sparkles, Shirt, ScrollText,
-  Layers, Loader2, Inbox, Quote, Users, PlayCircle, FileText, Headphones, Star,
+  Layers, Loader2, Inbox, Quote, Users,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
@@ -11,12 +11,8 @@ import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
-import { formatRelativeDate, formatDuration } from '../utils/formatters.js';
-import { getItemKind } from '../utils/mediaKind.js';
+import { formatRelativeDate } from '../utils/formatters.js';
 import { getVerseOfDay } from '../utils/verseOfDay.js';
-
-const KIND_ICON = { video: PlayCircle, pdf: FileText, audio: Headphones, article: FileText, image: FileText };
-const KIND_LABEL = { video: 'Watch Now', pdf: 'Read Now', audio: 'Listen Now', article: 'Read Now', image: 'View' };
 
 // Reforms + Prophecy (migrations 018/019/020) get their own small icon
 // set so they read as a distinct, recognizable group of filter chips
@@ -51,63 +47,6 @@ function VerseOfDayCard() {
       </p>
       <p className="relative z-10 text-white/50 text-[10px] mt-2 uppercase tracking-wider">Verse of the Day</p>
     </motion.div>
-  );
-}
-
-function FeaturedHeroCard({ item }) {
-  const kind = getItemKind(item);
-  const KindIcon = KIND_ICON[kind];
-  const duration = (kind === 'video' || kind === 'audio') ? formatDuration(item.duration_seconds) : null;
-  // Real tag only: the item's actual series if it belongs to one,
-  // otherwise its actual category — never an invented label.
-  const tag = item.series_title || item.category_name;
-
-  return (
-    <Link
-      to={`/bible-studies/${item.slug}`}
-      className="group relative block rounded-3xl overflow-hidden shadow-glass h-72 sm:h-80"
-    >
-      <div className="absolute inset-0 bg-brand-gradient-soft">
-        {item.thumbnail && (
-          <img
-            src={item.thumbnail}
-            alt={item.title}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        )}
-      </div>
-      <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-transparent" />
-
-      {item.is_featured ? (
-        <span className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent text-white text-[11px] font-bold tracking-wide shadow-glass">
-          <Star className="w-3 h-3 fill-current" /> FEATURED
-        </span>
-      ) : null}
-
-      <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
-        <h3 className="font-display font-extrabold text-xl sm:text-2xl text-white leading-tight mb-2 max-w-xl">
-          {item.title}
-        </h3>
-        {item.description && (
-          <p className="text-white/75 text-sm line-clamp-2 max-w-lg mb-4">{item.description}</p>
-        )}
-        <div className="flex flex-wrap items-center gap-3">
-          {KindIcon && (
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-ink text-sm font-semibold shadow-glass group-hover:bg-accent group-hover:text-white transition-colors">
-              <KindIcon className="w-4 h-4" /> {KIND_LABEL[kind]}
-            </span>
-          )}
-          {duration && <span className="text-white/70 text-xs font-medium">{duration}</span>}
-          {tag && (
-            <span className="ml-auto px-3 py-1.5 rounded-full bg-white/15 backdrop-blur text-white text-[11px] font-semibold flex items-center gap-1.5">
-              <Layers className="w-3 h-3" /> {tag}
-            </span>
-          )}
-        </div>
-      </div>
-    </Link>
   );
 }
 
@@ -151,14 +90,6 @@ export default function BibleStudies() {
   }), [categoryId, language, search]);
 
   const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/bible-studies', bsParams, 24);
-
-  // Hero = the admin's actual is_featured flag when one exists in this
-  // filtered set, else simply the newest item (items' own ordering) —
-  // never a hardcoded pick. The 3 cards beside/below it are the next
-  // most-recent items, excluding whichever one became the hero.
-  const heroItem = items.find((i) => i.is_featured) || items[0] || null;
-  const secondaryItems = items.filter((i) => i.id !== heroItem?.id).slice(0, 3);
-  const restItems = items.filter((i) => i.id !== heroItem?.id && !secondaryItems.some((s) => s.id === i.id));
 
   const reformCategories = useMemo(
     () => categories.filter((c) => Object.prototype.hasOwnProperty.call(REFORM_META, c.name)),
@@ -307,13 +238,10 @@ export default function BibleStudies() {
 
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="h-80 rounded-3xl bg-white/70 shadow-glass animate-pulse" />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-48 rounded-2xl bg-white/70 shadow-glass animate-pulse" />
-                ))}
-              </div>
+            <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-56 rounded-2xl bg-white/70 shadow-glass animate-pulse" />
+              ))}
             </div>
             <div className="h-96 rounded-2xl bg-white/70 shadow-glass animate-pulse" />
           </div>
@@ -324,40 +252,34 @@ export default function BibleStudies() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-            {/* Featured Studies — the hero pick + up to 3 more, real
-                items only (see heroItem/secondaryItems above). */}
+            {/* Plain, uniform listing - no more admin-pinned "Featured"
+                hero treatment singling one item out. */}
             <div className="lg:col-span-2">
-              <div className="flex items-end justify-between mb-4">
-                <div>
-                  <h2 className="font-display font-bold text-xl">Featured Studies</h2>
-                  <p className="text-xs text-ink/50 mt-0.5">Biblical truths for every season of life</p>
+              <h2 className="font-display font-bold text-xl mb-4">Bible Studies</h2>
+              <motion.div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-6"
+                initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+              >
+                {items.map((item) => (
+                  <motion.div key={item.id} variants={fadeUp}>
+                    <Link to={`/bible-studies/${item.slug}`}>
+                      <ContentCard item={item} />
+                    </Link>
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              {hasMore && (
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="px-6 py-3 rounded-full glass-card font-semibold text-sm disabled:opacity-60 flex items-center gap-2"
+                  >
+                    {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {loadingMore ? 'Loading...' : 'Load More'}
+                  </button>
                 </div>
-                {restItems.length > 0 && (
-                  <a href="#all-studies" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
-                    View All <ArrowRight className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </div>
-
-              {heroItem && (
-                <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-4">
-                  <FeaturedHeroCard item={heroItem} />
-                </motion.div>
-              )}
-
-              {secondaryItems.length > 0 && (
-                <motion.div
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-                  initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
-                >
-                  {secondaryItems.map((item) => (
-                    <motion.div key={item.id} variants={fadeUp}>
-                      <Link to={`/bible-studies/${item.slug}`}>
-                        <ContentCard item={item} />
-                      </Link>
-                    </motion.div>
-                  ))}
-                </motion.div>
               )}
             </div>
 
@@ -382,46 +304,6 @@ export default function BibleStudies() {
               </div>
               <VerseOfDayCard />
             </div>
-          </div>
-        )}
-
-        {/* All Bible Studies — everything not already shown above. The
-            Load More button lives here too (outside the restItems.length
-            check) since a filtered set can be exactly 4 items with more
-            still to load from the server. */}
-        {(restItems.length > 0 || hasMore) && (
-          <div id="all-studies" className="mb-12 scroll-mt-24">
-            {restItems.length > 0 && (
-              <>
-                <h2 className="font-display font-semibold text-lg mb-4">All Bible Studies</h2>
-                <motion.div
-                  className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
-                  initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}
-                  variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-                >
-                  {restItems.map((item) => (
-                    <motion.div key={item.id} variants={fadeUp}>
-                      <Link to={`/bible-studies/${item.slug}`}>
-                        <ContentCard item={item} />
-                      </Link>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </>
-            )}
-
-            {hasMore && (
-              <div className="flex justify-center">
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="px-6 py-3 rounded-full glass-card font-semibold text-sm disabled:opacity-60 flex items-center gap-2"
-                >
-                  {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {loadingMore ? 'Loading...' : 'Load More'}
-                </button>
-              </div>
-            )}
           </div>
         )}
 
