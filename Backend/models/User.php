@@ -32,11 +32,22 @@ class User
         return $user ?: null;
     }
 
-    /** Login accepts either - one lookup against both columns rather than guessing which the input looks like. */
+    /**
+     * Login accepts either - one lookup against both columns rather than
+     * guessing which the input looks like. Two distinct placeholders
+     * (not :id reused twice) - PDO::ATTR_EMULATE_PREPARES is false (see
+     * Database.php), so these become real server-side prepared
+     * statements, and MySQL's native protocol gives each `:id` occurrence
+     * its own bind slot; passing a single 'id' value for both throws
+     * "SQLSTATE[HY093]: Invalid parameter number" instead of matching
+     * both. Emulated prepares (the default elsewhere) would have masked
+     * this by rewriting the query before sending it, which is exactly why
+     * it passed standalone testing but broke on a real login attempt.
+     */
     public function findByEmailOrUsername(string $identifier): ?array
     {
-        $stmt = $this->db->prepare(self::SELECT_WITH_ROLE . ' WHERE u.email = :id OR u.username = :id LIMIT 1');
-        $stmt->execute(['id' => $identifier]);
+        $stmt = $this->db->prepare(self::SELECT_WITH_ROLE . ' WHERE u.email = :email OR u.username = :username LIMIT 1');
+        $stmt->execute(['email' => $identifier, 'username' => $identifier]);
         $user = $stmt->fetch();
         return $user ?: null;
     }

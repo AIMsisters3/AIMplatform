@@ -66,8 +66,17 @@ class Content
         }
         // filters['status'] === 'all' -> no status restriction (admin "manage content" view)
         if (!empty($filters['search'])) {
-            $where[] = '(c.title LIKE :search OR c.tags LIKE :search)';
-            $params['search'] = '%' . $filters['search'] . '%';
+            // Two distinct placeholders, not :search reused twice -
+            // PDO::ATTR_EMULATE_PREPARES is false (Database.php), so this
+            // becomes a real server-side prepared statement; MySQL's
+            // native protocol gives each `:search` occurrence its own
+            // bind slot, and only binding the key once left the second
+            // unbound ("SQLSTATE[HY093]: Invalid parameter number")
+            // every time anyone actually searched.
+            $where[] = '(c.title LIKE :search1 OR c.tags LIKE :search2)';
+            $needle = '%' . $filters['search'] . '%';
+            $params['search1'] = $needle;
+            $params['search2'] = $needle;
         }
         if (!empty($filters['is_featured'])) {
             $where[] = 'c.is_featured = 1';

@@ -9,7 +9,7 @@ import {
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
-import { getItemKind } from '../utils/mediaKind.js';
+import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
 import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
@@ -250,6 +250,15 @@ export default function Content() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const isMobile = useIsMobile();
 
+  // Hero reel - the newest videos, rotating by themselves like a quiet,
+  // muted advertisement rather than a static banner. Fetched once
+  // (newest-first is already Content::all()'s default order, so no
+  // explicit sort param is needed); never re-fetched on filter changes,
+  // same reasoning as Popular This Week above - this is "what's new
+  // site-wide", not a reflection of whatever the visitor is filtering by.
+  const [heroVideos, setHeroVideos] = useState([]);
+  const [heroIndex, setHeroIndex] = useState(0);
+
   // Every eligible published item — media_library section only (Bible
   // Studies/Devotions/News/Gallery/Kids/Songs each have their own
   // dedicated destination and shouldn't also duplicate into this feed).
@@ -279,7 +288,28 @@ export default function Content() {
     api.get('/content/popular', { params: { section: 'media_library', limit: 12 } })
       .then((r) => setPopularItems(r.data?.data?.items || []))
       .catch(() => setPopularItems([]));
+    api.get('/content', { params: { section: 'media_library', media_type: 'video', limit: 5 } })
+      .then((r) => setHeroVideos(r.data?.data?.items || []))
+      .catch(() => setHeroVideos([]));
   }, []);
+
+  // Advances to the next newest video on its own - stays put (no interval
+  // at all) when there's zero or one to rotate through, so a single
+  // video never "flickers" by re-animating into itself every few seconds.
+  useEffect(() => {
+    if (heroVideos.length < 2) return undefined;
+    const interval = setInterval(() => {
+      setHeroIndex((i) => (i + 1) % heroVideos.length);
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [heroVideos.length]);
+
+  const activeHeroVideo = heroVideos[heroIndex] || null;
+  const heroYoutubeSrc = activeHeroVideo ? getYouTubeEmbed(activeHeroVideo.media_url, true) : null;
+  const heroIsDirectVideo = !!(
+    activeHeroVideo && !heroYoutubeSrc && activeHeroVideo.media_url &&
+    /\.(mp4|webm|ogg|mov)(\?|$)/i.test(activeHeroVideo.media_url)
+  );
 
   // Featured Content is its own real server query (never derived from
   // whatever happens to be on the current feed page) - only items an
@@ -323,7 +353,11 @@ export default function Content() {
   return (
     <div className="min-h-screen bg-surface">
     {/* Hero band — kept compact (per spec) so the browsing area starts
-        sooner; no hero image on mobile, a smaller one on desktop. */}
+        sooner. Background is the newest videos rotating by themselves,
+        muted, like a quiet ad reel - clicking it opens that video, same
+        as clicking its card anywhere else on this page. Falls back to
+        the plain gradient/pattern (no hero video loaded yet, or there
+        are none) so nothing looks broken before the fetch resolves. */}
 <section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary h-auto pb-8 lg:h-[220px] lg:pb-0">
   <div className="absolute inset-0 opacity-20 mix-blend-soft-light" style={{ backgroundImage: `url(${contentBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
 
@@ -336,8 +370,45 @@ export default function Content() {
     className="hidden lg:block absolute -bottom-3 right-6 h-[220px] xl:h-[250px] w-auto pointer-events-none z-0"
   />
 
+  <AnimatePresence mode="wait">
+    {activeHeroVideo && (
+      <motion.div
+        key={activeHeroVideo.id}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.8 }}
+        onClick={() => openItem(activeHeroVideo)}
+        className="absolute inset-0 z-[1] cursor-pointer"
+      >
+        {heroYoutubeSrc ? (
+          <iframe
+            src={heroYoutubeSrc}
+            title={activeHeroVideo.title}
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            allow="autoplay; encrypted-media"
+          />
+        ) : heroIsDirectVideo ? (
+          <video
+            src={activeHeroVideo.media_url}
+            autoPlay muted loop playsInline
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          />
+        ) : activeHeroVideo.thumbnail ? (
+          <img src={activeHeroVideo.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        ) : null}
+        {/* Darkens the reel so the title/tagline/search above it stay
+            readable regardless of what's playing underneath. */}
+        <div className="absolute inset-0 bg-gradient-to-br from-ink/75 via-secondary/65 to-primary/55" />
+      </motion.div>
+    )}
+  </AnimatePresence>
+
   <div className="relative z-10 max-w-7xl mx-auto px-6 pt-8 sm:pt-9 lg:h-full">
-    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-lg">
+    {/* pr- reserves room for the corner search button below (w-11 +
+        its own right offset) so the "Now Showing" caption's text can
+        never render underneath it, on any screen size. */}
+    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-lg pr-16 sm:pr-20 lg:pr-0">
       <div className="flex items-center gap-3 mb-2">
         <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 shadow-glass">
           <PlayCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
@@ -350,82 +421,88 @@ export default function Content() {
       <p className="font-display italic text-sm sm:text-base md:text-lg font-semibold text-white/90">
         Watch, learn, be inspired. All in one place!
       </p>
-    </motion.div>
-  </div>
 
-  {/* Search: desktop keeps the field visible/usable at all times.
-      Mobile shows just an icon that expands into the same field, with
-      a way to collapse it again, rather than forcing the full-width bar
-      onto small screens. */}
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.25, duration: 0.5 }}
-    className="relative mt-6 px-6 max-w-7xl mx-auto lg:mt-0 lg:px-0 lg:max-w-none lg:mx-0 lg:absolute lg:z-20 lg:left-10 lg:right-52 lg:bottom-0"
-  >
-    <form onSubmit={(e) => e.preventDefault()} className="hidden lg:block relative w-full">
-      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search for cartoons, movies, or other content..."
-        className="w-full pl-11 pr-24 sm:pr-28 py-3 sm:py-3.5 rounded-full border-0 bg-white shadow-glass focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
-      />
-      <button
-        type="submit"
-        className="absolute right-1.5 top-1.5 bottom-1.5 px-4 sm:px-5 rounded-full bg-brand-gradient text-white text-sm font-semibold flex items-center gap-1.5"
-      >
-        <Search className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Search</span>
-      </button>
-    </form>
-
-    <div className="lg:hidden flex justify-end">
-      <AnimatePresence mode="wait" initial={false}>
-        {mobileSearchOpen ? (
-          <motion.form
-            key="expanded"
-            onSubmit={(e) => e.preventDefault()}
-            initial={{ width: 44, opacity: 0 }}
-            animate={{ width: '100%', opacity: 1 }}
-            exit={{ width: 44, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="relative w-full overflow-hidden"
-          >
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
-            <input
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onBlur={() => { if (!search) setMobileSearchOpen(false); }}
-              placeholder="Search content..."
-              className="w-full pl-11 pr-11 py-3 rounded-full border-0 bg-white shadow-glass focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => { setSearch(''); setMobileSearchOpen(false); }}
-              aria-label="Close search"
-              className="absolute right-1.5 top-1.5 bottom-1.5 w-8 rounded-full bg-surface flex items-center justify-center text-ink/50"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </motion.form>
-        ) : (
+      {/* "Now showing" caption for the reel - its own AnimatePresence so
+          the caption fades with the same timing as the video behind it,
+          not independently. */}
+      <AnimatePresence mode="wait">
+        {activeHeroVideo && (
           <motion.button
-            key="icon"
+            key={activeHeroVideo.id}
             type="button"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMobileSearchOpen(true)}
-            aria-label="Open search"
-            className="w-11 h-11 rounded-full bg-white shadow-glass flex items-center justify-center text-secondary shrink-0"
+            onClick={() => openItem(activeHeroVideo)}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.4 }}
+            className="mt-4 flex items-center gap-2 text-left"
           >
-            <Search className="w-5 h-5" />
+            <span className="shrink-0 px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-wide">
+              Now Showing
+            </span>
+            <span className="text-white/90 text-sm font-medium line-clamp-1">{activeHeroVideo.title}</span>
           </motion.button>
         )}
       </AnimatePresence>
-    </div>
-  </motion.div>
+    </motion.div>
+  </div>
+
+  {/* Search - icon-only, expands on click, tucked in the hero's own
+      bottom-right corner on every screen size (not a full-width bar any
+      more, and not mobile-only) so it sits over the reel without
+      competing with it for space. */}
+  <div className="absolute z-20 bottom-4 right-4 sm:bottom-6 sm:right-6 max-w-[calc(100vw-2rem)]">
+    <AnimatePresence mode="wait" initial={false}>
+      {mobileSearchOpen ? (
+        <motion.form
+          key="expanded"
+          onSubmit={(e) => e.preventDefault()}
+          // Plain numbers, not a CSS min()/calc() string - framer-motion
+          // animates a numeric width reliably; a complex CSS function
+          // value doesn't interpolate smoothly and was leaving the bar
+          // visibly mid-transition. 272px comfortably fits "Search
+          // content..." + the close button and still clears a 320px-wide
+          // screen's edges given this wrapper's own max-width above.
+          initial={{ width: 44, opacity: 0 }}
+          animate={{ width: 272, opacity: 1 }}
+          exit={{ width: 44, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="relative overflow-hidden max-w-full"
+        >
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
+          <input
+            autoFocus
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onBlur={() => { if (!search) setMobileSearchOpen(false); }}
+            placeholder="Search content..."
+            className="w-full pl-11 pr-11 py-3 rounded-full border-0 bg-white shadow-glass focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => { setSearch(''); setMobileSearchOpen(false); }}
+            aria-label="Close search"
+            className="absolute right-1.5 top-1.5 bottom-1.5 w-8 rounded-full bg-surface flex items-center justify-center text-ink/50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </motion.form>
+      ) : (
+        <motion.button
+          key="icon"
+          type="button"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setMobileSearchOpen(true)}
+          aria-label="Open search"
+          className="w-11 h-11 rounded-full bg-white shadow-glass flex items-center justify-center text-secondary shrink-0"
+        >
+          <Search className="w-5 h-5" />
+        </motion.button>
+      )}
+    </AnimatePresence>
+  </div>
 </section>
 
       <div className="max-w-7xl mx-auto px-6 py-10">

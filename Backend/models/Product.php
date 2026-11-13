@@ -63,8 +63,14 @@ class Product
             $params['category_id2'] = $catId;
         }
         if (!empty($filters['search'])) {
-            $where[] = '(p.name LIKE :search OR p.description LIKE :search OR p.brand LIKE :search OR p.seo_keywords LIKE :search OR p.sku LIKE :search OR p.barcode LIKE :search)';
-            $params['search'] = '%' . $filters['search'] . '%';
+            // Six distinct placeholders, not :search reused six times -
+            // see Content::all()'s matching comment: real (non-emulated)
+            // prepared statements give each occurrence its own bind slot.
+            $where[] = '(p.name LIKE :search1 OR p.description LIKE :search2 OR p.brand LIKE :search3 OR p.seo_keywords LIKE :search4 OR p.sku LIKE :search5 OR p.barcode LIKE :search6)';
+            $needle = '%' . $filters['search'] . '%';
+            for ($i = 1; $i <= 6; $i++) {
+                $params["search$i"] = $needle;
+            }
         }
         // 'all' (only ever reachable via ProductController's own
         // products.manage gate, same convention as Content::all()) means no
@@ -141,8 +147,14 @@ class Product
             $params['category_id2'] = $catId;
         }
         if (!empty($filters['search'])) {
-            $where[] = '(p.name LIKE :search OR p.description LIKE :search OR p.brand LIKE :search OR p.seo_keywords LIKE :search OR p.sku LIKE :search OR p.barcode LIKE :search)';
-            $params['search'] = '%' . $filters['search'] . '%';
+            // Six distinct placeholders, not :search reused six times -
+            // see Content::all()'s matching comment: real (non-emulated)
+            // prepared statements give each occurrence its own bind slot.
+            $where[] = '(p.name LIKE :search1 OR p.description LIKE :search2 OR p.brand LIKE :search3 OR p.seo_keywords LIKE :search4 OR p.sku LIKE :search5 OR p.barcode LIKE :search6)';
+            $needle = '%' . $filters['search'] . '%';
+            for ($i = 1; $i <= 6; $i++) {
+                $params["search$i"] = $needle;
+            }
         }
         if (!empty($filters['status']) && $filters['status'] !== 'all') {
             $where[] = 'p.status = :status';

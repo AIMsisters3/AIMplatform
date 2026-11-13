@@ -48,8 +48,14 @@ class BibleStudy
             $params['language'] = $filters['language'];
         }
         if (!empty($filters['search'])) {
-            $where[] = '(c.title LIKE :search OR c.tags LIKE :search OR c.bible_references LIKE :search)';
-            $params['search'] = '%' . $filters['search'] . '%';
+            // Three distinct placeholders, not :search reused three times
+            // - see Content::all()'s matching comment: real (non-emulated)
+            // prepared statements give each occurrence its own bind slot.
+            $where[] = '(c.title LIKE :search1 OR c.tags LIKE :search2 OR c.bible_references LIKE :search3)';
+            $needle = '%' . $filters['search'] . '%';
+            $params['search1'] = $needle;
+            $params['search2'] = $needle;
+            $params['search3'] = $needle;
         }
         if (!empty($filters['is_live'])) {
             $where[] = live_window_sql('c');
