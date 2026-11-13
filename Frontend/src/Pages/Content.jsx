@@ -288,19 +288,33 @@ export default function Content() {
     api.get('/content/popular', { params: { section: 'media_library', limit: 12 } })
       .then((r) => setPopularItems(r.data?.data?.items || []))
       .catch(() => setPopularItems([]));
-    api.get('/content', { params: { section: 'media_library', media_type: 'video', limit: 5 } })
+    api.get('/content', { params: { section: 'media_library', media_type: 'video', limit: 4 } })
       .then((r) => setHeroVideos(r.data?.data?.items || []))
       .catch(() => setHeroVideos([]));
   }, []);
 
-  // Advances to the next newest video on its own - stays put (no interval
-  // at all) when there's zero or one to rotate through, so a single
-  // video never "flickers" by re-animating into itself every few seconds.
+  // Advances to the next newest video on its own every few seconds -
+  // real playback of each one, not just its thumbnail - stays put (no
+  // interval at all) when there's zero or one to rotate through, so a
+  // single video never "flickers" by re-animating into itself.
+  //
+  // A YouTube-hosted clip is the one real limitation here: its player
+  // lives in an <iframe>, and swapping that iframe's URL (the only way
+  // to switch to the next clip) makes it reload the YouTube player from
+  // scratch - which needs a moment to initialize and buffer before
+  // anything actually plays. At 3s that moment can eat most or all of
+  // the window, so a YouTube clip may show mostly its own loading state
+  // rather than visible playback; a directly-uploaded video file (plain
+  // <video>, no iframe) starts instantly and gets the full 3s of real
+  // play. There's no way around this for a YouTube embed short of
+  // building out YouTube's full IFrame Player JS API (play/seek/pause
+  // on one persistent player instead of reloading per clip) - a much
+  // bigger change than this rotation itself.
   useEffect(() => {
     if (heroVideos.length < 2) return undefined;
     const interval = setInterval(() => {
       setHeroIndex((i) => (i + 1) % heroVideos.length);
-    }, 7000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [heroVideos.length]);
 
@@ -377,7 +391,12 @@ export default function Content() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.8 }}
+        // Short, now that clips rotate every 3s - mode="wait" means the
+        // outgoing clip's exit and the incoming one's entrance both
+        // count against that same 3s, so keeping this at the original
+        // 0.8s would have spent over half of every cycle fading rather
+        // than actually playing.
+        transition={{ duration: 0.3 }}
         onClick={() => openItem(activeHeroVideo)}
         className="absolute inset-0 z-[1] cursor-pointer"
       >
