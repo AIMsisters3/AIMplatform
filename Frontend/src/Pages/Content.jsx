@@ -422,12 +422,12 @@ export default function Content() {
         <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0 shadow-glass">
           <PlayCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </span>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-display font-extrabold text-white leading-none tracking-tight break-words">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-extrabold text-white leading-none tracking-tight break-words">
           Content
         </h1>
       </div>
 
-      <p className="font-display italic text-sm sm:text-base md:text-lg font-semibold text-white/90">
+      <p className="font-display italic text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-white/90">
         Watch, learn, be inspired. All in one place!
       </p>
 
@@ -446,10 +446,10 @@ export default function Content() {
             transition={{ duration: 0.4 }}
             className="mt-4 flex items-center gap-2 text-left"
           >
-            <span className="shrink-0 px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-bold uppercase tracking-wide">
+            <span className="shrink-0 px-2 py-0.5 lg:px-2.5 lg:py-1 rounded-full bg-white/20 text-white text-[10px] lg:text-xs font-bold uppercase tracking-wide">
               Now Showing
             </span>
-            <span className="text-white/90 text-sm font-medium line-clamp-1">{activeHeroVideo.title}</span>
+            <span className="text-white/90 text-sm lg:text-base font-medium line-clamp-1">{activeHeroVideo.title}</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -517,35 +517,38 @@ export default function Content() {
       <div className="max-w-7xl mx-auto px-6 py-10">
         <LiveNowStrip endpoint="/content" onItemClick={openItem} />
 
-        {/* Browse navigation area — on desktop, Video/Poster/Audio and
-            Browse by Category sit together in one horizontal area
-            (spec). On small screens, only category browsing shows here
-            (the type row is hidden entirely, not squeezed in above it),
-            keeping the mobile nav area to one simple row of chips. */}
+        {/* Browse navigation area. Browse by Category always shows, every
+            category, until one is actually picked - at that point it
+            collapses down to just "All" + the chosen one (re-pressing
+            either brings every category back), and Browse by Type
+            appears alongside it for the first time, icon-only (no text
+            labels - it's a secondary, supporting filter once you've
+            already narrowed by category, not a second equally-weighted
+            row of buttons). Picking "All" again removes it. */}
         <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
-            <div className="hidden lg:block">
-              <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Type</h2>
-              <div className="flex gap-2.5 flex-wrap">
+            {categoryId !== '' && (
+              <div className="flex gap-2 order-2 lg:order-1">
                 {TYPE_FILTERS.map((t) => {
                   const active = mediaType === t.value;
                   return (
                     <button
                       key={t.label}
                       onClick={() => setMediaType(active ? '' : t.value)}
-                      className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
+                      aria-label={t.label}
+                      title={t.label}
+                      className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition ${
                         active ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
                       }`}
                     >
-                      <t.icon className="w-3.5 h-3.5" />
-                      {t.label}
+                      <t.icon className="w-4 h-4" />
                     </button>
                   );
                 })}
               </div>
-            </div>
+            )}
 
-            <div className="flex-1 lg:max-w-md">
+            <div className="flex-1 lg:max-w-md order-1 lg:order-2">
               <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Category</h2>
               <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none lg:flex-wrap lg:overflow-visible">
                 <button
@@ -556,7 +559,7 @@ export default function Content() {
                 >
                   <LayoutGrid className="w-3.5 h-3.5" /> All
                 </button>
-                {categories.map((cat) => {
+                {(categoryId === '' ? categories : categories.filter((cat) => String(cat.id) === categoryId)).map((cat) => {
                   const meta = CATEGORY_META[cat.name] || fallbackMetaFor(cat);
                   const Icon = meta.icon;
                   const active = categoryId === String(cat.id);
@@ -575,29 +578,6 @@ export default function Content() {
                 })}
               </div>
             </div>
-          </div>
-        </motion.div>
-
-        {/* Type filters shown separately on mobile too — spec keeps them
-            usable for filtering everywhere, just not sharing the mobile
-            category nav's row - here below it, out of the way. */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="lg:hidden mb-8">
-          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-            {TYPE_FILTERS.map((t) => {
-              const active = mediaType === t.value;
-              return (
-                <button
-                  key={t.label}
-                  onClick={() => setMediaType(active ? '' : t.value)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
-                    active ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/70 border border-ink/10 hover:border-secondary/40'
-                  }`}
-                >
-                  <t.icon className="w-3.5 h-3.5" />
-                  {t.label}
-                </button>
-              );
-            })}
           </div>
         </motion.div>
 
