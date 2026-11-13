@@ -99,7 +99,11 @@ export default function ContentViewerModal({ item, onClose }) {
 
   if (!item) return null;
   const kind = getItemKind(item);
-  const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url) : null;
+  // Autoplay on open (spec: "once one opens the card the video must
+  // automatically just play") - only here, not wherever else
+  // getYouTubeEmbed() is called (e.g. admin previews), since this is the
+  // one place a viewer has actually chosen to watch something.
+  const youtubeSrc = kind === 'video' ? getYouTubeEmbed(item.media_url, true) : null;
   const live = liveOverride !== null ? liveOverride : isLive(item);
   const justEnded = wasLiveOverride !== null ? wasLiveOverride : wasLive(item);
   const liked = likeOverride ? likeOverride.liked : !!item.liked_by_me;
@@ -187,16 +191,15 @@ export default function ContentViewerModal({ item, onClose }) {
             </div>
 
             <div className="px-8 sm:px-12 py-8">
-              {/* One line, always - flex-nowrap + overflow-x-auto rather
-                  than flex-wrap, so this never breaks into two lines
-                  regardless of screen width; it scrolls sideways instead
-                  on anything too narrow to fit it all. */}
-              <div className="flex flex-nowrap items-center gap-x-5 gap-2 text-sm text-ink/50 mb-6 overflow-x-auto">
+              {/* Wraps onto another line on anything too narrow to fit it
+                  all, rather than scrolling sideways - the page itself
+                  only ever scrolls vertically now, never horizontally. */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-6">
                 {(item.speaker || item.author) && (
                   <span className="flex items-center gap-1.5 shrink-0"><User className="w-4 h-4 text-secondary" />{item.speaker || item.author}</span>
                 )}
                 {item.views !== undefined && (
-                  <span className="flex items-center gap-1.5 shrink-0"><Eye className="w-4 h-4 text-secondary" />{item.views} {Number(item.views) === 1 ? 'view' : 'views'}</span>
+                  <span className="flex items-center gap-1.5 shrink-0"><Eye className="w-4 h-4 text-secondary" />{item.views}</span>
                 )}
                 <span className="ml-auto flex items-center gap-3 shrink-0">
                   <LikeButton className="shrink-0" />
@@ -210,10 +213,15 @@ export default function ContentViewerModal({ item, onClose }) {
               {/* Professionally formatted document body — generous max-w
                   for readable line length, explicit paragraph/heading
                   spacing, and images constrained to never overflow the
-                  page while keeping their real aspect ratio. */}
+                  page while keeping their real aspect ratio (belt-and-
+                  suspenders alongside the editor's own inline sizing -
+                  see RichTextEditor.jsx - so even an old/pasted image
+                  with no inline width can never force horizontal scroll
+                  here). break-words guards the same for an unbroken long
+                  word/URL in the text itself. */}
               {item.body && (
                 <div
-                  className="prose prose-sm sm:prose-base max-w-none text-ink/80 leading-relaxed [&_h1]:font-display [&_h2]:font-display [&_h3]:font-display [&_p]:mb-4 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-xl [&_blockquote]:border-l-2 [&_blockquote]:border-secondary/40 [&_blockquote]:pl-4 [&_blockquote]:italic"
+                  className="prose prose-sm sm:prose-base max-w-none text-ink/80 leading-relaxed break-words [&_h1]:font-display [&_h2]:font-display [&_h3]:font-display [&_p]:mb-4 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-xl [&_blockquote]:border-l-2 [&_blockquote]:border-secondary/40 [&_blockquote]:pl-4 [&_blockquote]:italic"
                   dangerouslySetInnerHTML={{ __html: item.body }}
                 />
               )}
@@ -309,7 +317,13 @@ export default function ContentViewerModal({ item, onClose }) {
                 mediaError ? (
                   <MediaErrorFallback label="This video could not be loaded. It may still be processing, or the file is temporarily unavailable." />
                 ) : (
-                  <video controls className="w-full max-h-[50vh] bg-ink" src={item.media_url} onError={() => setMediaError(true)} />
+                  /* autoPlay+muted for the same reason as the YouTube
+                     embed above - a browser only allows unmuted autoplay
+                     as a direct continuation of a gesture on the player
+                     itself, which opening this modal isn't; controls let
+                     the viewer unmute with one click once it's already
+                     playing. */
+                  <video controls autoPlay muted playsInline className="w-full max-h-[50vh] bg-ink" src={item.media_url} onError={() => setMediaError(true)} />
                 )
               ) : (
                 <div className="w-full bg-ink py-10 flex flex-col items-center gap-3">
@@ -371,11 +385,10 @@ export default function ContentViewerModal({ item, onClose }) {
             )}
             <h2 className="text-2xl md:text-3xl font-display font-bold text-ink mb-3 break-words">{item.title}</h2>
 
-            {/* One line, always - flex-nowrap + overflow-x-auto rather than
-                flex-wrap, so this never breaks into two lines regardless
-                of screen width; it scrolls sideways instead on anything
-                too narrow to fit it all. */}
-            <div className="flex flex-nowrap items-center gap-x-5 gap-2 text-sm text-ink/50 mb-6 overflow-x-auto">
+            {/* Wraps onto another line on anything too narrow to fit it
+                all, rather than scrolling sideways - the page itself only
+                ever scrolls vertically now, never horizontally. */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-6">
               {(item.speaker || item.author) && (
                 <span className="flex items-center gap-1.5 shrink-0">
                   <User className="w-4 h-4 text-secondary" />
@@ -391,7 +404,7 @@ export default function ContentViewerModal({ item, onClose }) {
               {item.views !== undefined && (
                 <span className="flex items-center gap-1.5 shrink-0">
                   <Eye className="w-4 h-4 text-secondary" />
-                  {item.views} {Number(item.views) === 1 ? 'view' : 'views'}
+                  {item.views}
                 </span>
               )}
               <span className="flex items-center gap-3 shrink-0">
@@ -413,7 +426,7 @@ export default function ContentViewerModal({ item, onClose }) {
 
             {item.body && (
               <div
-                className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5"
+                className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5 break-words [&_img]:max-w-full [&_img]:h-auto"
                 dangerouslySetInnerHTML={{ __html: item.body }}
               />
             )}

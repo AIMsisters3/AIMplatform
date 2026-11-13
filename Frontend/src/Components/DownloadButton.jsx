@@ -23,10 +23,11 @@ export default function DownloadButton({ item }) {
   return (
     <button
       onClick={handleClick}
-      className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface text-ink/70 text-xs font-semibold border border-ink/10 hover:bg-ink/5 transition"
+      aria-label="Download"
+      title="Download"
+      className="flex items-center justify-center w-9 h-9 rounded-full bg-surface text-ink/70 border border-ink/10 hover:bg-ink/5 transition shrink-0"
     >
-      <Download className="w-3.5 h-3.5" />
-      Download
+      <Download className="w-4 h-4" />
     </button>
   );
 }

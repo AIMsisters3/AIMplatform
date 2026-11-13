@@ -13,9 +13,22 @@ export function wasLive(item) {
   return item?.was_live === 1 || item?.was_live === '1' || item?.was_live === true;
 }
 
-export function getYouTubeEmbed(url = '') {
+// autoplay is opt-in (ContentViewerModal passes true) rather than the
+// default, since other callers (e.g. an admin preview) just need the
+// embed URL to display a thumbnail/frame, not start playing. Browsers
+// only allow unmuted autoplay as a continuation of a gesture the user
+// already made directly on a player; opening a modal from a card click
+// doesn't count, so autoplay=1 alone would silently be ignored in most
+// browsers — mute=1 is what actually makes "plays automatically" true
+// everywhere, same tradeoff every app that autoplays video makes
+// (Instagram/TikTok/Facebook all start muted with a tap-to-unmute
+// control, which YouTube's own embedded player already provides).
+export function getYouTubeEmbed(url = '', autoplay = false) {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+  if (!match) return null;
+  return autoplay
+    ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1`
+    : `https://www.youtube.com/embed/${match[1]}`;
 }
 
 // Written-content media types never have a real media file — media_url is

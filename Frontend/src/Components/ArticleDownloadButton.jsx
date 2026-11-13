@@ -35,10 +35,11 @@ export default function ArticleDownloadButton({ item }) {
     <button
       onClick={handleClick}
       disabled={generating}
-      className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface text-ink/70 text-xs font-semibold border border-ink/10 hover:bg-ink/5 transition disabled:opacity-60"
+      aria-label={generating ? 'Preparing PDF' : 'Download PDF'}
+      title={generating ? 'Preparing PDF...' : 'Download PDF'}
+      className="flex items-center justify-center w-9 h-9 rounded-full bg-surface text-ink/70 border border-ink/10 hover:bg-ink/5 transition disabled:opacity-60 shrink-0"
     >
-      {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-      {generating ? 'Preparing PDF...' : 'Download PDF'}
+      {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
     </button>
   );
 }

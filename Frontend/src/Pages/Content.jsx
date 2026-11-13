@@ -170,22 +170,23 @@ function FeaturedCard({ item, onClick }) {
       <div className="p-4">
         <h3 className="font-display font-semibold text-sm leading-snug mb-1 line-clamp-1">{item.title}</h3>
         <p className="text-xs text-ink/50 line-clamp-2 mb-1">{item.description}</p>
-        {/* Views • comments • likes, all on one line. Duration lives only
-            on the thumbnail badge above now, not duplicated here too. */}
+        {/* Views • comments • likes, all on one line - icon-only, no
+            "views"/"comments"/"likes" words. Duration lives only on the
+            thumbnail badge above now, not duplicated here too. */}
         <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-[11px] text-ink/45">
           {item.views !== undefined && (
-            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {formatCount(item.views)} {Number(item.views) === 1 ? 'view' : 'views'}</span>
+            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {formatCount(item.views)}</span>
           )}
           {item.comments_count !== undefined && (
             <>
               {item.views !== undefined && <span className="text-ink/25">&bull;</span>}
-              <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatCount(item.comments_count)} {Number(item.comments_count) === 1 ? 'comment' : 'comments'}</span>
+              <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatCount(item.comments_count)}</span>
             </>
           )}
           {item.likes_count !== undefined && (
             <>
               {(item.views !== undefined || item.comments_count !== undefined) && <span className="text-ink/25">&bull;</span>}
-              <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {formatCount(item.likes_count)} {Number(item.likes_count) === 1 ? 'like' : 'likes'}</span>
+              <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {formatCount(item.likes_count)}</span>
             </>
           )}
           {relativeDate && (

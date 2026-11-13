@@ -24,14 +24,15 @@ export default function ContentCard({ item, onClick }) {
   const viewCount = formatCount(item.views);
   const commentCount = formatCount(item.comments_count);
   const likeCount = formatCount(item.likes_count);
-  // One combined "1.2K views • 14 comments • 8 likes" line — built as an
-  // array and joined so a missing piece (e.g. no comment count yet) never
-  // leaves a stray separator behind. Duration lives only on the thumbnail
-  // badge below now, not duplicated here as text too.
+  // One combined "<Eye/> 1.2K • <MessageCircle/> 14 • <Heart/> 8" line —
+  // icon-only, no "views"/"comments"/"likes" words (spec: replace the
+  // word with its icon everywhere), built as an array so a missing piece
+  // never leaves a stray separator behind. Duration lives only on the
+  // thumbnail badge below now, not duplicated here as text too.
   const metaParts = [
-    viewCount !== null && `${viewCount} ${Number(item.views) === 1 ? 'view' : 'views'}`,
-    commentCount !== null && `${commentCount} ${Number(item.comments_count) === 1 ? 'comment' : 'comments'}`,
-    likeCount !== null && `${likeCount} ${Number(item.likes_count) === 1 ? 'like' : 'likes'}`,
+    viewCount !== null && { Icon: Eye, count: viewCount },
+    commentCount !== null && { Icon: MessageCircle, count: commentCount },
+    likeCount !== null && { Icon: Heart, count: likeCount },
   ].filter(Boolean);
 
   return (
@@ -102,14 +103,12 @@ export default function ContentCard({ item, onClick }) {
             separate lines otherwise. */}
         {(metaParts.length > 0 || relativeDate) && (
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink/45">
-            {metaParts.map((part, i) => (
+            {metaParts.map(({ Icon, count }, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span className="text-ink/25">&bull;</span>}
                 <span className="flex items-center gap-1">
-                  {i === 0 && metaParts[0]?.includes('view') && <Eye className="w-3.5 h-3.5" />}
-                  {part.includes('comment') && <MessageCircle className="w-3.5 h-3.5" />}
-                  {part.includes('like') && <Heart className="w-3.5 h-3.5" />}
-                  {part}
+                  <Icon className="w-3.5 h-3.5" />
+                  {count}
                 </span>
               </React.Fragment>
             ))}

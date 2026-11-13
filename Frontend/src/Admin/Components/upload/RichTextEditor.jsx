@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   Bold, Italic, Underline, List, ListOrdered, Link2, Quote, Undo2, Redo2,
-  Image as ImageIcon, AlignLeft, AlignCenter, AlignRight, Trash2, Loader2, Palette,
+  Image as ImageIcon, AlignLeft, AlignCenter, AlignRight, Trash2, Loader2, Palette, PaintBucket,
 } from 'lucide-react';
 import api from '../../../api/axios.js';
 
@@ -27,6 +27,17 @@ const HEADINGS = [
 ];
 
 const COLORS = ['#2D2A4A', '#7A2CF3', '#E548B9', '#2DA8FF', '#059669', '#DC2626', '#D97706'];
+
+// Soft tints only, never a dark/saturated background - this sits behind
+// the article's own (likely dark-ish) text color, so anything strong
+// risks becoming unreadable rather than decorative.
+const BACKGROUND_COLORS = ['#FDF2F8', '#EFF6FF', '#F0FDF4', '#FEFCE8', '#FAF5FF', '#FFF7ED', '#F5F5F4'];
+
+// Marks the single wrapper div applyBackground() creates around the
+// entire article body so a background color can be set once for the
+// whole piece and found/updated/removed again later, rather than a
+// per-paragraph highlight.
+const BG_WRAPPER_ATTR = 'data-article-bg';
 
 const IMAGE_SIZES = [
   { label: 'S', width: '25%' },
@@ -66,6 +77,19 @@ function sanitizePastedHtml(html) {
         if (!keep.includes(attr.name)) child.removeAttribute(attr.name);
       });
       if (child.tagName === 'A') child.setAttribute('target', '_blank');
+      if (child.tagName === 'IMG') {
+        // A pasted <img> otherwise carries NO size constraint at all once
+        // its style/width/height attributes are stripped above - it
+        // renders at its real pixel dimensions (easily 3000px+ from a
+        // phone photo), which is the actual "image goes out of
+        // proportion" bug: not a stretched aspect ratio, but an
+        // unconstrained one blowing out of both the editor and the
+        // published article's width. Every image inserted via the
+        // toolbar's own upload button already gets this same safety net
+        // (see handleImageFile() below) - this just closes the one path
+        // (paste) that skipped it.
+        child.setAttribute('style', 'max-width:100%;height:auto;display:block;margin:12px auto;border-radius:12px;');
+      }
       clean(child);
     });
   }
@@ -82,6 +106,7 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showColors, setShowColors] = useState(false);
+  const [showBackgrounds, setShowBackgrounds] = useState(false);
 
   // Browsers disagree on what Enter inserts in a bare contentEditable
   // (a wrapping <div> vs. a bare <br>), which is what silently loses
@@ -149,6 +174,44 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
     setShowColors(false);
   }
 
+  /**
+   * Sets (or removes, color=null) a background color for the WHOLE
+   * article body — distinct from applyColor() above, which only colors
+   * selected text. There's no execCommand for "background of everything",
+   * so this wraps the editor's current content in one persistent
+   * container div (found again by BG_WRAPPER_ATTR on repeat calls, so
+   * picking a second color just updates it rather than nesting another
+   * wrapper) and sets that div's own background - it becomes a real part
+   * of the saved HTML, so it renders the same way on the public article
+   * page without that page needing to know anything about it.
+   */
+  function applyBackground(color) {
+    if (!ref.current) return;
+    let wrapper = ref.current.querySelector(`:scope > [${BG_WRAPPER_ATTR}]`);
+
+    if (color === null) {
+      if (wrapper) {
+        while (wrapper.firstChild) ref.current.insertBefore(wrapper.firstChild, wrapper);
+        wrapper.remove();
+      }
+      emitChange();
+      setShowBackgrounds(false);
+      return;
+    }
+
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.setAttribute(BG_WRAPPER_ATTR, '1');
+      wrapper.style.padding = '20px';
+      wrapper.style.borderRadius = '16px';
+      while (ref.current.firstChild) wrapper.appendChild(ref.current.firstChild);
+      ref.current.appendChild(wrapper);
+    }
+    wrapper.style.backgroundColor = color;
+    emitChange();
+    setShowBackgrounds(false);
+  }
+
   function openImagePicker() {
     saveSelection();
     fileInputRef.current?.click();
@@ -168,7 +231,12 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
       const url = res.data.data.url;
 
       restoreSelection();
-      const html = `<img src="${url}" alt="" style="width:50%;display:block;margin:12px auto;border-radius:12px;" />`;
+      // max-width:100% is the actual safety net (width:50% alone is only
+      // ever relative to the image's container, which is right in the
+      // vast majority of layouts, but max-width here means it can't
+      // overflow even in the rare one where that container's own width
+      // is ambiguous) - height:auto keeps the real aspect ratio.
+      const html = `<img src="${url}" alt="" style="width:50%;max-width:100%;height:auto;display:block;margin:12px auto;border-radius:12px;" />`;
       document.execCommand('insertHTML', false, html);
       emitChange();
     } catch {
@@ -198,6 +266,8 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
   function resizeSelectedImage(width) {
     if (!selectedImage) return;
     selectedImage.style.width = width;
+    selectedImage.style.maxWidth = '100%';
+    selectedImage.style.height = 'auto';
     emitChange();
   }
 
@@ -282,6 +352,41 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
                   type="button"
                   aria-label={`Color ${c}`}
                   onMouseDown={(e) => { e.preventDefault(); restoreSelection(); applyColor(c); }}
+                  className="w-5 h-5 rounded-full border border-ink/10"
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button
+            type="button"
+            aria-label="Background color"
+            title="Background color (whole article)"
+            disabled={isEmpty}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setShowBackgrounds((v) => !v)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-ink/60 hover:bg-white hover:text-secondary hover:shadow-sm transition disabled:opacity-40 disabled:pointer-events-none"
+          >
+            <PaintBucket className="w-4 h-4" />
+          </button>
+          {showBackgrounds && (
+            <div className="absolute z-10 top-9 left-0 flex gap-1.5 p-2 rounded-xl border border-ink/10 bg-white shadow-glass">
+              <button
+                type="button"
+                aria-label="No background"
+                title="No background"
+                onMouseDown={(e) => { e.preventDefault(); applyBackground(null); }}
+                className="w-5 h-5 rounded-full border border-ink/20 bg-white relative after:content-[''] after:absolute after:inset-x-0 after:top-1/2 after:h-px after:-translate-y-1/2 after:rotate-45 after:bg-rose-400"
+              />
+              {BACKGROUND_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Background ${c}`}
+                  onMouseDown={(e) => { e.preventDefault(); applyBackground(c); }}
                   className="w-5 h-5 rounded-full border border-ink/10"
                   style={{ backgroundColor: c }}
                 />
@@ -431,7 +536,7 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
           role="textbox"
           aria-multiline="true"
           aria-label="Article body"
-          className="prose prose-sm max-w-none min-h-[220px] max-h-[560px] overflow-y-auto px-4 py-4 text-sm text-ink focus:outline-none [&_h1]:text-2xl [&_h1]:font-display [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-display [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-base [&_h3]:font-display [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_blockquote]:border-l-2 [&_blockquote]:border-secondary/40 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-ink/60 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-secondary [&_a]:underline [&_img]:cursor-pointer [&_img:hover]:opacity-90"
+          className="prose prose-sm max-w-none min-h-[220px] max-h-[560px] overflow-y-auto overflow-x-hidden break-words px-4 py-4 text-sm text-ink focus:outline-none [&_h1]:text-2xl [&_h1]:font-display [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-display [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h3]:text-base [&_h3]:font-display [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_blockquote]:border-l-2 [&_blockquote]:border-secondary/40 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-ink/60 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-secondary [&_a]:underline [&_img]:max-w-full [&_img]:h-auto [&_img]:cursor-pointer [&_img:hover]:opacity-90"
         />
       </div>
     </div>

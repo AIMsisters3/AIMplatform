@@ -1,9 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
+
+// Grows a textarea to fit its content as the user types, instead of a
+// fixed-height box that scrolls sideways / clips long text - same helper
+// already used by BibleStudyDetail.jsx's own note textareas.
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
@@ -78,15 +87,21 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
           </div>
 
           {showReplyBox && (
-            <form onSubmit={submitReply} className="flex gap-2 mt-2">
-              <input
+            <form onSubmit={submitReply} className="flex items-end gap-2 mt-2">
+              {/* A textarea that grows downward as text wraps, not a
+                  single-line input that just scrolls sideways past the
+                  visible width - rows=1 + resize-none + overflow-hidden,
+                  autoGrow() raises the actual height on every keystroke. */}
+              <textarea
                 autoFocus
+                rows={1}
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={(e) => { setReplyText(e.target.value); autoGrow(e.target); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply(e); } }}
                 placeholder={`Reply to ${comment.user_name}...`}
-                className="flex-1 px-3 py-1.5 rounded-full border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                className="flex-1 px-3 py-1.5 rounded-2xl border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary resize-none overflow-hidden"
               />
-              <button className="px-4 py-1.5 rounded-full bg-brand-gradient text-white text-xs font-semibold">
+              <button className="px-4 py-1.5 rounded-full bg-brand-gradient text-white text-xs font-semibold shrink-0">
                 Reply
               </button>
             </form>
@@ -121,6 +136,7 @@ export default function CommentsSection({ contentId, allowComments }) {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const { user } = useAuth();
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -154,6 +170,10 @@ export default function CommentsSection({ contentId, allowComments }) {
     try {
       await api.post(`/content/${contentId}/comments`, { body: text.trim() });
       setText('');
+      // The box stays mounted across posts (unlike a reply box, which
+      // unmounts) - without this its height would stay stretched from
+      // the last comment instead of collapsing back to one row.
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
       await refresh();
     } catch (err) {
       alert(err.response?.data?.message || 'Could not post comment.');
@@ -204,16 +224,21 @@ export default function CommentsSection({ contentId, allowComments }) {
       </h3>
 
       {user ? (
-        <form onSubmit={submitTopLevel} className="flex gap-3 mb-6">
-          <input
+        <form onSubmit={submitTopLevel} className="flex items-end gap-3 mb-6">
+          {/* Grows downward as text wraps, not a single-line input that
+              scrolls sideways past the visible width. */}
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); autoGrow(e.target); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitTopLevel(e); } }}
             placeholder="Share your thoughts..."
-            className="flex-1 px-4 py-2.5 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary text-sm resize-none overflow-hidden"
           />
           <button
             disabled={posting}
-            className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass disabled:opacity-60"
+            className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass disabled:opacity-60 shrink-0"
           >
             {posting ? '...' : 'Post'}
           </button>

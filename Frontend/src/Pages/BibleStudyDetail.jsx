@@ -260,11 +260,10 @@ export default function BibleStudyDetail() {
             )}
           </div>
 
-          {/* One line, always - flex-nowrap + overflow-x-auto rather than
-              flex-wrap, so this never breaks into two lines regardless of
-              screen width; it scrolls sideways instead on anything too
-              narrow to fit it all. */}
-          <div className="flex flex-nowrap items-center gap-x-5 gap-2 text-sm text-ink/50 mb-6 overflow-x-auto">
+          {/* Wraps onto another line on anything too narrow to fit it all,
+              rather than scrolling sideways - the page itself only ever
+              scrolls vertically now, never horizontally. */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink/50 mb-6">
             {item.speaker && <span className="flex items-center gap-1.5 shrink-0"><User className="w-4 h-4 text-secondary" />{item.speaker}</span>}
             {item.publish_date && (
               <span className="flex items-center gap-1.5 shrink-0">
@@ -290,7 +289,7 @@ export default function BibleStudyDetail() {
           {item.description && <p className="text-ink/70 mb-5">{item.description}</p>}
           {item.body && (
             <div
-              className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5"
+              className="prose prose-sm max-w-none text-ink/80 leading-relaxed mb-5 break-words [&_img]:max-w-full [&_img]:h-auto"
               dangerouslySetInnerHTML={{ __html: item.body }}
             />
           )}
