@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/jwt.php';
 require_once __DIR__ . '/../helpers/rate_limit_v2.php';
 require_once __DIR__ . '/../helpers/mailer.php';
+require_once __DIR__ . '/../helpers/google_signin_log.php';
 require_once __DIR__ . '/../emails/password_reset_template.php';
 require_once __DIR__ . '/../middleware/auth.php';
 
@@ -169,7 +170,12 @@ class AuthController
      */
     private function verifyGoogleIdToken(string $credential): ?array
     {
-        if (!function_exists('curl_init') || GOOGLE_CLIENT_ID === '') {
+        if (!function_exists('curl_init')) {
+            google_signin_log('VERIFY FAILED — the curl PHP extension is not available on this server.');
+            return null;
+        }
+        if (GOOGLE_CLIENT_ID === '') {
+            google_signin_log('VERIFY FAILED — GOOGLE_CLIENT_ID is empty. Set it in Backend/.env to enable Google sign-in.');
             return null;
         }
 
@@ -180,14 +186,31 @@ class AuthController
         ]);
         $response = curl_exec($ch);
         $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
-        if ($response === false || $status !== 200) {
+        if ($response === false) {
+            google_signin_log("VERIFY FAILED — curl request to Google's tokeninfo endpoint failed: {$curlError}");
+            return null;
+        }
+        if ($status !== 200) {
+            google_signin_log("VERIFY FAILED — Google's tokeninfo endpoint returned HTTP {$status}: {$response}");
             return null;
         }
 
         $claims = json_decode($response, true);
-        if (!is_array($claims) || ($claims['aud'] ?? null) !== GOOGLE_CLIENT_ID) {
+        if (!is_array($claims)) {
+            google_signin_log('VERIFY FAILED — could not parse JSON from Google tokeninfo response: ' . $response);
+            return null;
+        }
+        $aud = $claims['aud'] ?? null;
+        if ($aud !== GOOGLE_CLIENT_ID) {
+            // Not a secret on either side — see this file's require for
+            // google_signin_log()'s own comment on why. This is almost
+            // always Backend/.env's GOOGLE_CLIENT_ID not matching
+            // Frontend/.env's VITE_GOOGLE_CLIENT_ID (different value,
+            // stale value, typo, trailing whitespace).
+            google_signin_log("VERIFY FAILED — token audience mismatch. Token's aud=\"{$aud}\", configured GOOGLE_CLIENT_ID=\"" . GOOGLE_CLIENT_ID . '". These must be the EXACT same value as Frontend/.env\'s VITE_GOOGLE_CLIENT_ID.');
             return null;
         }
 
