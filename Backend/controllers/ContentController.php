@@ -38,16 +38,15 @@ class ContentController
         // instead post a video or audio recording of the devotion.
         'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
-        // value (migration 004, widened/narrowed by migrations 012/013/018/022).
-        // Migration 022 simplified this down to just 4 values ("Video/PDF/
-        // Article/Poster" per spec) - the many finer-grained formats
-        // (Short Film, Sermon, Panel, Podcast, Interview, Animated,
-        // Documentary) previously lived here as separate values but all
-        // read as "a video" to a visitor, so they're folded into 'video'.
-        // 'image' is labeled "Poster" in the UI (same convention as
-        // media_library/Content.jsx's own Poster type) - keep in sync with
+        // value (migration 004, widened/narrowed by migrations 012/013/
+        // 018/022/038). Migration 038 narrowed this to exactly Audio/PDF/
+        // Poster per spec - Video and Article are no longer valid formats
+        // here at all (every Bible Study previously published as either
+        // was removed outright, not just hidden). 'image' is labeled
+        // "Poster" in the UI (same convention as media_library/
+        // Content.jsx's own Poster type) - keep in sync with
         // bible_studies.format.
-        'bible_study' => ['video', 'pdf', 'article', 'image'],
+        'bible_study' => ['audio', 'pdf', 'image'],
         // Kids is its own dedicated, safe section (migration 014) - not just
         // another category - with its own age-appropriate vocabulary.
         // Simplified by migration 025: Cartoon/Other removed; Bible Lesson
@@ -417,7 +416,7 @@ class ContentController
             $currentExtension = (new BibleStudy())->findByContentId($id);
             (new BibleStudy())->createExtension(
                 $id,
-                $body['media_type'] ?? ($currentExtension['format'] ?? 'video'),
+                $body['media_type'] ?? ($currentExtension['format'] ?? 'audio'),
                 array_key_exists('study_guide_url', $body) ? $body['study_guide_url'] : ($currentExtension['study_guide_url'] ?? null)
             );
         }

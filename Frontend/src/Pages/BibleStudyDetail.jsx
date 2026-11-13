@@ -8,6 +8,7 @@ import CommentsSection from '../Components/CommentsSection.jsx';
 import ShareButton from '../Components/ShareButton.jsx';
 import DownloadButton from '../Components/DownloadButton.jsx';
 import ErrorBoundary from '../Components/ErrorBoundary.jsx';
+import FloatingWhatsAppButton from '../Components/FloatingWhatsAppButton.jsx';
 
 // Grows a textarea to fit its content as the user types, instead of a
 // fixed-height box that forces scrolling inside itself.
@@ -17,15 +18,10 @@ function autoGrow(el) {
   el.style.height = `${el.scrollHeight}px`;
 }
 
-// Simplified (migration 022) to Video/PDF/Article/Poster. Old
-// finer-grained values are included too so an item that hasn't been
-// re-saved since a pre-migration deploy still shows a readable label
-// instead of the raw enum string, until the migration's UPDATE runs.
+// Narrowed (migration 038) to exactly Audio/PDF/Poster - Video and
+// Article are no longer valid Bible Study formats at all.
 const FORMAT_LABELS = {
-  video: 'Video', pdf: 'PDF', article: 'Article', image: 'Poster',
-  short_film: 'Video', sermon: 'Video', panel: 'Video', audio: 'Video',
-  podcast: 'Video', animated: 'Video', documentary: 'Video', interview: 'Video',
-  pdf_notes: 'PDF',
+  audio: 'Audio', pdf: 'PDF', image: 'Poster',
 };
 
 export default function BibleStudyDetail() {
@@ -189,6 +185,7 @@ export default function BibleStudyDetail() {
   const commentsAllowed = item.allow_comments === 1 || item.allow_comments === '1' || item.allow_comments === true;
 
   return (
+    <>
     <div className="max-w-4xl mx-auto px-6 py-12">
       <Link to="/bible-studies" className="text-sm text-secondary font-semibold mb-6 inline-block">← Back to Bible Studies</Link>
 
@@ -415,5 +412,10 @@ export default function BibleStudyDetail() {
         <CommentsSection contentId={item.id} allowComments={commentsAllowed} />
       </ErrorBoundary>
     </div>
+    {/* Fixed to the viewport, not this page's scroll container - stays
+        put the whole time someone's reading this Bible Study, wherever
+        they scroll to. */}
+    <FloatingWhatsAppButton />
+    </>
   );
 }

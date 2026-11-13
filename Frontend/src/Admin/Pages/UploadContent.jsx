@@ -121,17 +121,16 @@ const CONTENT_TYPES = [
   { key: 'music', label: 'Music', icon: Music2, media_type: 'music', group: 'more' },
 ];
 
-// Simplified (migration 022) to exactly 4 formats per spec: Video, PDF,
-// Article, Poster. The many finer-grained formats this used to offer
-// (Short Film, Sermon, Panel Discussion, Podcast, Interview, Animated,
-// Documentary) all read as "a video" to a visitor and are folded into
-// Video. 'image' is labeled "Poster" here to match Content.jsx's own
-// Poster type (media_type 'image', a single cover image, no separate
-// upload — see mediaKindFor() below).
+// Narrowed (migration 038) to exactly Audio, PDF, Poster per spec -
+// Video and Article are no longer valid Bible Study formats at all
+// (the database enum itself no longer accepts them; every Bible Study
+// previously published as either was removed outright). 'image' is
+// labeled "Poster" here to match Content.jsx's own Poster type
+// (media_type 'image', a single cover image, no separate upload — see
+// mediaKindFor() below).
 const BIBLE_STUDY_TYPES = [
-  { value: 'video', label: 'Video' },
+  { value: 'audio', label: 'Audio' },
   { value: 'pdf', label: 'PDF' },
-  { value: 'article', label: 'Article' },
   { value: 'image', label: 'Poster' },
 ];
 
@@ -239,7 +238,7 @@ const DEFAULT_FORM = {
   is_featured: false, allow_comments: true,
   study_guide_url: '',
   series_id: '', season_number: '1', episode_number: '',
-  media_type_bible_study: 'video',
+  media_type_bible_study: 'audio',
   kids_subtype: '', // see KIDS_SUBTYPES — falls back to that type's first option when unset
   // Default 120 minutes (2 hours) — a sensible starting point the admin
   // can change, never left blank: duration_seconds is what actually
@@ -383,7 +382,7 @@ export default function UploadContent() {
   const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : section === 'kids' ? KIDS_TYPES : CONTENT_TYPES;
   const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
-    ? (form.media_type_bible_study || 'video')
+    ? (form.media_type_bible_study || 'audio')
     : (SINGLETON_MEDIA_TYPE[section] || selectedType.media_type);
   // Bible Lesson/Song/Activity each offer a further choice of file kind
   // within Kids (see KIDS_SUBTYPES) - falls back to that type's first

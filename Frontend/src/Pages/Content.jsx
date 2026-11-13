@@ -9,6 +9,7 @@ import {
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
+import ScrollHintRow from '../Components/ScrollHintRow.jsx';
 import { getItemKind, getYouTubeEmbed } from '../utils/mediaKind.js';
 import { formatRelativeDate, formatDuration, formatCount } from '../utils/formatters.js';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
@@ -550,7 +551,12 @@ export default function Content() {
 
             <div className="flex-1 lg:max-w-md order-1 lg:order-2">
               <h2 className="text-lg font-display font-bold text-ink mb-4">Browse by Category</h2>
-              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none lg:flex-wrap lg:overflow-visible">
+              {/* One row always, even on bigger screens - no wrapping into
+                  a second row. ScrollHintRow shows a small fading arrow
+                  at the right edge whenever there's more to scroll to,
+                  so a narrow screen (or just a long category list) never
+                  leaves a visitor wondering whether there's more here. */}
+              <ScrollHintRow className="gap-2.5 pb-2">
                 <button
                   onClick={() => setCategoryId('')}
                   className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 sm:px-4 rounded-full text-xs font-semibold transition whitespace-nowrap ${
@@ -576,7 +582,7 @@ export default function Content() {
                     </button>
                   );
                 })}
-              </div>
+              </ScrollHintRow>
             </div>
           </div>
         </motion.div>
