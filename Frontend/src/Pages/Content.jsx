@@ -288,8 +288,22 @@ export default function Content() {
     api.get('/content/popular', { params: { section: 'media_library', limit: 12 } })
       .then((r) => setPopularItems(r.data?.data?.items || []))
       .catch(() => setPopularItems([]));
-    api.get('/content', { params: { section: 'media_library', media_type: 'video', limit: 4 } })
-      .then((r) => setHeroVideos(r.data?.data?.items || []))
+    // Fetches more than the 4 the reel actually shows, then keeps only
+    // directly-uploaded video files (plain <video>, instant playback) -
+    // a YouTube link reloads its player from scratch on every switch,
+    // which needs a moment to buffer before anything's even visible, so
+    // it never looked like real footage in a few-second rotation. Asking
+    // for more up front means there's still a good chance of finding 4
+    // real uploads even if some of the newest videos happen to be
+    // YouTube links.
+    api.get('/content', { params: { section: 'media_library', media_type: 'video', limit: 20 } })
+      .then((r) => {
+        const items = r.data?.data?.items || [];
+        const directUploads = items.filter((item) =>
+          !getYouTubeEmbed(item.media_url) && /\.(mp4|webm|ogg|mov)(\?|$)/i.test(item.media_url || '')
+        );
+        setHeroVideos(directUploads.slice(0, 4));
+      })
       .catch(() => setHeroVideos([]));
   }, []);
 
@@ -297,33 +311,18 @@ export default function Content() {
   // real playback of each one, not just its thumbnail - stays put (no
   // interval at all) when there's zero or one to rotate through, so a
   // single video never "flickers" by re-animating into itself.
-  //
-  // A YouTube-hosted clip is the one real limitation here: its player
-  // lives in an <iframe>, and swapping that iframe's URL (the only way
-  // to switch to the next clip) makes it reload the YouTube player from
-  // scratch - which needs a moment to initialize and buffer before
-  // anything actually plays. At 3s that moment can eat most or all of
-  // the window, so a YouTube clip may show mostly its own loading state
-  // rather than visible playback; a directly-uploaded video file (plain
-  // <video>, no iframe) starts instantly and gets the full 3s of real
-  // play. There's no way around this for a YouTube embed short of
-  // building out YouTube's full IFrame Player JS API (play/seek/pause
-  // on one persistent player instead of reloading per clip) - a much
-  // bigger change than this rotation itself.
   useEffect(() => {
     if (heroVideos.length < 2) return undefined;
     const interval = setInterval(() => {
       setHeroIndex((i) => (i + 1) % heroVideos.length);
-    }, 3000);
+    }, 7000);
     return () => clearInterval(interval);
   }, [heroVideos.length]);
 
+  // Every entry in heroVideos is already filtered to a direct upload
+  // above, so this is always a plain <video> - never the YouTube-embed
+  // branch the render below still keeps for a single thumbnail fallback.
   const activeHeroVideo = heroVideos[heroIndex] || null;
-  const heroYoutubeSrc = activeHeroVideo ? getYouTubeEmbed(activeHeroVideo.media_url, true) : null;
-  const heroIsDirectVideo = !!(
-    activeHeroVideo && !heroYoutubeSrc && activeHeroVideo.media_url &&
-    /\.(mp4|webm|ogg|mov)(\?|$)/i.test(activeHeroVideo.media_url)
-  );
 
   // Featured Content is its own real server query (never derived from
   // whatever happens to be on the current feed page) - only items an
@@ -372,7 +371,7 @@ export default function Content() {
         as clicking its card anywhere else on this page. Falls back to
         the plain gradient/pattern (no hero video loaded yet, or there
         are none) so nothing looks broken before the fetch resolves. */}
-<section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary h-auto pb-8 lg:h-[220px] lg:pb-0">
+<section className="relative overflow-hidden bg-gradient-to-br from-secondary via-[#6B3FE0] to-primary h-auto pb-8 lg:h-[380px] lg:pb-0">
   <div className="absolute inset-0 opacity-20 mix-blend-soft-light" style={{ backgroundImage: `url(${contentBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
 
   <motion.img
@@ -391,23 +390,11 @@ export default function Content() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        // Short, now that clips rotate every 3s - mode="wait" means the
-        // outgoing clip's exit and the incoming one's entrance both
-        // count against that same 3s, so keeping this at the original
-        // 0.8s would have spent over half of every cycle fading rather
-        // than actually playing.
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.6 }}
         onClick={() => openItem(activeHeroVideo)}
         className="absolute inset-0 z-[1] cursor-pointer"
       >
-        {heroYoutubeSrc ? (
-          <iframe
-            src={heroYoutubeSrc}
-            title={activeHeroVideo.title}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            allow="autoplay; encrypted-media"
-          />
-        ) : heroIsDirectVideo ? (
+        {activeHeroVideo.media_url ? (
           <video
             src={activeHeroVideo.media_url}
             autoPlay muted loop playsInline
@@ -416,9 +403,12 @@ export default function Content() {
         ) : activeHeroVideo.thumbnail ? (
           <img src={activeHeroVideo.thumbnail} alt="" className="absolute inset-0 w-full h-full object-cover" />
         ) : null}
-        {/* Darkens the reel so the title/tagline/search above it stay
-            readable regardless of what's playing underneath. */}
-        <div className="absolute inset-0 bg-gradient-to-br from-ink/75 via-secondary/65 to-primary/55" />
+        {/* Darkens the reel just enough to keep the title/tagline/search
+            above it readable, without hiding the footage underneath -
+            lighter than the first pass, and ink/secondary-weighted
+            rather than primary (the brand blue), which read as "too
+            blue" tinting the whole reel. */}
+        <div className="absolute inset-0 bg-gradient-to-br from-ink/45 via-secondary/35 to-primary/20" />
       </motion.div>
     )}
   </AnimatePresence>
