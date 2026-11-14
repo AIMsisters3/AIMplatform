@@ -1,9 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle } from 'lucide-react';
+import { Heart, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
+
+// Grows a textarea to fit its content as the user types, instead of a
+// fixed-height box that scrolls sideways / clips long text - same helper
+// already used by BibleStudyDetail.jsx's own note textareas.
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
@@ -15,10 +24,14 @@ function timeAgo(dateStr) {
 }
 
 function CommentRow({ comment, onReply, onLike, isReply }) {
-  const [comments, setComments] = useState([]);
   const { user } = useAuth();
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
+  // Collapsed by default, TikTok/Instagram-style - a reply-to-a-reply
+  // still flattens into this same replies array server-side (see
+  // Comment::create()'s reply_to_user_id handling), it isn't its own
+  // nested level, so this toggle only ever applies at the top level.
+  const [repliesVisible, setRepliesVisible] = useState(false);
 
   async function submitReply(e) {
     e.preventDefault();
@@ -26,7 +39,10 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
     await onReply(comment.id, replyText.trim());
     setReplyText('');
     setShowReplyBox(false);
+    setRepliesVisible(true);
   }
+
+  const replyCount = comment.replies?.length || 0;
 
   return (
     <div className={isReply ? 'ml-11 mt-3' : ''}>
@@ -39,6 +55,12 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
             <span className="text-sm font-semibold text-ink">{comment.user_name}</span>
             <span className="text-xs text-ink/40">{timeAgo(comment.created_at)}</span>
           </div>
+          {/* Only a reply-to-a-reply carries this - a direct reply to the
+              top-level comment reads as "replying to the thread" on its
+              own, same as TikTok/Instagram never label that case either. */}
+          {comment.reply_to_user_name && (
+            <p className="text-xs text-secondary font-medium">Replying to @{comment.reply_to_user_name}</p>
+          )}
           <p className="text-sm text-ink/70">{comment.body}</p>
           <div className="flex items-center gap-4 mt-1">
             <button
@@ -50,7 +72,11 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
               <Heart className="w-3.5 h-3.5" fill={comment.liked_by_me ? 'currentColor' : 'none'} />
               {comment.likes_count > 0 && comment.likes_count}
             </button>
-            {!isReply && user && (
+            {/* Reply is now available on a reply too, not just a
+                top-level comment - posting still requires an account
+                (same as a top-level comment always has), only liking is
+                open to guests. */}
+            {user && (
               <button
                 onClick={() => setShowReplyBox((v) => !v)}
                 className="flex items-center gap-1 text-xs font-medium text-ink/40 hover:text-secondary transition"
@@ -61,23 +87,39 @@ function CommentRow({ comment, onReply, onLike, isReply }) {
           </div>
 
           {showReplyBox && (
-            <form onSubmit={submitReply} className="flex gap-2 mt-2">
-              <input
+            <form onSubmit={submitReply} className="flex items-end gap-2 mt-2">
+              {/* A textarea that grows downward as text wraps, not a
+                  single-line input that just scrolls sideways past the
+                  visible width - rows=1 + resize-none + overflow-hidden,
+                  autoGrow() raises the actual height on every keystroke. */}
+              <textarea
                 autoFocus
+                rows={1}
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={(e) => { setReplyText(e.target.value); autoGrow(e.target); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply(e); } }}
                 placeholder={`Reply to ${comment.user_name}...`}
-                className="flex-1 px-3 py-1.5 rounded-full border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                className="flex-1 px-3 py-1.5 rounded-2xl border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary resize-none overflow-hidden"
               />
-              <button className="px-4 py-1.5 rounded-full bg-brand-gradient text-white text-xs font-semibold">
+              <button className="px-4 py-1.5 rounded-full bg-brand-gradient text-white text-xs font-semibold shrink-0">
                 Reply
               </button>
             </form>
           )}
+
+          {!isReply && replyCount > 0 && (
+            <button
+              onClick={() => setRepliesVisible((v) => !v)}
+              className="flex items-center gap-1 text-xs font-semibold text-secondary mt-2"
+            >
+              {repliesVisible ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {repliesVisible ? 'Hide replies' : `View ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`}
+            </button>
+          )}
         </div>
       </div>
 
-      {comment.replies?.length > 0 && (
+      {!isReply && replyCount > 0 && repliesVisible && (
         <div className="space-y-3">
           {comment.replies.map((reply) => (
             <CommentRow key={reply.id} comment={reply} onReply={onReply} onLike={onLike} isReply />
@@ -94,11 +136,27 @@ export default function CommentsSection({ contentId, allowComments }) {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const { user } = useAuth();
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
     refresh().finally(() => setLoading(false));
   }, [contentId]);
+
+  // Comments update without a manual refresh - polls quietly in the
+  // background while this is open. No live push channel (WebSockets)
+  // available on this shared PHP host, so polling is the real mechanism,
+  // same pattern already used for LIVE status elsewhere (see
+  // ContentViewerModal.jsx's own LIVE_POLL_INTERVAL_MS). A background
+  // refresh() never touches `loading`, so it can't cause a flicker - and
+  // each CommentRow's own open-reply-box/typed-text state survives it
+  // untouched since React reconciles by comment.id, not by replacing the
+  // whole tree.
+  useEffect(() => {
+    if (!allowComments) return undefined;
+    const interval = setInterval(() => { refresh(); }, 8_000);
+    return () => clearInterval(interval);
+  }, [contentId, allowComments]);
 
     async function refresh() {
     const r = await api.get(`/content/${contentId}/comments`);
@@ -112,6 +170,10 @@ export default function CommentsSection({ contentId, allowComments }) {
     try {
       await api.post(`/content/${contentId}/comments`, { body: text.trim() });
       setText('');
+      // The box stays mounted across posts (unlike a reply box, which
+      // unmounts) - without this its height would stay stretched from
+      // the last comment instead of collapsing back to one row.
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
       await refresh();
     } catch (err) {
       alert(err.response?.data?.message || 'Could not post comment.');
@@ -141,10 +203,8 @@ export default function CommentsSection({ contentId, allowComments }) {
   }
 
   async function handleLike(commentId) {
-    if (!user) {
-      alert('Please sign in to like comments.');
-      return;
-    }
+    // Anyone can like a comment, signed in or not - same guest-cookie
+    // identity the backend already uses for content likes/view counts.
     setComments((prev) => prev.map((c) => updateLikeInTree(c, commentId)));
     try {
       await api.post(`/comments/${commentId}/like`);
@@ -164,16 +224,21 @@ export default function CommentsSection({ contentId, allowComments }) {
       </h3>
 
       {user ? (
-        <form onSubmit={submitTopLevel} className="flex gap-3 mb-6">
-          <input
+        <form onSubmit={submitTopLevel} className="flex items-end gap-3 mb-6">
+          {/* Grows downward as text wraps, not a single-line input that
+              scrolls sideways past the visible width. */}
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); autoGrow(e.target); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitTopLevel(e); } }}
             placeholder="Share your thoughts..."
-            className="flex-1 px-4 py-2.5 rounded-full border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
+            className="flex-1 px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary text-sm resize-none overflow-hidden"
           />
           <button
             disabled={posting}
-            className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass disabled:opacity-60"
+            className="px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass disabled:opacity-60 shrink-0"
           >
             {posting ? '...' : 'Post'}
           </button>

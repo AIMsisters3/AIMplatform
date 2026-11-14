@@ -1,12 +1,12 @@
-# Deny ALL direct web access to everything under storage/ (unlike
-# uploads/, which serves validated, renamed public files, this holds raw
-# in-progress upload chunks that have not been content-validated yet — they
-# must never be reachable by URL, not even as static files).
-<IfModule mod_authz_core.c>
-    Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-    Order allow,deny
-    Deny from all
-</IfModule>
-Options -ExecCGI -Indexes
+# Intentionally empty of directives - see Backend/uploads/.htaccess's
+# comment for the full history: both Require all denied/Order+Deny and
+# RemoveHandler/RemoveType were tried here and both 500'd live on this
+# host's AllowOverride restrictions (confirmed 2026-09-24). No directive
+# this file could hold is safe to assume works on this host, so it's
+# left empty rather than guessing again.
+#
+# This holds raw in-progress upload chunks that have not been
+# content-validated yet (see ChunkUploadController). Nothing in this app
+# ever generates or links to a public URL under this folder, and chunk
+# filenames are uniqid()-based inside a per-user subdirectory - not
+# linked, not predictable, not the primary defense either way.

@@ -29,6 +29,60 @@ function mailer_log(string $line): void
 }
 
 /**
+ * Sends one HTML email via Brevo's REST API (a plain HTTPS POST, no SMTP
+ * connection at all) instead of PHPMailer/SMTP — see MAIL_DRIVER's own
+ * comment in config.php for why this exists. Returns whether Brevo
+ * accepted the send request (HTTP 201), same contract as send_email().
+ */
+function send_email_via_brevo_api(string $toEmail, string $subject, string $htmlBody): bool
+{
+    if (BREVO_API_KEY === '') {
+        mailer_log("SEND SKIPPED to {$toEmail} — MAIL_DRIVER=brevo_api but BREVO_API_KEY is empty. Set it in Backend/.env to enable delivery.");
+        return false;
+    }
+    if (!function_exists('curl_init')) {
+        mailer_log("SEND FAILED to {$toEmail} — the curl PHP extension is not available on this server, required for MAIL_DRIVER=brevo_api.");
+        return false;
+    }
+
+    $payload = json_encode([
+        'sender'      => ['name' => SMTP_FROM_NAME, 'email' => SMTP_FROM_EMAIL],
+        'to'          => [['email' => $toEmail]],
+        'subject'     => $subject,
+        'htmlContent' => $htmlBody,
+    ]);
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => [
+            'api-key: ' . BREVO_API_KEY,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    // Brevo returns 201 Created on a successful send — never log
+    // $response's body as-is without checking first, since a real error
+    // response only ever describes the request (bad recipient, invalid
+    // key format), never echoes the key itself back.
+    if ($httpCode === 201) {
+        mailer_log("SEND SUCCEEDED to {$toEmail} (via Brevo API)");
+        return true;
+    }
+
+    mailer_log("SEND FAILED to {$toEmail} (via Brevo API) — HTTP {$httpCode}: " . ($curlError ?: $response));
+    return false;
+}
+
+/**
  * Sends one HTML email via SMTP (PHPMailer) and returns whether it was
  * actually handed to the mail server — never throws, so a mail failure
  * never breaks the caller's own request (subscribing, publishing
@@ -40,6 +94,10 @@ function mailer_log(string $line): void
  */
 function send_email(string $toEmail, string $subject, string $htmlBody): bool
 {
+    if (MAIL_DRIVER === 'brevo_api') {
+        return send_email_via_brevo_api($toEmail, $subject, $htmlBody);
+    }
+
     if (SMTP_USER === '' || SMTP_PASS === '') {
         // No mail account configured (e.g. fresh local checkout). Skip
         // instantly instead of letting PHPMailer time out trying to

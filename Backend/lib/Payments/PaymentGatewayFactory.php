@@ -24,22 +24,35 @@ class PaymentGatewayFactory
     public static function resolve(string $method): PaymentGatewayInterface
     {
         switch ($method) {
-            case 'manual':
+            // Bank transfer and mobile wallet are both "pay outside the
+            // app, tell us the reference, we verify it" — the same
+            // ManualPaymentGateway behavior at checkout time (order
+            // created as pending). They're kept as distinct method
+            // strings (matching payment_records.method) purely so the
+            // customer picks the right one and sees the right
+            // instructions/reference format at checkout and in admin's
+            // verification queue — see PaymentController (Stage 5).
+            case 'manual_bank':
+            case 'manual_mobile_wallet':
+            case 'manual': // back-compat alias for pre-Shop-rebuild orders
                 return new ManualPaymentGateway();
 
-            // case 'stripe':
-            //     return new StripePaymentGateway(env('STRIPE_SECRET_KEY'));
-            // case 'paypal':
-            //     return new PayPalPaymentGateway(env('PAYPAL_CLIENT_ID'), env('PAYPAL_SECRET'));
+            // Uncomment once a real DPO merchant account + credentials
+            // exist (see DpoPayGateway.php's docblock for the full setup
+            // checklist) AND 'gateway_dpo' is added to
+            // availableMethods() below:
+            // case 'gateway_dpo':
+            //     require_once __DIR__ . '/DpoPayGateway.php';
+            //     return new DpoPayGateway(env('DPO_COMPANY_TOKEN'), env('DPO_SERVICE_TYPE'));
 
             default:
                 throw new UnsupportedPaymentMethodException("Unsupported payment method: {$method}");
         }
     }
 
-    /** Payment methods currently available to customers — surfaced at checkout. */
+    /** Payment methods currently available to customers — surfaced at checkout. Real online-gateway entries land here once real merchant credentials exist (see Stage 5 docs) — never faked. */
     public static function availableMethods(): array
     {
-        return ['manual'];
+        return ['manual_bank', 'manual_mobile_wallet'];
     }
 }

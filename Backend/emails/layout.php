@@ -17,13 +17,23 @@
  * (primary #2DA8FF, secondary #7A2CF3, accent #E548B9, surface #F8F7FD,
  * ink #2D2A4A) so the emails look like the same product as the website.
  */
-function email_layout(string $preheader, string $bodyHtml, string $unsubscribeUrl, string $footerTagline = 'AIMsisters — Growing Together in Faith'): string
+function email_layout(string $preheader, string $bodyHtml, ?string $unsubscribeUrl, string $footerTagline = 'AIMsisters — Growing Together in Faith'): string
 {
     $safePreheader = htmlspecialchars($preheader, ENT_QUOTES);
     $logoUrl       = htmlspecialchars(MAIL_LOGO_URL, ENT_QUOTES);
     $siteUrl       = htmlspecialchars(rtrim(FRONTEND_URL, '/'), ENT_QUOTES);
     $safeTagline   = htmlspecialchars($footerTagline, ENT_QUOTES);
-    $safeUnsub     = htmlspecialchars($unsubscribeUrl, ENT_QUOTES);
+    // Order/account transactional emails (Pay Later, payment, deposit,
+    // etc.) aren't a newsletter subscription — there's nothing to
+    // unsubscribe from, so that footer line only renders when a real
+    // unsubscribe URL is actually passed (the newsletter templates always
+    // pass one; order emails pass null).
+    $unsubscribeHtml = $unsubscribeUrl !== null
+        ? '<p style="margin:0;"><a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES) . '" style="color:#8B879E; text-decoration:underline;">Unsubscribe</a></p>'
+        : '';
+    $receivingHtml = $unsubscribeUrl !== null
+        ? '<p style="margin:0 0 6px;">You are receiving this email because you subscribed to AIMsisters.</p>'
+        : '<p style="margin:0 0 6px;">You are receiving this email because of activity on your AIMsisters account.</p>';
 
     return <<<HTML
     <!DOCTYPE html>
@@ -79,8 +89,8 @@ function email_layout(string $preheader, string $bodyHtml, string $unsubscribeUr
                         <p style="margin:0 0 12px;">
                           <a href="{$siteUrl}" style="color:#2DA8FF; font-weight:600;">Visit AIMsisters</a>
                         </p>
-                        <p style="margin:0 0 6px;">You are receiving this email because you subscribed to AIMsisters.</p>
-                        <p style="margin:0;"><a href="{$safeUnsub}" style="color:#8B879E; text-decoration:underline;">Unsubscribe</a></p>
+                        {$receivingHtml}
+                        {$unsubscribeHtml}
                       </td>
                     </tr>
                   </table>

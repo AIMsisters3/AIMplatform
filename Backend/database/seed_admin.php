@@ -12,8 +12,8 @@
  *   php seed_admin.php you@example.com "SomeOtherPassword!" "Your Name"
  *
  * Browser (if you don't have CLI PHP handy):
- *   http://localhost/AIMTech/Backend/database/seed_admin.php
- *   http://localhost/AIMTech/Backend/database/seed_admin.php?email=you@example.com&password=SomeOtherPassword!&name=Your+Name
+ *   http://localhost/AIMplatform/Backend/database/seed_admin.php
+ *   http://localhost/AIMplatform/Backend/database/seed_admin.php?email=you@example.com&password=SomeOtherPassword!&name=Your+Name
  *
  * Delete this file (or move it out of the web root) once you're done setting
  * up — it's a convenience tool, not something that should stay reachable on

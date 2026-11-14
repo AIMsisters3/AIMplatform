@@ -13,6 +13,7 @@ export default class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) return this.props.fallback;
       return (
         <div className="p-6 text-center text-sm text-ink/50">
           Something went wrong loading this section.

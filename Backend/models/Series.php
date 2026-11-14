@@ -1,10 +1,19 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 /** Backs `series` + the series_id/season_number/episode_number columns on `content` (migration 005). */
 class Series
 {
+    private static function normalizeCover(array $row): array
+    {
+        if (array_key_exists('cover_image', $row)) {
+            $row['cover_image'] = normalize_media_url($row['cover_image']);
+        }
+        return $row;
+    }
+
     private PDO $db;
 
     public function __construct()
@@ -27,17 +36,32 @@ class Series
             $where[] = 's.category_id = :category_id';
             $params['category_id'] = $filters['category_id'];
         }
+        if (!empty($filters['section'])) {
+            $where[] = 's.section = :section';
+            $params['section'] = $filters['section'];
+        }
         if (!empty($filters['search'])) {
             $where[] = 's.title LIKE :search';
             $params['search'] = '%' . $filters['search'] . '%';
         }
 
+        // latest_episode_at backs both the "time/date the latest video was
+        // posted" a series card shows and the "recently updated series
+        // first" ordering (spec) - a series with a brand-new episode
+        // should surface before one that's only old, even if the series
+        // row itself was created earlier. Falls back to the series' own
+        // created_at when it has no published episodes yet, so a fresh,
+        // empty series still sorts somewhere sensible instead of via NULL.
         $sql = "SELECT s.*, cat.name AS category_name,
-                    (SELECT COUNT(*) FROM content c WHERE c.series_id = s.id AND c.deleted_at IS NULL AND c.status = 'published') AS episode_count
+                    (SELECT COUNT(*) FROM content c WHERE c.series_id = s.id AND c.deleted_at IS NULL AND c.status = 'published') AS episode_count,
+                    COALESCE(
+                        (SELECT MAX(COALESCE(c2.publish_date, c2.created_at)) FROM content c2 WHERE c2.series_id = s.id AND c2.deleted_at IS NULL AND c2.status = 'published'),
+                        s.created_at
+                    ) AS latest_episode_at
                 FROM series s
                 LEFT JOIN categories cat ON cat.id = s.category_id
                 WHERE " . implode(' AND ', $where) . '
-                ORDER BY s.created_at DESC
+                ORDER BY latest_episode_at DESC
                 LIMIT :limit OFFSET :offset';
 
         $stmt = $this->db->prepare($sql);
@@ -47,21 +71,23 @@ class Series
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map([self::class, 'normalizeCover'], $stmt->fetchAll());
     }
 
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM series WHERE id = :id AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['id' => $id]);
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch();
+        return $row ? self::normalizeCover($row) : null;
     }
 
     public function findBySlug(string $slug): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM series WHERE slug = :slug AND deleted_at IS NULL LIMIT 1');
         $stmt->execute(['slug' => $slug]);
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch();
+        return $row ? self::normalizeCover($row) : null;
     }
 
     /** Episodes for a series, grouped for the frontend by season (frontend groups the flat list — see SeriesDetail.jsx). */
@@ -73,14 +99,14 @@ class Series
              ORDER BY season_number ASC, episode_number ASC"
         );
         $stmt->execute(['series_id' => $seriesId]);
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO series (title, slug, description, cover_image, category_id, language, status)
-             VALUES (:title, :slug, :description, :cover_image, :category_id, :language, :status)'
+            'INSERT INTO series (title, slug, description, cover_image, category_id, section, language, status)
+             VALUES (:title, :slug, :description, :cover_image, :category_id, :section, :language, :status)'
         );
         $stmt->execute([
             'title'       => $data['title'],
@@ -88,6 +114,7 @@ class Series
             'description' => $data['description'] ?? null,
             'cover_image' => $data['cover_image'] ?? null,
             'category_id' => $data['category_id'] ?? null,
+            'section'     => $data['section'] ?? 'media_library',
             'language'    => $data['language'] ?? 'English',
             'status'      => $data['status'] ?? 'draft',
         ]);
@@ -98,7 +125,7 @@ class Series
     {
         $fields = [];
         $params = ['id' => $id];
-        foreach (['title', 'slug', 'description', 'cover_image', 'category_id', 'language', 'status'] as $field) {
+        foreach (['title', 'slug', 'description', 'cover_image', 'category_id', 'section', 'language', 'status'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "$field = :$field";
                 $params[$field] = $data[$field];

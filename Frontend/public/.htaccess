@@ -8,6 +8,42 @@
 # request that doesn't match a real file or directory back to index.html,
 # letting React Router take over client-side routing from there.
 RewriteEngine On
+
+# NOTE: some shared/free hosts restrict AllowOverride so that .htaccess
+# rewrite directives (this whole file) are silently ignored — no error,
+# they just never fire. On such a host, a direct link like /admin/login
+# will 404 on a hard refresh instead of falling back to index.html below;
+# there's no fix for that from inside .htaccess itself. Backend API calls
+# don't depend on this file at all — see Frontend/src/api/axios.js, which
+# routes every request through the backend's index.php directly (a
+# literal file, always served regardless of rewrite support) instead of
+# relying on any .htaccess to route a clean .../api/... URL to it.
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [L]
+
+# Vite content-hashes every built JS/CSS/asset filename (e.g.
+# index-DeI-V7p0.js) — a changed file always gets a new name, so these can
+# be cached for a full year with zero staleness risk. index.html itself
+# must NOT be cached the same way: it's the one file that references those
+# hashed names, so a stale cached copy would keep pointing at assets from
+# an old deploy. no-cache (not no-store) still lets the browser revalidate
+# cheaply via a 304 instead of a full re-download every visit.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css|png|jpe?g|webp|svg|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>

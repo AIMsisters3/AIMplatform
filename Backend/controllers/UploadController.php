@@ -93,6 +93,16 @@ class UploadController
             json_error('Failed to save uploaded file.', 500);
         }
 
+        // Public read access can't be assumed from the OS/PHP default
+        // umask alone: on shared hosting where PHP runs as the account's
+        // own user but Apache's static-file worker runs as a different,
+        // lower-privilege user, the default can leave a freshly-written
+        // file unreadable to the very process that has to serve it back -
+        // PHP reports success, but every request for the file then 500s.
+        // @ - non-fatal if this host's isolation makes chmod() itself
+        // unavailable; the upload has already succeeded either way.
+        @chmod($destination, 0644);
+
         json_created([
             'url'      => UPLOAD_URL . $folder . '/' . $filename,
             'filename' => $filename,
