@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon } from 'lucide-react';
+import { Image as ImageIcon, Lock } from 'lucide-react';
 import api from '../../api/axios.js';
 
 const SECTIONS = [
@@ -266,14 +266,30 @@ export default function ManageSeries() {
                       </div>
                     )}
                     <span>
-                      <p className="font-semibold">{s.title}</p>
+                      <p className="font-semibold flex items-center gap-1.5">
+                        {s.title}
+                        {/* Locked series (currently just Bible Studies' three
+                            Prophecy books - migration 039) can't be renamed
+                            or deleted through this page at all; the backend
+                            rejects it too (SeriesController), this is just
+                            what tells the admin why before they try. */}
+                        {!!s.is_locked && (
+                          <span title="Locked — this series can't be renamed or deleted" className="inline-flex">
+                            <Lock className="w-3.5 h-3.5 text-ink/40" />
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-ink/50 capitalize">
                         {s.status} · {s.episode_count} episodes · {SECTIONS.find((sec) => sec.value === s.section)?.label || 'Content / Media Library'}
                       </p>
                     </span>
                   </button>
-                  <button onClick={() => startEditSeries(s)} className="text-xs font-semibold text-secondary">Edit</button>
-                  <button onClick={() => deleteSeries(s.id)} className="text-xs font-semibold text-red-500">Delete</button>
+                  {!s.is_locked && (
+                    <>
+                      <button onClick={() => startEditSeries(s)} className="text-xs font-semibold text-secondary">Edit</button>
+                      <button onClick={() => deleteSeries(s.id)} className="text-xs font-semibold text-red-500">Delete</button>
+                    </>
+                  )}
                 </div>
               )}
 

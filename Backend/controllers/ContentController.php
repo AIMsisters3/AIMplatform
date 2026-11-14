@@ -39,14 +39,11 @@ class ContentController
         'devotions'   => ['devotional', 'video', 'audio'],
         // Bible Study's media_type doubles as the bible_studies.format enum
         // value (migration 004, widened/narrowed by migrations 012/013/
-        // 018/022/038). Migration 038 narrowed this to exactly Audio/PDF/
-        // Poster per spec - Video and Article are no longer valid formats
-        // here at all (every Bible Study previously published as either
-        // was removed outright, not just hidden). 'image' is labeled
-        // "Poster" in the UI (same convention as media_library/
-        // Content.jsx's own Poster type) - keep in sync with
+        // 018/022/038/039). Migration 039 narrowed this further to
+        // exactly Audio/PDF - Poster (and Video/Article before it) is no
+        // longer a valid format here at all. Keep in sync with
         // bible_studies.format.
-        'bible_study' => ['audio', 'pdf', 'image'],
+        'bible_study' => ['audio', 'pdf'],
         // Kids is its own dedicated, safe section (migration 014) - not just
         // another category - with its own age-appropriate vocabulary.
         // Simplified by migration 025: Cartoon/Other removed; Bible Lesson

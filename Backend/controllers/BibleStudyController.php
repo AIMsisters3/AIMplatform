@@ -39,6 +39,13 @@ class BibleStudyController
         json_ok(['items' => $this->model->all($filters, $limit, ($page - 1) * $limit), 'page' => $page]);
     }
 
+    /** GET /api/bible-studies/featured?limit= — the Bible Studies page's own "Featured Studies" row (most liked/viewed). */
+    public function featured(): void
+    {
+        $limit = min(20, max(1, (int) ($_GET['limit'] ?? 8)));
+        json_ok(['items' => $this->model->featuredRanked($limit)]);
+    }
+
     /** GET /api/bible-studies/continue (auth) — "Continue Studying" for the signed-in user. */
     public function continueStudying(): void
     {

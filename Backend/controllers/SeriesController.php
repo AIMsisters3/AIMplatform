@@ -69,8 +69,18 @@ class SeriesController
     public function update(int $id): void
     {
         require_permission('content.edit');
-        if (!$this->model->find($id)) {
+        $series = $this->model->find($id);
+        if (!$series) {
             json_error('Series not found.', 404);
+        }
+        // Enforced here, not just hidden in the admin UI - a locked
+        // series (currently only Bible Studies' three Prophecy books;
+        // see migration 039) can't be renamed/restyled through any
+        // client, including a direct API call. Episodes still attach/
+        // detach normally - attachEpisode()/detachEpisode() don't touch
+        // the series record itself, so they're unaffected by this.
+        if (!empty($series['is_locked'])) {
+            json_error('This series is locked and cannot be edited.', 403);
         }
         $this->model->update($id, get_json_body());
         json_ok(null, 'Series updated.');
@@ -80,8 +90,12 @@ class SeriesController
     public function destroy(int $id): void
     {
         require_permission('content.delete');
-        if (!$this->model->find($id)) {
+        $series = $this->model->find($id);
+        if (!$series) {
             json_error('Series not found.', 404);
+        }
+        if (!empty($series['is_locked'])) {
+            json_error('This series is locked and cannot be deleted.', 403);
         }
         $this->model->delete($id);
         json_ok(null, 'Series deleted.');

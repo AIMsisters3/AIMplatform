@@ -102,6 +102,40 @@ class BibleStudy
         return $row;
     }
 
+    /**
+     * The Bible Studies page's own "Featured Studies" row - purely
+     * views + likes (score = views + likes*5, same weighting
+     * Content::featuredRanked() uses), no admin-pinned is_featured bonus.
+     * Deliberately not the same ranking Content::featuredRanked() feeds
+     * the Home page's blended Featured section with - that one folds in
+     * an admin pin; this one is explicitly "the most liked, viewed
+     * studies" and nothing else, so a visitor only ever sees what's
+     * genuinely popular here.
+     */
+    public function featuredRanked(int $limit): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name,
+                    (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                    (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5) AS popularity_score
+             FROM content c
+             JOIN bible_studies bs ON bs.content_id = c.id
+             LEFT JOIN categories cat ON cat.id = c.category_id
+             WHERE c.content_type = 'bible_study' AND c.deleted_at IS NULL AND c.status = 'published'
+             ORDER BY popularity_score DESC, COALESCE(c.publish_date, c.created_at) DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return array_map(function (array $row): array {
+            $row = decorate_live_status(normalize_media_row($row));
+            $row['likes_count'] = (int) $row['likes_count'];
+            unset($row['popularity_score']);
+            return $row;
+        }, $stmt->fetchAll());
+    }
+
     /** Called right after Content::create() for a content_type='bible_study' row. */
     public function createExtension(int $contentId, string $format, ?string $studyGuideUrl): void
     {

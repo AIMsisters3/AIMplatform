@@ -121,17 +121,13 @@ const CONTENT_TYPES = [
   { key: 'music', label: 'Music', icon: Music2, media_type: 'music', group: 'more' },
 ];
 
-// Narrowed (migration 038) to exactly Audio, PDF, Poster per spec -
-// Video and Article are no longer valid Bible Study formats at all
+// Narrowed (migrations 038/039) to exactly Audio and PDF - Video,
+// Article, and Poster are no longer valid Bible Study formats at all
 // (the database enum itself no longer accepts them; every Bible Study
-// previously published as either was removed outright). 'image' is
-// labeled "Poster" here to match Content.jsx's own Poster type
-// (media_type 'image', a single cover image, no separate upload — see
-// mediaKindFor() below).
+// previously published as any of the three was removed outright).
 const BIBLE_STUDY_TYPES = [
   { value: 'audio', label: 'Audio' },
   { value: 'pdf', label: 'PDF' },
-  { value: 'image', label: 'Poster' },
 ];
 
 // Mirrors ContentController::BODY_REQUIRED_MEDIA_TYPES exactly. Kids
@@ -375,10 +371,12 @@ export default function UploadContent() {
   const isGallery = section === 'gallery';
   const isSongs = section === 'songs';
   const isKids = section === 'kids';
-  // None of Gallery, Songs, or Children Zone offer a Category choice
-  // (spec) - Gallery never did (it reuses Language's "Not applicable"
-  // pattern below); Songs and Kids are simplified the same way.
-  const isNoCategory = isGallery || isSongs || isKids;
+  // None of Gallery, Songs, Children Zone, or Bible Study offer a
+  // Category choice (spec) - Gallery never did (it reuses Language's
+  // "Not applicable" pattern below); Songs and Kids are simplified the
+  // same way. Bible Study dropped it per explicit request - it's
+  // organized by Featured/Prophecy/series instead (see BibleStudies.jsx).
+  const isNoCategory = isGallery || isSongs || isKids || isBibleStudy;
   const typePool = section === 'news' ? NEWS_TYPES : section === 'devotions' ? DEVOTION_TYPES : section === 'kids' ? KIDS_TYPES : CONTENT_TYPES;
   const selectedType = typePool.find((t) => t.key === selectedKey) || typePool[0];
   const mediaType = isBibleStudy
