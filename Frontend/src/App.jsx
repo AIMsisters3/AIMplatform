@@ -43,6 +43,7 @@ const SearchResults = lazy(() => import('./Pages/SearchResults.jsx'));
 const About = lazy(() => import('./Pages/About.jsx'));
 const Contact = lazy(() => import('./Pages/Contact.jsx'));
 const Login = lazy(() => import('./Pages/Login.jsx'));
+const TestimonialsPage = lazy(() => import('./Pages/Testimonials.jsx'));
 const ResetPassword = lazy(() => import('./Pages/ResetPassword.jsx'));
 
 // ---------- Admin CMS pages ----------
@@ -134,6 +135,10 @@ export default function App() {
             <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
             <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />
             <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
+            {/* Deliberately not in Navbar.jsx (spec) - reached via the
+                "View all testimonies" link at the bottom of Home's own
+                Testimonies section instead. */}
+            <Route path="/testimonials" element={<PublicLayout><TestimonialsPage /></PublicLayout>} />
             <Route path="/reset-password" element={<PublicLayout><ResetPassword /></PublicLayout>} />
 
             {/* ---------- Admin CMS (separate shell, no public navbar/footer) ---------- */}

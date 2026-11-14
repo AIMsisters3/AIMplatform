@@ -12,7 +12,7 @@ class Testimonial
     }
 
     /** Approved testimonials for the public homepage. */
-    public function approved(int $limit = 3): array
+    public function approved(int $limit = 3, int $offset = 0): array
     {
         $stmt = $this->db->prepare(
             'SELECT t.id, t.body, t.created_at, u.name AS user_name
@@ -20,9 +20,10 @@ class Testimonial
              JOIN users u ON u.id = t.user_id
              WHERE t.status = \'approved\'
              ORDER BY t.created_at DESC
-             LIMIT :limit'
+             LIMIT :limit OFFSET :offset'
         );
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
     }

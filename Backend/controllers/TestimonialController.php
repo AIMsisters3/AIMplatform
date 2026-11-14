@@ -15,11 +15,17 @@ class TestimonialController
         $this->model = new Testimonial();
     }
 
-    /** GET /api/testimonials - public, approved only */
+    /** GET /api/testimonials?limit=&page= - public, approved only */
     public function index(): void
     {
-        $limit = min(12, (int) ($_GET['limit'] ?? 3));
-        json_ok(['items' => $this->model->approved($limit)]);
+        // Home.jsx's teaser (3, no page param) and the dedicated
+        // Testimonials.jsx page (paginated via page=, up to 24/request)
+        // share this one endpoint - the low default keeps the teaser's
+        // existing behavior unchanged for every caller that doesn't ask
+        // for more.
+        $limit = min(24, max(1, (int) ($_GET['limit'] ?? 3)));
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        json_ok(['items' => $this->model->approved($limit, ($page - 1) * $limit)]);
     }
 
     /** POST /api/testimonials (auth required) body: {body} */

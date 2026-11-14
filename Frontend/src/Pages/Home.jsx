@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { HeartPulse, Shirt, Sparkles, ScrollText, Quote, Mail, Send, PenLine } from 'lucide-react';
+import { HeartPulse, Shirt, Sparkles, ScrollText, Quote, Mail, Send, PenLine, ArrowRight } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ProductCard from '../Components/ProductCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
+import TestimonialCard from '../Components/TestimonialCard.jsx';
 import heroBg from '../assets/bg.png';
 // Portrait-composed artwork made specifically for phones (logo near the
 // top, globe/Bible/flower toward the bottom, open space in between for the
@@ -491,18 +492,20 @@ export default function Home() {
                 variants={staggerContainer}
               >
                 {testimonials.map((t) => (
-                  <motion.div
-                    key={t.id}
-                    variants={fadeUp}
-                    whileHover={{ y: -6 }}
-                    className="relative glass-card p-6 overflow-hidden"
-                  >
-                    <Quote className="absolute -top-2 -right-2 w-16 h-16 text-secondary/10" />
-                    <p className="relative text-ink/70 text-sm italic mb-4">"{t.body}"</p>
-                    <p className="relative font-semibold text-sm text-ink">— {t.user_name}</p>
-                  </motion.div>
+                  <TestimonialCard key={t.id} testimonial={t} variants={fadeUp} />
                 ))}
               </motion.div>
+            )}
+
+            {testimonials.length > 0 && (
+              <div className="text-center mt-8">
+                <Link
+                  to="/testimonials"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-secondary hover:text-ink transition"
+                >
+                  View all testimonies <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
             )}
           </div>
         </section>
