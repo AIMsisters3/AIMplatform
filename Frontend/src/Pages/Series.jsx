@@ -1,19 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Layers, PlayCircle, Search, Inbox } from 'lucide-react';
 import api from '../api/axios.js';
 
 export default function Series() {
+  const [searchParams] = useSearchParams();
+  // Read once on mount (a deep link like BibleStudies.jsx's "View All" ->
+  // /series?section=bible_study) - not a controlled filter UI, so there's
+  // nothing on this page itself that would ever change it afterward.
+  const section = searchParams.get('section') || undefined;
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    api.get('/series', { params: { search: search || undefined, limit: 24 } })
+    api.get('/series', { params: { section, search: search || undefined, limit: 24 } })
       .then((r) => setItems(r.data.data.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   return (
