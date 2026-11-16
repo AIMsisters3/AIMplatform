@@ -16,6 +16,8 @@ require_once __DIR__ . '/../controllers/TestimonialController.php';
 require_once __DIR__ . '/../controllers/OrderController.php';
 require_once __DIR__ . '/../controllers/NotificationController.php';
 require_once __DIR__ . '/../controllers/BibleStudyController.php';
+require_once __DIR__ . '/../controllers/BibleLessonController.php';
+require_once __DIR__ . '/../controllers/ActivityController.php';
 require_once __DIR__ . '/../controllers/NoteController.php';
 require_once __DIR__ . '/../controllers/SeriesController.php';
 require_once __DIR__ . '/../controllers/BookmarkController.php';
@@ -317,6 +319,43 @@ function route(string $method, string $path)
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
 
         json_error('Bible study route not found.', 404);
+    }
+
+    // ---------- BIBLE LESSONS (Children's Ministry) ----------
+    if ($resource === 'lessons') {
+        $ctrl = new BibleLessonController();
+
+        if ($id === 'topics' && $method === 'GET') return $ctrl->topics();
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === null && $method === 'POST') return $ctrl->store();
+        if ($id !== null && $action === 'progress' && $method === 'POST') return $ctrl->updateProgress((int) $id);
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+        if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Lesson route not found.', 404);
+    }
+
+    // ---------- BIBLE ACTIVITIES (Children's Ministry) ----------
+    if ($resource === 'activities') {
+        $ctrl = new ActivityController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === null && $method === 'POST') return $ctrl->store();
+        if ($id !== null && $action === 'preview' && $method === 'GET') return $ctrl->preview((int) $id);
+        if ($id !== null && $action === 'submit' && $method === 'POST') return $ctrl->submit((int) $id);
+        if ($id !== null && $action === 'attempts' && $method === 'GET') return $ctrl->myAttempts((int) $id);
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+        if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Activity route not found.', 404);
+    }
+
+    // ---------- CHILDREN (progress summary - distinct from /kids' content alias above) ----------
+    if ($resource === 'children') {
+        if ($id === 'progress' && $method === 'GET') return (new ActivityController())->progress();
+        json_error('Children route not found.', 404);
     }
 
     // ---------- NOTES (single-note edit/delete, owner-only) ----------
