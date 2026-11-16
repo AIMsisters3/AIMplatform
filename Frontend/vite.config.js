@@ -6,8 +6,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Matches your XAMPP checkout folder name under htdocs/ - e.g.
+      // C:\xampp\htdocs\AIMplatform -> http://localhost/AIMplatform/Backend.
+      // Change this if your local folder is named differently.
       '/api': {
-        target: 'http://localhost/AIMTech/Backend',
+        target: 'http://localhost/AIMplatform/Backend',
         changeOrigin: true,
       },
     },

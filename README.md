@@ -5,7 +5,7 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
 ## 1. Backend setup (XAMPP)
 
 1. Copy the `Backend/` folder into your XAMPP `htdocs`, e.g.:
-   `C:\xampp\htdocs\AIMTech\Backend` (Windows) or `/Applications/XAMPP/htdocs/AIMTech/Backend` (Mac).
+   `C:\xampp\htdocs\AIMplatform\Backend` (Windows) or `/Applications/XAMPP/htdocs/AIMplatform/Backend` (Mac).
 2. Start **Apache** and **MySQL** in the XAMPP control panel.
 3. Open phpMyAdmin (`http://localhost/phpmyadmin`) → **Import**, and import these files **in order**:
    1. `Backend/database/schema.sql` — creates the `aimsisters_db` database, all base tables, and seeds
@@ -40,7 +40,7 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
    # or with your own credentials:
    php seed_admin.php you@example.com "SomeOtherPassword!" "Your Name"
    ```
-   No CLI PHP handy? Visit `http://localhost/AIMTech/Backend/database/seed_admin.php` in a browser instead
+   No CLI PHP handy? Visit `http://localhost/AIMplatform/Backend/database/seed_admin.php` in a browser instead
    (optionally add `?email=...&password=...&name=...`). Either way this hashes the password correctly with
    PHP's `password_hash()` — no more copy-pasting hashes into phpMyAdmin. Delete or move the script out of
    the web root once you're done with it; you can re-run it any time to reset the admin password.
@@ -49,7 +49,7 @@ Full-stack scaffold: React/Vite/Tailwind frontend (public site + admin CMS) and 
    ```sql
    UPDATE users u JOIN roles r ON r.slug = 'superadmin' SET u.role_id = r.id WHERE u.email = 'admin@aimsisters.org';
    ```
-6. Test the API is live: visit `http://localhost/AIMTech/Backend/api/content` — you should get a JSON response.
+6. Test the API is live: visit `http://localhost/AIMplatform/Backend/api/content` — you should get a JSON response.
 
 ## 2. Frontend setup
 
@@ -60,7 +60,7 @@ npm run dev
 ```
 
 The dev server runs at `http://localhost:5173` and proxies `/api/*` requests to
-`http://localhost/AIMTech/Backend` (configured in `vite.config.js`).
+`http://localhost/AIMplatform/Backend` (configured in `vite.config.js`).
 
 - Public site: `http://localhost:5173/`
 - Admin CMS: `http://localhost:5173/admin/login`
@@ -68,7 +68,7 @@ The dev server runs at `http://localhost:5173` and proxies `/api/*` requests to
 ## 3. Project structure
 
 ```
-AIMTech/
+AIMplatform/
 ├── Backend/            PHP 8 REST API (XAMPP/Apache)
 │   ├── config/          DB + app config (env.php loads Backend/.env — see §1)
 │   ├── controllers/     Request handlers
@@ -512,7 +512,39 @@ panel, since InfinityFree periodically changes what's offered).
   `infinityfree_import.sql` for an incremental change; that combined file is only for a
   fresh/first-time import.
 
-### Known InfinityFree limitations for this project (not changed, just flagged)
+### Step 7.5 — Automating Step 7 with GitHub Actions (recommended)
+
+Everything in §7 applies to any free shared PHP/MySQL host with FTP access (InfinityFree,
+ProFreeHost, Byethost, etc.) — only the specific hostnames/domain differ. Once Steps 1–6
+above have been done at least once on your chosen host (so `htdocs/backend/.env` and the
+database already exist there), `.github/workflows/deploy-free-host.yml` automates Step 7
+for you: every push to `main` builds the frontend and FTP-uploads both `Frontend/dist/`
+and `Backend/` to that host — no manual re-upload after that.
+
+It deliberately never touches: `Backend/.env` (server-only, not in Git), the database
+(schema/migration changes still go through phpMyAdmin per Step 4), `uploads/`/
+`storage/chunk_uploads/`/`storage/logs/` (real runtime data on the server, not in this
+repo), or `database/seed_admin.php` (excluded from every deploy so it can't linger on a
+public URL — see Step 4.5's warning).
+
+**One-time setup**, in this repo's GitHub Settings:
+
+1. Get your host's FTP details from its control panel → **FTP Accounts** (the FTP
+   hostname is *not* your domain — e.g. `ftpupload.net` for InfinityFree; ProFreeHost and
+   Byethost show their own FTP host on the same page).
+2. **Settings → Secrets and variables → Actions → New repository secret**, add:
+   - `FTP_SERVER`
+   - `FTP_USERNAME`
+   - `FTP_PASSWORD`
+3. Only if your backend URL isn't `https://aimsisters.ct.ws/backend`: also add a repo
+   **variable** (same page, "Variables" tab) named `VITE_BACKEND_URL` with the real value.
+4. Push to `main` (or run the workflow manually from the **Actions** tab) and watch it go
+   green.
+
+These are encrypted GitHub secrets — nobody, including Claude, can read them back once
+saved.
+
+### Known limitations of free shared PHP hosts for this project (not changed, just flagged)
 
 InfinityFree's free tier is a genuinely shared, resource-limited environment — verify current
 numbers in your own control panel, since they can change:

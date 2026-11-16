@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 const CartContext = createContext(null);
-const STORAGE_KEY = 'aim_cart';
+const STORAGE_KEY = 'aim_cart_v2';
 
 // The cart only ever stores what the UI needs to render a line item
-// (id/name/thumbnail/price snapshot/quantity/type). It is NOT the source of
-// truth for price — Order::create() on the backend re-reads every price
-// from the products table at checkout time, so a stale/tampered local price
-// can never actually change what gets charged. This keeps the cart usable
-// offline/instantly while staying safe.
+// (id/name/thumbnail/price snapshot/quantity/type/variant). It is NOT the
+// source of truth for price or availability — Order::create() on the
+// backend re-reads every price and stock/reservation state from the
+// products/product_variants tables at checkout time, so a stale/tampered
+// local value can never actually change what gets charged or reserved.
+// This keeps the cart usable offline/instantly while staying safe.
 function readStoredCart() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -17,6 +18,10 @@ function readStoredCart() {
   } catch {
     return [];
   }
+}
+
+function lineKey(productId, variantId) {
+  return `${productId}::${variantId || 'base'}`;
 }
 
 export function CartProvider({ children }) {
@@ -30,61 +35,72 @@ export function CartProvider({ children }) {
     }
   }, [items]);
 
-  const addItem = useCallback((product, quantity = 1) => {
+  // `variant` is optional — { id, attributes, price_override, stock_quantity }.
+  const addItem = useCallback((product, quantity = 1, variant = null) => {
     setItems((prev) => {
-      const existing = prev.find((i) => i.product_id === product.id);
+      const key = lineKey(product.id, variant?.id);
+      const existing = prev.find((i) => lineKey(i.product_id, i.variant_id) === key);
       if (existing) {
         return prev.map((i) =>
-          i.product_id === product.id ? { ...i, quantity: i.quantity + quantity } : i
+          lineKey(i.product_id, i.variant_id) === key ? { ...i, quantity: i.quantity + quantity } : i
         );
       }
       return [
         ...prev,
         {
           product_id: product.id,
+          variant_id: variant?.id || null,
+          variant_attributes: variant?.attributes || null,
           name: product.name,
           slug: product.slug,
-          thumbnail: product.thumbnail,
+          thumbnail: variant?.image_url || product.thumbnail,
           price: Number(product.price),
           sale_price: product.sale_price !== null && product.sale_price !== undefined ? Number(product.sale_price) : null,
+          variant_price_override: variant?.price_override !== null && variant?.price_override !== undefined ? Number(variant.price_override) : null,
           product_type: product.product_type || 'physical',
-          stock_quantity: product.stock_quantity,
+          sourcing_type: product.sourcing_type || 'in_stock',
           quantity,
         },
       ];
     });
   }, []);
 
-  const removeItem = useCallback((productId) => {
-    setItems((prev) => prev.filter((i) => i.product_id !== productId));
+  const removeItem = useCallback((productId, variantId = null) => {
+    setItems((prev) => prev.filter((i) => lineKey(i.product_id, i.variant_id) !== lineKey(productId, variantId)));
   }, []);
 
-  const setQuantity = useCallback((productId, quantity) => {
+  const setQuantity = useCallback((productId, quantity, variantId = null) => {
+    const key = lineKey(productId, variantId);
     setItems((prev) =>
       quantity <= 0
-        ? prev.filter((i) => i.product_id !== productId)
-        : prev.map((i) => (i.product_id === productId ? { ...i, quantity } : i))
+        ? prev.filter((i) => lineKey(i.product_id, i.variant_id) !== key)
+        : prev.map((i) => (lineKey(i.product_id, i.variant_id) === key ? { ...i, quantity } : i))
     );
   }, []);
 
   const clear = useCallback(() => setItems([]), []);
 
-  const { count, subtotal, hasPhysical } = useMemo(() => {
+  const { count, subtotal, hasPhysical, hasOnOrder, hasInStock } = useMemo(() => {
     let count = 0;
     let subtotal = 0;
     let hasPhysical = false;
+    let hasOnOrder = false;
+    let hasInStock = false;
     for (const i of items) {
-      const unit = i.sale_price !== null && i.sale_price < i.price ? i.sale_price : i.price;
+      const base = i.variant_price_override ?? i.price;
+      const unit = i.sale_price !== null && i.sale_price < i.price && i.variant_price_override == null ? i.sale_price : base;
       count += i.quantity;
       subtotal += unit * i.quantity;
       if (i.product_type === 'physical') hasPhysical = true;
+      if (i.sourcing_type === 'on_order') hasOnOrder = true;
+      else hasInStock = true;
     }
-    return { count, subtotal, hasPhysical };
+    return { count, subtotal, hasPhysical, hasOnOrder, hasInStock };
   }, [items]);
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, setQuantity, clear, count, subtotal, hasPhysical }}
+      value={{ items, addItem, removeItem, setQuantity, clear, count, subtotal, hasPhysical, hasOnOrder, hasInStock }}
     >
       {children}
     </CartContext.Provider>

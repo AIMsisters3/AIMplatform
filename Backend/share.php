@@ -13,7 +13,14 @@ $target = $item
 
 $title       = $item['title'] ?? 'AIMsisters';
 $description = $item['description'] ?? 'Sharing the Everlasting Gospel through Modern Technology';
-$image       = $item['thumbnail'] ?? (FRONTEND_URL . '/src/assets/bg.png');
+// '/src/assets/bg.png' used to be here - a source-code path that only
+// exists before Vite builds the frontend (the deployed site only ever
+// serves a content-hashed '/assets/bg-xxxxx.png', never this literal
+// path), so it 404'd for every share of an item with no thumbnail.
+// Backend/assets/logo.png is a real, stable, never-hashed file already
+// served at this exact URL (see MAIL_LOGO_URL in config.php, the same
+// asset emails already use for the same "needs a fixed URL" reason).
+$image       = $item['thumbnail'] ?? (APP_URL . '/assets/logo.png');
 ?>
 <!DOCTYPE html>
 <html>
