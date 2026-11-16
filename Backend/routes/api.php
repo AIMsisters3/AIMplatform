@@ -355,6 +355,7 @@ function route(string $method, string $path)
     // ---------- CHILDREN (progress summary - distinct from /kids' content alias above) ----------
     if ($resource === 'children') {
         if ($id === 'progress' && $method === 'GET') return (new ActivityController())->progress();
+        if ($id === 'stats' && $method === 'GET') return (new ActivityController())->stats();
         json_error('Children route not found.', 404);
     }
 

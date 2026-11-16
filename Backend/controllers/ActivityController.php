@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../models/Activity.php';
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -112,6 +113,65 @@ class ActivityController
     {
         $payload = require_auth();
         json_ok($this->model->progressSummaryFor((int) $payload['sub']));
+    }
+
+    /**
+     * GET /api/children/stats (requires children.manage) - the admin
+     * overview tab's numbers. Spans three tables (content/bible_lessons/
+     * activities) that don't otherwise share a model, so this queries
+     * directly rather than stretching one model to own all three counts.
+     */
+    public function stats(): void
+    {
+        require_permission('children.manage');
+        $db = Database::getConnection();
+
+        $storyCounts = $db->query(
+            "SELECT status, COUNT(*) AS n FROM content
+             WHERE section = 'kids' AND media_type = 'bible_story' AND deleted_at IS NULL
+             GROUP BY status"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $lessonCounts = $db->query(
+            "SELECT status, COUNT(*) AS n FROM bible_lessons WHERE deleted_at IS NULL GROUP BY status"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $activityCounts = $db->query(
+            "SELECT status, COUNT(*) AS n FROM activities WHERE deleted_at IS NULL GROUP BY status"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        $publishedOf = fn (array $counts) => (int) ($counts['published'] ?? 0);
+        $unpublishedOf = fn (array $counts) => array_sum($counts) - $publishedOf($counts);
+
+        $attemptTotals = $db->query(
+            'SELECT COUNT(*) AS attempts, ROUND(AVG(score_percent)) AS avg_score FROM activity_attempts'
+        )->fetch();
+
+        $mostCompleted = $db->query(
+            "SELECT a.id, a.title, COUNT(at.id) AS attempt_count, ROUND(AVG(at.score_percent)) AS average_score
+             FROM activities a JOIN activity_attempts at ON at.activity_id = a.id
+             WHERE a.deleted_at IS NULL GROUP BY a.id, a.title ORDER BY attempt_count DESC LIMIT 5"
+        )->fetchAll();
+
+        $mostViewedStories = $db->query(
+            "SELECT id, title, slug, views FROM content
+             WHERE section = 'kids' AND media_type = 'bible_story' AND deleted_at IS NULL
+             ORDER BY views DESC LIMIT 5"
+        )->fetchAll();
+
+        json_ok([
+            'stories'    => ['published' => $publishedOf($storyCounts), 'unpublished' => $unpublishedOf($storyCounts), 'total' => array_sum($storyCounts)],
+            'lessons'    => ['published' => $publishedOf($lessonCounts), 'unpublished' => $unpublishedOf($lessonCounts), 'total' => array_sum($lessonCounts)],
+            'activities' => ['published' => $publishedOf($activityCounts), 'unpublished' => $unpublishedOf($activityCounts), 'total' => array_sum($activityCounts)],
+            'attempts'   => ['total' => (int) ($attemptTotals['attempts'] ?? 0), 'average_score' => (int) ($attemptTotals['avg_score'] ?? 0)],
+            'most_completed_activities' => array_map(fn ($r) => [
+                'id' => (int) $r['id'], 'title' => $r['title'],
+                'attempt_count' => (int) $r['attempt_count'], 'average_score' => (int) $r['average_score'],
+            ], $mostCompleted),
+            'most_viewed_stories' => array_map(fn ($r) => [
+                'id' => (int) $r['id'], 'title' => $r['title'], 'slug' => $r['slug'], 'views' => (int) $r['views'],
+            ], $mostViewedStories),
+        ]);
     }
 
     /** POST /api/activities (requires children.manage) */

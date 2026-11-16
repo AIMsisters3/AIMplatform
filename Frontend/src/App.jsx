@@ -55,6 +55,7 @@ const ManageContent = lazy(() => import('./Admin/Pages/ManageContent.jsx'));
 const ManageCategories = lazy(() => import('./Admin/Pages/ManageCategories.jsx'));
 const ManageProducts = lazy(() => import('./Admin/Pages/ManageProducts.jsx'));
 const ManageSeries = lazy(() => import('./Admin/Pages/ManageSeries.jsx'));
+const ChildrenMinistry = lazy(() => import('./Admin/Pages/ChildrenMinistry.jsx'));
 const ManageOrders = lazy(() => import('./Admin/Pages/ManageOrders.jsx'));
 const ManageDeliveryAreas = lazy(() => import('./Admin/Pages/ManageDeliveryAreas.jsx'));
 const PaymentVerification = lazy(() => import('./Admin/Pages/PaymentVerification.jsx'));
@@ -158,6 +159,7 @@ export default function App() {
               <Route path="products" element={<ManageProducts />} />
               <Route path="business" element={<BusinessDashboard />} />
               <Route path="series" element={<ManageSeries />} />
+              <Route path="children" element={<ChildrenMinistry />} />
               <Route path="orders" element={<ManageOrders />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />
               <Route path="payments" element={<PaymentVerification />} />
