@@ -1,39 +1,61 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Loader2, Sunrise, Sparkles } from 'lucide-react';
+import { Loader2, Sunrise, Sparkles, LayoutGrid, Image as ImageIcon, PlayCircle, FileText, Inbox } from 'lucide-react';
+import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import CardGridSkeleton from '../Components/CardGridSkeleton.jsx';
+import ExpandingSearchButton from '../Components/ExpandingSearchButton.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
-// Category and content-type are still set by the admin when publishing
-// (UploadContent.jsx) - this public page just no longer shows them as
-// labels/filters, per spec: devotions are meant to be browsed simply,
-// without that extra classification surfaced to visitors. The language
-// filter is the one exception - it comes from the navbar globally, not
-// a page-level control.
+// Poster/Video/Article only (migration 041's sibling backend change) -
+// per explicit spec, these are the only three content types this page
+// ever shows or lets an admin publish here.
+const TYPE_FILTERS = [
+  { value: '', label: 'All', icon: LayoutGrid },
+  { value: 'devotional', label: 'Article', icon: FileText },
+  { value: 'video', label: 'Video', icon: PlayCircle },
+  { value: 'image', label: 'Poster', icon: ImageIcon },
+];
+
 export default function Devotions() {
   const [activeItem, setActiveItem] = useState(null);
+  const [mediaType, setMediaType] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [search, setSearch] = useState('');
+  const [categories, setCategories] = useState([]);
   const reduceMotion = useReducedMotion();
   const { language } = useLanguage();
 
-  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/devotions', { language });
-  const [today, ...rest] = items;
+  useEffect(() => {
+    api.get('/categories', { params: { type: 'content' } })
+      .then((r) => setCategories(r.data?.data?.items || r.data?.data || []))
+      .catch(() => setCategories([]));
+  }, []);
 
-  // Respects prefers-reduced-motion: entrance transitions collapse to an
-  // instant appearance instead of being disabled awkwardly mid-scroll.
+  const isFiltering = Boolean(mediaType || categoryId || search.trim());
+  const params = useMemo(
+    () => ({ language, media_type: mediaType || undefined, category_id: categoryId || undefined, search: search.trim() || undefined }),
+    [language, mediaType, categoryId, search]
+  );
+  const { items, loading, loadingMore, hasMore, loadMore } = usePaginatedList('/devotions', params);
+  const [today, ...rest] = isFiltering ? [null, ...items] : items;
+
   const fadeUp = reduceMotion
     ? { hidden: { opacity: 1 }, visible: { opacity: 1 } }
     : { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } } };
   const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: reduceMotion ? 0 : 0.08 } } };
 
+  // Only categories a devotion has actually been tagged with (spec:
+  // "avoid displaying empty sections") - a flat Reforms-style chip row
+  // with no devotion behind most of it would be exactly that.
+  const usedCategoryIds = useMemo(() => new Set(items.map((i) => i.category_id).filter(Boolean)), [items]);
+  const relevantCategories = categories.filter((c) => usedCategoryIds.has(c.id) || String(c.id) === categoryId);
+
   return (
     <div className="min-h-screen bg-surface">
-      {/* Hero */}
-      {/* A warm, pink-led "dawn" gradient rather than the site's default
-          purple-led hero (spec: "stop using purple for every hero"). */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-accent via-[#9B5FBF] to-primary py-12 sm:py-14">
+      <section className="relative overflow-hidden bg-gradient-to-br from-accent via-[#9B5FBF] to-primary py-12 sm:py-16">
         {!reduceMotion && (
           <motion.div
             className="absolute -top-16 -right-10 w-72 h-72 rounded-full bg-accent/20 blur-3xl pointer-events-none"
@@ -53,39 +75,69 @@ export default function Devotions() {
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.08 }}
             className="font-body text-white/75 text-sm sm:text-base max-w-lg"
           >
-            Daily moments of reflection to nourish your walk with God.
+            Posters, videos, and short readings to nourish your walk with God - a quiet moment, wherever you are today.
           </motion.p>
+        </div>
+
+        <div className="absolute z-20 bottom-5 right-5 sm:bottom-6 sm:right-8">
+          <ExpandingSearchButton value={search} onChange={setSearch} placeholder="Search devotions..." />
         </div>
       </section>
 
       <div className="max-w-7xl mx-auto px-6 py-10">
+        <div className="flex flex-wrap items-center gap-2 mb-8">
+          {TYPE_FILTERS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setMediaType(t.value)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                mediaType === t.value ? 'bg-brand-gradient text-white shadow-glass' : 'bg-white text-ink/60 border border-ink/10 hover:border-secondary/40'
+              }`}
+            >
+              <t.icon className="w-3.5 h-3.5" /> {t.label}
+            </button>
+          ))}
+          {relevantCategories.length > 0 && <span className="w-px h-6 bg-ink/10 mx-1" />}
+          {relevantCategories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setCategoryId(categoryId === String(c.id) ? '' : String(c.id))}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                categoryId === String(c.id) ? 'bg-ink text-white shadow-glass' : 'bg-white text-ink/60 border border-ink/10 hover:border-secondary/40'
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <CardGridSkeleton />
         ) : items.length === 0 ? (
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex flex-col items-center text-center py-20">
             <div className="w-16 h-16 rounded-full bg-brand-gradient-soft flex items-center justify-center mb-4">
-              <Sunrise className="w-7 h-7 text-secondary" />
+              {isFiltering ? <Inbox className="w-7 h-7 text-secondary" /> : <Sunrise className="w-7 h-7 text-secondary" />}
             </div>
-            <h3 className="font-display font-semibold text-lg text-ink mb-1">No devotions yet</h3>
-            <p className="text-ink/50 text-sm max-w-xs">Check back soon for today's reflection.</p>
+            <h3 className="font-display font-semibold text-lg text-ink mb-1">{isFiltering ? 'No devotions match your filters' : 'No devotions yet'}</h3>
+            <p className="text-ink/50 text-sm max-w-xs">{isFiltering ? 'Try a different type, category, or search.' : "Check back soon for today's reflection."}</p>
           </motion.div>
         ) : (
           <>
-            {/* Today's Devotion — spotlight for the single latest item;
-                only ever real, already-published content. */}
-            <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-4 h-4 text-secondary" />
-                <h2 className="font-display font-bold text-lg text-ink">Today's Devotion</h2>
-              </div>
-              <motion.div whileHover={reduceMotion ? undefined : { y: -4 }} className="max-w-2xl">
-                <ContentCard item={today} onClick={() => setActiveItem(today)} />
+            {!isFiltering && (
+              <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-secondary" />
+                  <h2 className="font-display font-bold text-lg text-ink">Today's Devotion</h2>
+                </div>
+                <motion.div whileHover={reduceMotion ? undefined : { y: -4 }} className="max-w-2xl">
+                  <ContentCard item={today} onClick={() => setActiveItem(today)} />
+                </motion.div>
               </motion.div>
-            </motion.div>
+            )}
 
             {rest.length > 0 && (
               <>
-                <h2 className="font-display font-bold text-lg text-ink mb-4">More Devotions</h2>
+                {!isFiltering && <h2 className="font-display font-bold text-lg text-ink mb-4">More Devotions</h2>}
                 <motion.div
                   className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"
                   initial="hidden" animate="visible" variants={staggerContainer}
