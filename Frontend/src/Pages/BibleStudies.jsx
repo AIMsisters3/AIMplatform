@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, BookOpen, ScrollText, Layers, Loader2, Inbox, Quote, Users, Sparkles,
-  Headphones, FileText, Clock,
+  Headphones, FileText, Clock, Calendar, HelpCircle,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
@@ -29,17 +29,28 @@ const staggerContainer = {
 // nothing guarantees the backend returns them in reading order.
 const PROPHECY_ORDER = ['Daniel', 'Revelation', 'Matthew 24'];
 
+// Bible Reading Plan / Bible Quiz / Family Bible Study (migration 040) -
+// same pinned-order treatment as Prophecy, plus an icon per card since
+// these render as plain tiles rather than ProphecyCard's photo style.
+const READING_PLAN_ORDER = ['Bible Reading Plan', 'Bible Quiz', 'Family Bible Study'];
+const READING_PLAN_ICONS = {
+  'Bible Reading Plan': Calendar,
+  'Bible Quiz': HelpCircle,
+  'Family Bible Study': Users,
+};
+
 /**
- * The Prophecy row's three permanent books - deliberately a richer,
- * more editorial treatment than a plain SeriesCard (full-bleed cover art,
- * gradient scrim, bigger type) since these never change and are meant to
- * anchor the page, not blend into an admin-growable list.
+ * The Prophecy row's three permanent books - a deliberately more ornate,
+ * "anchor" treatment than a plain SeriesCard (full-bleed cover art, a
+ * gold accent line, a wax-seal-style badge, concentric ring ornament,
+ * bigger type) since these never change and are meant to feel like the
+ * page's centerpiece, not blend into an admin-growable list.
  */
 function ProphecyCard({ s }) {
   return (
     <Link
       to={`/series/${s.slug}`}
-      className="group relative block rounded-3xl overflow-hidden shadow-glass h-64 sm:h-72"
+      className="group relative block rounded-3xl overflow-hidden shadow-glass h-64 sm:h-72 ring-1 ring-accent/25 hover:ring-accent/50 transition-all"
     >
       {s.cover_image ? (
         <img
@@ -52,14 +63,20 @@ function ProphecyCard({ s }) {
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#3D2E6B] to-primary">
           <ScrollText className="absolute -bottom-6 -right-6 w-40 h-40 text-white/5" />
+          <div className="absolute top-5 right-5 w-24 h-24 rounded-full border border-accent/25" />
+          <div className="absolute top-5 right-5 w-16 h-16 mt-4 ml-4 rounded-full border border-accent/15" />
         </div>
       )}
+      {/* Gold accent line - the one cue that reads "permanent, never
+          just another admin card" at a glance, even before the badge. */}
+      <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-accent via-secondary to-accent" />
       <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/30 to-transparent" />
       <div className="absolute inset-0 p-6 flex flex-col justify-end">
-        <span className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-wide mb-3 shadow-glass">
+        <span className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-wide mb-3 shadow-glass ring-2 ring-white/25">
           <ScrollText className="w-3 h-3" /> Prophecy
         </span>
-        <h3 className="text-2xl font-display font-extrabold text-white leading-tight mb-1">{s.title}</h3>
+        <h3 className="text-2xl font-display font-extrabold text-white leading-tight mb-2 [text-shadow:0_2px_16px_rgba(0,0,0,0.45)]">{s.title}</h3>
+        <div className="w-10 h-0.5 rounded-full bg-accent/70 mb-2" />
         <p className="text-white/70 text-sm">
           {s.episode_count} {Number(s.episode_count) === 1 ? 'study' : 'studies'}
         </p>
@@ -96,14 +113,14 @@ function SeriesCard({ s }) {
 }
 
 /**
- * Full-width colored band wrapping one curated row (Featured / Prophecy /
- * Explore More / Latest) - the look the user's reference screenshot asked
- * for: an icon + title + one-line subtitle, then a grid of cards, each
- * section its own band rather than sitting on one flat background.
+ * Full-width band wrapping one curated row (Featured / Prophecy / Bible
+ * Reading Plan / Explore More / Latest): an icon + title + one-line
+ * subtitle, then a grid of cards. Every band shares the same background
+ * (per explicit request - no alternating tints between sections).
  */
-function SectionBand({ icon: Icon, title, subtitle, tint = 'bg-white', action, children }) {
+function SectionBand({ icon: Icon, title, subtitle, action, children }) {
   return (
-    <section className={`${tint} py-12 sm:py-14`}>
+    <section className="bg-white py-12 sm:py-14">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div className="flex items-start gap-3">
@@ -207,7 +224,16 @@ export default function BibleStudies() {
       .sort((a, b) => PROPHECY_ORDER.indexOf(a.title) - PROPHECY_ORDER.indexOf(b.title)),
     [allSeries]
   );
-  const otherSeries = useMemo(() => allSeries.filter((s) => !s.is_prophecy), [allSeries]);
+  const readingPlanSeries = useMemo(
+    () => [...allSeries]
+      .filter((s) => s.is_reading_plan)
+      .sort((a, b) => READING_PLAN_ORDER.indexOf(a.title) - READING_PLAN_ORDER.indexOf(b.title)),
+    [allSeries]
+  );
+  const otherSeries = useMemo(
+    () => allSeries.filter((s) => !s.is_prophecy && !s.is_reading_plan),
+    [allSeries]
+  );
   const isSearching = search.trim().length > 0;
 
   return (
@@ -349,7 +375,6 @@ export default function BibleStudies() {
               icon={Sparkles}
               title="Featured Studies"
               subtitle="The studies our community is reading and listening to the most."
-              tint="bg-white"
             >
               {featuredLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -387,10 +412,33 @@ export default function BibleStudies() {
               icon={ScrollText}
               title="Prophecy"
               subtitle="Daniel, Revelation and Matthew 24 — unlocking Bible prophecy for the last days."
-              tint="bg-secondary/[0.05]"
             >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 {prophecySeries.map((s) => <ProphecyCard key={s.id} s={s} />)}
+              </div>
+            </SectionBand>
+          )}
+
+          {/* Bible Reading Plan / Bible Quiz / Family Bible Study
+              (migration 040) - exactly these three, permanent, same
+              locked treatment as Prophecy but plain tiles since there's
+              no cover-art expectation here. */}
+          {readingPlanSeries.length > 0 && (
+            <SectionBand
+              icon={Calendar}
+              title="Bible Reading Plan"
+              subtitle="A simple plan to read through Scripture, plus tools to test and share what you're learning."
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {readingPlanSeries.map((s) => (
+                  <StudyTile
+                    key={s.id}
+                    to={`/series/${s.slug}`}
+                    icon={READING_PLAN_ICONS[s.title] || Calendar}
+                    title={s.title}
+                    meta={`${s.episode_count} ${Number(s.episode_count) === 1 ? 'item' : 'items'}`}
+                  />
+                ))}
               </div>
             </SectionBand>
           )}
@@ -402,7 +450,6 @@ export default function BibleStudies() {
               icon={Layers}
               title="Explore More Studies"
               subtitle="Multi-chapter books and collections to study at your own pace."
-              tint="bg-white"
               action={
                 <Link to="/series?section=bible_study" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
                   View All <ArrowRight className="w-3.5 h-3.5" />
@@ -435,7 +482,6 @@ export default function BibleStudies() {
               icon={Clock}
               title="Latest Studies"
               subtitle="Freshly added studies, hot off the press."
-              tint="bg-accent/[0.05]"
             >
               <motion.div
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
@@ -460,7 +506,7 @@ export default function BibleStudies() {
           )}
 
           {!featuredLoading && !latestLoading && featured.length === 0 && latest.length === 0
-            && prophecySeries.length === 0 && otherSeries.length === 0 && (
+            && prophecySeries.length === 0 && readingPlanSeries.length === 0 && otherSeries.length === 0 && (
             <div className="max-w-7xl mx-auto px-6 py-12">
               <div className="glass-card p-10 text-center">
                 <Inbox className="w-8 h-8 text-ink/25 mx-auto mb-3" />

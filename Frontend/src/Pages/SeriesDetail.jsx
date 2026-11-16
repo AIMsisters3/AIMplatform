@@ -37,6 +37,12 @@ export default function SeriesDetail() {
   }, [slugOrId]);
 
   const isBibleStudySeries = series?.section === 'bible_study';
+  // A Bible Study series is only ever reached from the Bible Studies
+  // page's own curated rows (Featured/Prophecy/Bible Reading Plan/
+  // Explore More) - never from the generic /series grid - so "back"
+  // should return there, not to /series, which the user never came from.
+  const backTo = isBibleStudySeries ? '/bible-studies' : '/series';
+  const backLabel = isBibleStudySeries ? 'Back to Bible Studies' : 'Back to Series';
 
   const availableFormats = useMemo(() => {
     if (!isBibleStudySeries) return [];
@@ -95,8 +101,8 @@ export default function SeriesDetail() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
-      <Link to="/series" className="inline-flex items-center gap-1.5 text-sm text-secondary font-semibold mb-6">
-        <ArrowLeft className="w-4 h-4" /> Back to Series
+      <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-secondary font-semibold mb-6">
+        <ArrowLeft className="w-4 h-4" /> {backLabel}
       </Link>
 
       <div className="relative rounded-xl3 overflow-hidden mb-10 shadow-glass">
