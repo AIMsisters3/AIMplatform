@@ -14,6 +14,7 @@ import { useLanguage } from '../context/LanguageContext.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { getVerseOfDay } from '../utils/verseOfDay.js';
 import { getItemKind } from '../utils/mediaKind.js';
+import bibleStudyHero from '../assets/bible-study-hero.png';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -243,18 +244,22 @@ export default function BibleStudies() {
           a large faint open-book watermark, soft drifting glows, the
           Verse of the Day folded directly in as its own glass panel, and
           the corner expand-search (spec: icon only, expands on click). */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-ink via-[#2B2056] to-[#3D2E6B] py-14 sm:py-20">
-        <BookOpen className="absolute -right-10 -bottom-16 w-72 h-72 text-white/[0.04] pointer-events-none rotate-[-8deg]" />
-        <motion.div
-          className="absolute -top-16 -left-16 w-72 h-72 rounded-full bg-secondary/20 blur-3xl pointer-events-none"
-          animate={{ y: [0, 20, 0], x: [0, 15, 0] }} transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full bg-accent/10 blur-3xl pointer-events-none"
-          animate={{ y: [0, -15, 0] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-        />
+      <section className="relative overflow-hidden min-h-[460px] sm:min-h-[560px] flex items-center py-14">
+        {/* Real photo background (per explicit request - the illustrated
+            gradient hero read as too plain/empty on its own) with a
+            left-to-right scrim so white text stays legible over a bright,
+            warm-toned photo rather than a dark one. */}
+        <div className="absolute inset-0">
+          <img
+            src={bibleStudyHero}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-ink/95 via-ink/75 to-ink/20" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-ink/10" />
+        </div>
 
-        <div className="relative z-10 max-w-5xl mx-auto px-6">
+        <div className="relative z-10 max-w-5xl mx-auto px-6 w-full">
           <motion.div initial="hidden" animate="visible" variants={fadeUp} className="flex items-center gap-2 mb-4">
             <span className="w-9 h-9 rounded-2xl bg-white/10 flex items-center justify-center shrink-0">
               <BookOpen className="w-4.5 h-4.5 text-accent" />
@@ -263,13 +268,13 @@ export default function BibleStudies() {
           </motion.div>
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.05 }}
-            className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-tight mb-3 max-w-2xl break-words"
+            className="text-3xl sm:text-4xl md:text-5xl font-display font-extrabold text-white leading-tight mb-3 max-w-2xl break-words [text-shadow:0_2px_20px_rgba(0,0,0,0.35)]"
           >
             Dig deeper in God's Word
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp} transition={{ delay: 0.1 }}
-            className="font-body text-white/75 text-base sm:text-lg mb-8 max-w-xl"
+            className="font-body text-white/85 text-base sm:text-lg mb-8 max-w-xl"
           >
             Discover Truth. Grow in Faith. Be transformed.
           </motion.p>
