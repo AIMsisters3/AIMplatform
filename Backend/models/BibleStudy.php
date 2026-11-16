@@ -136,6 +136,48 @@ class BibleStudy
         }, $stmt->fetchAll());
     }
 
+    /**
+     * The Bible Studies page's "Latest Studies" row - standalone uploads
+     * (not part of any collection, so they have no series card to be
+     * found through) that haven't yet earned enough views/likes to rank
+     * into Featured. $excludeIds lets the controller leave out whatever
+     * is already showing in Featured, so the same study never appears
+     * twice on the page.
+     */
+    public function latestStandalone(int $limit, array $excludeIds = []): array
+    {
+        $where = [
+            "c.content_type = 'bible_study'", 'c.deleted_at IS NULL', "c.status = 'published'",
+            'c.series_id IS NULL',
+        ];
+        $params = [];
+        if ($excludeIds !== []) {
+            $placeholders = [];
+            foreach (array_values($excludeIds) as $i => $id) {
+                $key = "exclude{$i}";
+                $placeholders[] = ":{$key}";
+                $params[$key] = (int) $id;
+            }
+            $where[] = 'c.id NOT IN (' . implode(',', $placeholders) . ')';
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
+             FROM content c
+             JOIN bible_studies bs ON bs.content_id = c.id
+             LEFT JOIN categories cat ON cat.id = c.category_id
+             WHERE ' . implode(' AND ', $where) . '
+             ORDER BY COALESCE(c.publish_date, c.created_at) DESC
+             LIMIT :limit'
+        );
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_INT);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
+    }
+
     /** Called right after Content::create() for a content_type='bible_study' row. */
     public function createExtension(int $contentId, string $format, ?string $studyGuideUrl): void
     {

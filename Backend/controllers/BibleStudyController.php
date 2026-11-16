@@ -46,6 +46,20 @@ class BibleStudyController
         json_ok(['items' => $this->model->featuredRanked($limit)]);
     }
 
+    /**
+     * GET /api/bible-studies/latest?limit=&exclude=1,2,3 — the Bible
+     * Studies page's "Latest Studies" row: newest standalone uploads (no
+     * series, so they have no collection card to be found through),
+     * minus whatever the page already rendered in Featured ($exclude),
+     * so a study never shows up twice on the same page.
+     */
+    public function latest(): void
+    {
+        $limit = min(20, max(1, (int) ($_GET['limit'] ?? 8)));
+        $exclude = array_filter(array_map('intval', explode(',', (string) ($_GET['exclude'] ?? ''))));
+        json_ok(['items' => $this->model->latestStandalone($limit, $exclude)]);
+    }
+
     /** GET /api/bible-studies/continue (auth) — "Continue Studying" for the signed-in user. */
     public function continueStudying(): void
     {

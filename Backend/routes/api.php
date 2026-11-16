@@ -308,6 +308,7 @@ function route(string $method, string $path)
 
         if ($id === 'continue' && $method === 'GET') return $ctrl->continueStudying();
         if ($id === 'featured' && $method === 'GET') return $ctrl->featured();
+        if ($id === 'latest' && $method === 'GET') return $ctrl->latest();
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id !== null && $action === 'progress' && $method === 'GET') return $ctrl->getProgress((int) $id);
         if ($id !== null && $action === 'progress' && $method === 'POST') return $ctrl->updateProgress((int) $id);

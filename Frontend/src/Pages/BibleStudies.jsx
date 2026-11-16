@@ -3,16 +3,17 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, BookOpen, ScrollText, Layers, Loader2, Inbox, Quote, Users, Sparkles,
+  Headphones, FileText, Clock,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
-import ScrollHintRow from '../Components/ScrollHintRow.jsx';
 import ExpandingSearchButton from '../Components/ExpandingSearchButton.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { getVerseOfDay } from '../utils/verseOfDay.js';
+import { getItemKind } from '../utils/mediaKind.js';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -94,12 +95,68 @@ function SeriesCard({ s }) {
   );
 }
 
+/**
+ * Full-width colored band wrapping one curated row (Featured / Prophecy /
+ * Explore More / Latest) - the look the user's reference screenshot asked
+ * for: an icon + title + one-line subtitle, then a grid of cards, each
+ * section its own band rather than sitting on one flat background.
+ */
+function SectionBand({ icon: Icon, title, subtitle, tint = 'bg-white', action, children }) {
+  return (
+    <section className={`${tint} py-12 sm:py-14`}>
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div className="flex items-start gap-3">
+            <span className="w-10 h-10 rounded-xl bg-brand-gradient flex items-center justify-center shrink-0 shadow-glass">
+              <Icon className="w-5 h-5 text-white" />
+            </span>
+            <div>
+              <h2 className="font-display font-extrabold text-xl text-ink tracking-tight">{title}</h2>
+              {subtitle && <p className="text-sm text-ink/50 mt-0.5 max-w-lg">{subtitle}</p>}
+            </div>
+          </div>
+          {action}
+        </div>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// Compact icon + title + one tag-line card - the reference screenshot's
+// tile shape, used for every row except Prophecy (which keeps its richer
+// full-bleed photo treatment, since admin-added cover art is meaningful
+// there - see ProphecyCard above).
+function StudyTile({ to, icon: Icon, title, meta }) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center gap-3 bg-white rounded-2xl border border-ink/5 px-4 py-3.5 hover:border-secondary/30 hover:shadow-glass hover:-translate-y-0.5 transition-all"
+    >
+      <span className="w-10 h-10 rounded-xl bg-brand-gradient-soft flex items-center justify-center shrink-0 group-hover:bg-brand-gradient transition-colors">
+        <Icon className="w-4.5 h-4.5 text-secondary group-hover:text-white transition-colors" />
+      </span>
+      <div className="min-w-0">
+        <h3 className="font-display font-semibold text-sm text-ink leading-snug line-clamp-1">{title}</h3>
+        {meta && <p className="text-[11px] font-bold text-secondary/70 uppercase tracking-wide truncate mt-0.5">{meta}</p>}
+      </div>
+    </Link>
+  );
+}
+
+const FORMAT_TILE = {
+  audio: { icon: Headphones, label: 'Audio' },
+  pdf: { icon: FileText, label: 'PDF' },
+};
+
 export default function BibleStudies() {
   const { user } = useAuth();
   const { language } = useLanguage();
   const [continuing, setContinuing] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [latest, setLatest] = useState([]);
+  const [latestLoading, setLatestLoading] = useState(true);
   const [allSeries, setAllSeries] = useState([]);
   const [search, setSearch] = useState('');
   const verse = useMemo(() => getVerseOfDay(), []);
@@ -115,9 +172,20 @@ export default function BibleStudies() {
 
   useEffect(() => {
     api.get('/bible-studies/featured', { params: { limit: 8 } })
-      .then((r) => setFeatured(r.data?.data?.items || []))
-      .catch(() => setFeatured([]))
-      .finally(() => setFeaturedLoading(false));
+      .then((r) => r.data?.data?.items || [])
+      .catch(() => [])
+      .then((items) => {
+        setFeatured(items);
+        setFeaturedLoading(false);
+        // Latest Studies exists so a standalone upload has somewhere to
+        // be seen before it earns enough views/likes to rank into
+        // Featured - exclude whatever Featured already shows so nothing
+        // appears twice on the page.
+        return api.get('/bible-studies/latest', { params: { limit: 8, exclude: items.map((i) => i.id).join(',') } })
+          .then((r) => setLatest(r.data?.data?.items || []))
+          .catch(() => setLatest([]))
+          .finally(() => setLatestLoading(false));
+      });
     // Fetched once, split client-side into Prophecy vs everything else -
     // there are only ever 3 Prophecy series (migration 039 seeds them,
     // nothing in the admin can add a 4th), so a single reasonably-sized
@@ -199,7 +267,11 @@ export default function BibleStudies() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-6 py-12">
+      {/* No padding when there's nothing to show here (LiveNowStrip
+          renders null with no live items, Continue Studying needs a
+          signed-in user) - otherwise an empty py-12 box leaves a blank
+          gap between the hero and the first curated band below. */}
+      <div className={`max-w-7xl mx-auto px-6 ${(continuing.length > 0 || isSearching) ? 'py-12' : 'pt-6'}`}>
         <LiveNowStrip endpoint="/bible-studies" itemHref={(item) => `/bible-studies/${item.slug}`} />
 
         {continuing.length > 0 && !isSearching && (
@@ -219,9 +291,9 @@ export default function BibleStudies() {
           </div>
         )}
 
-        {isSearching ? (
+        {isSearching && (
           /* Search mode - a flat filtered grid, same ContentCard the
-             curated rows below use, replacing them while a search is
+             curated bands below use, replacing them while a search is
              active rather than sitting alongside them. */
           searchLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
@@ -261,89 +333,151 @@ export default function BibleStudies() {
               )}
             </div>
           )
-        ) : (
-          <>
-            {/* Featured Studies - purely the most liked/viewed (see
-                BibleStudy::featuredRanked()), deliberately not the same
-                ranking the Home page's own Featured section shows. */}
-            {(featuredLoading || featured.length > 0) && (
-              <div className="mb-14">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-4 h-4 text-secondary" />
-                  <h2 className="font-display font-bold text-xl">Featured Studies</h2>
-                </div>
-                {featuredLoading ? (
-                  <div className="flex gap-5 overflow-hidden">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="shrink-0 w-64 h-56 rounded-2xl bg-white/70 shadow-glass animate-pulse" />
-                    ))}
-                  </div>
-                ) : (
-                  <ScrollHintRow className="gap-5 pb-2">
-                    {featured.map((item) => (
-                      <Link key={item.id} to={`/bible-studies/${item.slug}`} className="shrink-0 w-64 sm:w-72">
-                        <ContentCard item={item} />
-                      </Link>
-                    ))}
-                  </ScrollHintRow>
-                )}
-              </div>
-            )}
+        )}
+      </div>
 
-            {/* Prophecy - exactly Daniel/Revelation/Matthew 24, permanent. */}
-            {prophecySeries.length > 0 && (
-              <div className="mb-14">
-                <div className="flex items-center gap-2 mb-4">
-                  <ScrollText className="w-4 h-4 text-secondary" />
-                  <h2 className="font-display font-bold text-xl">Prophecy</h2>
+      {/* Curated bands - each its own full-bleed, alternating-tint
+          section (icon + title + subtitle, then a tile grid), matching
+          the reference layout rather than one flat background. */}
+      {!isSearching && (
+        <>
+          {/* Featured Studies - purely the most liked/viewed (see
+              BibleStudy::featuredRanked()), deliberately not the same
+              ranking the Home page's own Featured section shows. */}
+          {(featuredLoading || featured.length > 0) && (
+            <SectionBand
+              icon={Sparkles}
+              title="Featured Studies"
+              subtitle="The studies our community is reading and listening to the most."
+              tint="bg-white"
+            >
+              {featuredLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-[70px] rounded-2xl bg-surface animate-pulse" />
+                  ))}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                  {prophecySeries.map((s) => <ProphecyCard key={s.id} s={s} />)}
-                </div>
-              </div>
-            )}
-
-            {/* Everything else - every other admin-created study series
-                (e.g. "The Great Controversy", "Steps to Christ"). */}
-            {otherSeries.length > 0 && (
-              <div className="mb-14">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-secondary" />
-                    <h2 className="font-display font-bold text-xl">Explore More Studies</h2>
-                  </div>
-                  <Link to="/series?section=bible_study" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
-                    View All <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
+              ) : (
                 <motion.div
-                  className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                   initial="hidden" animate="visible" variants={staggerContainer}
                 >
-                  {otherSeries.map((s) => (
-                    <motion.div key={s.id} variants={fadeUp}>
-                      <SeriesCard s={s} />
-                    </motion.div>
-                  ))}
+                  {featured.map((item) => {
+                    const kind = getItemKind(item);
+                    const { icon, label } = FORMAT_TILE[kind] || FORMAT_TILE.audio;
+                    return (
+                      <motion.div key={item.id} variants={fadeUp}>
+                        <StudyTile
+                          to={`/bible-studies/${item.slug}`}
+                          icon={icon}
+                          title={item.title}
+                          meta={`${label} · ${item.views ?? 0} views`}
+                        />
+                      </motion.div>
+                    );
+                  })}
                 </motion.div>
-              </div>
-            )}
+              )}
+            </SectionBand>
+          )}
 
-            {!featuredLoading && featured.length === 0 && prophecySeries.length === 0 && otherSeries.length === 0 && (
-              <div className="glass-card p-10 text-center mb-12">
+          {/* Prophecy - exactly Daniel/Revelation/Matthew 24, permanent. */}
+          {prophecySeries.length > 0 && (
+            <SectionBand
+              icon={ScrollText}
+              title="Prophecy"
+              subtitle="Daniel, Revelation and Matthew 24 — unlocking Bible prophecy for the last days."
+              tint="bg-secondary/[0.05]"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {prophecySeries.map((s) => <ProphecyCard key={s.id} s={s} />)}
+              </div>
+            </SectionBand>
+          )}
+
+          {/* Everything else - every other admin-created study series
+              (e.g. "The Great Controversy", "Steps to Christ"). */}
+          {otherSeries.length > 0 && (
+            <SectionBand
+              icon={Layers}
+              title="Explore More Studies"
+              subtitle="Multi-chapter books and collections to study at your own pace."
+              tint="bg-white"
+              action={
+                <Link to="/series?section=bible_study" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
+                  View All <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              }
+            >
+              <motion.div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                initial="hidden" animate="visible" variants={staggerContainer}
+              >
+                {otherSeries.map((s) => (
+                  <motion.div key={s.id} variants={fadeUp}>
+                    <StudyTile
+                      to={`/series/${s.slug}`}
+                      icon={Layers}
+                      title={s.title}
+                      meta={`${s.episode_count} ${Number(s.episode_count) === 1 ? 'chapter' : 'chapters'}`}
+                    />
+                  </motion.div>
+                ))}
+              </motion.div>
+            </SectionBand>
+          )}
+
+          {/* Latest Studies - standalone uploads (no collection card of
+              their own) that haven't yet earned a Featured spot, so
+              nothing new is invisible while it's still fresh. */}
+          {!latestLoading && latest.length > 0 && (
+            <SectionBand
+              icon={Clock}
+              title="Latest Studies"
+              subtitle="Freshly added studies, hot off the press."
+              tint="bg-accent/[0.05]"
+            >
+              <motion.div
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                initial="hidden" animate="visible" variants={staggerContainer}
+              >
+                {latest.map((item) => {
+                  const kind = getItemKind(item);
+                  const { icon, label } = FORMAT_TILE[kind] || FORMAT_TILE.audio;
+                  return (
+                    <motion.div key={item.id} variants={fadeUp}>
+                      <StudyTile
+                        to={`/bible-studies/${item.slug}`}
+                        icon={icon}
+                        title={item.title}
+                        meta={label}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            </SectionBand>
+          )}
+
+          {!featuredLoading && !latestLoading && featured.length === 0 && latest.length === 0
+            && prophecySeries.length === 0 && otherSeries.length === 0 && (
+            <div className="max-w-7xl mx-auto px-6 py-12">
+              <div className="glass-card p-10 text-center">
                 <Inbox className="w-8 h-8 text-ink/25 mx-auto mb-3" />
                 <p className="text-ink/50">No Bible studies published yet.</p>
               </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </>
+      )}
 
-        {/* Join AIMsisters Community — only for visitors who aren't
-            already part of it; no dedicated community page exists yet,
-            so this leads to registration/login, the real destination
-            for "joining" today (comments, testimonies, notes, bookmarks
-            all require an account). */}
-        {!user && (
+      {/* Join AIMsisters Community — only for visitors who aren't
+          already part of it; no dedicated community page exists yet,
+          so this leads to registration/login, the real destination
+          for "joining" today (comments, testimonies, notes, bookmarks
+          all require an account). */}
+      {!user && (
+        <div className="max-w-7xl mx-auto px-6 pb-12">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
             className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-[#3a2a6e] to-secondary p-8 sm:p-10 text-center"
@@ -364,8 +498,8 @@ export default function BibleStudies() {
               Join Now
             </Link>
           </motion.div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
