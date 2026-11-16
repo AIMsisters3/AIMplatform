@@ -34,9 +34,15 @@ class ContentController
         // video or a PDF under News, same as Media Library's video type.
         'news'        => ['news_article', 'video', 'pdf'],
         'gallery'     => ['photo_gallery'],
-        // Devotions isn't always a written article either - an admin can
-        // instead post a video or audio recording of the devotion.
-        'devotions'   => ['devotional', 'video', 'audio'],
+        // Devotions is Poster/Video/Article only (migration 041's sibling
+        // frontend change) - Audio removed per explicit spec ("Do not
+        // include audio or other content types on this page"). Pre-
+        // existing audio-format devotions aren't deleted (no destructive
+        // migration needed - media_type is plain validated text, not a
+        // DB enum), they just stop appearing on the redesigned public
+        // Devotion page (Devotions::all() filters to this exact list) and
+        // can no longer be re-saved with media_type still 'audio'.
+        'devotions'   => ['devotional', 'video', 'image'],
         // Bible Study's media_type doubles as the bible_studies.format enum
         // value (migration 004, widened/narrowed by migrations 012/013/
         // 018/022/038/039). Migration 039 narrowed this further to
@@ -228,6 +234,17 @@ class ContentController
         if (!empty($_GET['mine'])) {
             $payload = require_auth();
             $filters['author_id'] = (int) $payload['sub'];
+        }
+
+        // Defensive, display-only narrowing: the public Devotion page must
+        // only ever show Poster/Video/Article (spec: "do not include
+        // audio or other content types"). A pre-existing audio-format
+        // devotion isn't deleted (see SECTION_MEDIA_TYPES['devotions']'s
+        // comment above) - this just keeps any such legacy row from
+        // surfacing here, without an admin explicitly asking for it via
+        // a narrower media_type/status query of their own.
+        if ($filters['content_type'] === 'devotion' && empty($filters['media_type'])) {
+            $filters['media_type'] = implode(',', self::SECTION_MEDIA_TYPES['devotions']);
         }
 
         $items = $this->model->all($filters, $limit, ($page - 1) * $limit);

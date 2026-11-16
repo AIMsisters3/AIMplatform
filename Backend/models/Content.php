@@ -198,11 +198,11 @@ class Content
         $sql = 'INSERT INTO content
                 (title, slug, description, body, transcript, content_type, section, media_type, category_id, author_id, speaker,
                  bible_references, tags, language, thumbnail, media_url, visibility, status,
-                 is_featured, is_live, allow_comments, seo_keywords, publish_date, duration_seconds)
+                 is_featured, is_live, allow_comments, is_downloadable, seo_keywords, publish_date, duration_seconds)
                 VALUES
                 (:title, :slug, :description, :body, :transcript, :content_type, :section, :media_type, :category_id, :author_id, :speaker,
                  :bible_references, :tags, :language, :thumbnail, :media_url, :visibility, :status,
-                 :is_featured, :is_live, :allow_comments, :seo_keywords, :publish_date, :duration_seconds)';
+                 :is_featured, :is_live, :allow_comments, :is_downloadable, :seo_keywords, :publish_date, :duration_seconds)';
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -230,6 +230,12 @@ class Content
             'is_featured'      => !empty($data['is_featured']) ? 1 : 0,
             'is_live'          => !empty($data['is_live']) ? 1 : 0,
             'allow_comments'   => array_key_exists('allow_comments', $data) ? (int) (bool) $data['allow_comments'] : 1,
+            // Defaults to 1 (downloadable) to match every other content
+            // type's existing behavior - the Bible Story admin form is the
+            // one place that actually sends this explicitly, defaulting
+            // its own checkbox to OFF per spec ("downloads should only be
+            // available when the content has been made downloadable").
+            'is_downloadable'  => array_key_exists('is_downloadable', $data) ? (int) (bool) $data['is_downloadable'] : 1,
             'seo_keywords'     => $data['seo_keywords'] ?? null,
             'publish_date'     => $data['publish_date'] ?? null,
             // Real duration read client-side from the actual video file at
@@ -250,7 +256,7 @@ class Content
         $allowed = [
             'title', 'slug', 'description', 'body', 'transcript', 'content_type', 'section', 'media_type', 'category_id', 'speaker',
             'bible_references', 'tags', 'language', 'thumbnail', 'media_url', 'visibility',
-            'status', 'is_featured', 'is_live', 'allow_comments', 'seo_keywords', 'publish_date', 'duration_seconds',
+            'status', 'is_featured', 'is_live', 'allow_comments', 'is_downloadable', 'seo_keywords', 'publish_date', 'duration_seconds',
         ];
 
         foreach ($allowed as $field) {

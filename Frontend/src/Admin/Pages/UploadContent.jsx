@@ -40,7 +40,7 @@ const SINGLETON_MEDIA_TYPE = {
 // has its own card grid (media_library / news / devotions / kids) — keeps
 // selectedKey valid instead of carrying over a key from whichever section
 // was picked before.
-const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article', devotions: 'devotion_article', kids: 'kids_bible_story' };
+const DEFAULT_TYPE_KEY = { media_library: 'video', news: 'news_article', devotions: 'devotion_article', kids: 'kids_song' };
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN "News" — a news post isn't always a written
@@ -57,46 +57,45 @@ const NEWS_TYPES = [
 // written article either, so this mirrors
 // ContentController::SECTION_MEDIA_TYPES['devotions'].
 // ---------------------------------------------------------------------
+// Poster/Video/Article only (migration 041's backend sibling change) -
+// Audio removed per explicit spec ("Devotion page must contain ONLY
+// Posters, Videos, and Articles... do not include audio").
 const DEVOTION_TYPES = [
   { key: 'devotion_article', label: 'Article', icon: FileText, media_type: 'devotional' },
   { key: 'devotion_video', label: 'Video', icon: Video, media_type: 'video' },
-  { key: 'devotion_audio', label: 'Audio', icon: Headphones, media_type: 'audio' },
+  { key: 'devotion_poster', label: 'Poster', icon: ImageIcon, media_type: 'image' },
 ];
 
 // ---------------------------------------------------------------------
 // Media types available WITHIN "Kids" — its own dedicated, safe area
 // (not just another category), mirrors
-// ContentController::SECTION_MEDIA_TYPES['kids']. Simplified by
-// migration 025: Cartoon/Other removed. Song's media_type is
-// 'kids_song', not 'song' — that string is reserved for the separate,
-// always-audio Songs section (SINGLETON_MEDIA_TYPE.songs below).
+// ContentController::SECTION_MEDIA_TYPES['kids']. Bible Story/Bible
+// Lesson/Activity moved OUT of this generic picker to the dedicated
+// Children's Ministry admin area (/admin/children) per explicit
+// request that Children's content be managed separately from ordinary
+// Update Content - Lessons and Activities also outgrew a single-file
+// upload into real structured content (sections, quiz questions) a
+// generic form can't express. Only Song is left here, since Kids Songs
+// weren't part of that redesign. The backend whitelist
+// (ContentController::SECTION_MEDIA_TYPES['kids']) is deliberately left
+// unchanged so any pre-existing Bible Story/Lesson/Activity rows
+// created through this form before the redesign remain readable and
+// re-editable - Bible Story's own rows, specifically, are still
+// created going forward too, just from the new admin area instead of
+// here.
 // ---------------------------------------------------------------------
 const KIDS_TYPES = [
-  { key: 'kids_bible_story', label: 'Bible Story', icon: BookHeart, media_type: 'bible_story' },
-  { key: 'kids_bible_lesson', label: 'Bible Lesson', icon: BookOpen, media_type: 'bible_lesson' },
   { key: 'kids_song', label: 'Song', icon: Music2, media_type: 'kids_song' },
-  { key: 'kids_activity', label: 'Activity', icon: Sparkles, media_type: 'activity' },
 ];
 
-// Bible Lesson (PDF or Poster), Song (Video or Audio), and Activity
-// (Poster, Video, or PDF) each need a further choice of what kind of
-// file this particular upload is — unlike Bible Story, which is always
-// a video. Keyed by the type card's media_type; each option's `kind`
-// drives the Media field directly (bypassing mediaKindFor()'s
-// media_type-only table for just these three).
+// Song (Video or Audio) needs a further choice of what kind of file this
+// particular upload is. Keyed by the type card's media_type; each
+// option's `kind` drives the Media field directly (bypassing
+// mediaKindFor()'s media_type-only table for just this one).
 const KIDS_SUBTYPES = {
-  bible_lesson: [
-    { value: 'pdf', label: 'PDF', kind: 'document' },
-    { value: 'poster', label: 'Poster', kind: null },
-  ],
   kids_song: [
     { value: 'video', label: 'Video', kind: 'video' },
     { value: 'audio', label: 'Audio', kind: 'audio' },
-  ],
-  activity: [
-    { value: 'poster', label: 'Poster', kind: null },
-    { value: 'video', label: 'Video', kind: 'video' },
-    { value: 'pdf', label: 'PDF', kind: 'document' },
   ],
 };
 

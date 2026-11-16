@@ -4,10 +4,15 @@ import { Download } from 'lucide-react';
 /**
  * Shown on every piece of uploaded media (video/audio/pdf/image) - anyone
  * can download, signed in or not, same as sharing/copying a link already
- * work without an account.
+ * work without an account. Gated on is_downloadable (migration 041):
+ * missing/undefined (most content types don't select this column
+ * explicitly in older queries) is treated as downloadable, to match
+ * every existing content type's unchanged behavior - only an explicit
+ * false/0 (Bible Stories' own admin toggle, default off) hides it.
  */
 export default function DownloadButton({ item }) {
   if (!item?.media_url) return null;
+  if (item.is_downloadable === false || item.is_downloadable === 0 || item.is_downloadable === '0') return null;
 
   function handleClick() {
     const link = document.createElement('a');
