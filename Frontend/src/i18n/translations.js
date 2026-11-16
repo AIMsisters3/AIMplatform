@@ -19,7 +19,7 @@ export const TRANSLATIONS = {
     nav_bible_studies: 'Bible Studies',
     nav_series: 'Series',
     nav_devotions: 'Devotions',
-    nav_children: 'Children',
+    nav_children: 'Little Lights',
     nav_songs: 'Songs',
     nav_news: 'News',
     nav_gallery: 'Gallery',

@@ -25,7 +25,17 @@ const BibleStudyDetail = lazy(() => import('./Pages/BibleStudyDetail.jsx'));
 const SeriesList = lazy(() => import('./Pages/Series.jsx'));
 const SeriesDetail = lazy(() => import('./Pages/SeriesDetail.jsx'));
 const Devotions = lazy(() => import('./Pages/Devotions.jsx'));
-const Kids = lazy(() => import('./Pages/Kids.jsx'));
+// Little Lights (Children's Ministry) - replaces the old flat Kids.jsx
+// page (deleted) with a dedicated hub + Stories/Lessons/Activities area.
+const KidsHub = lazy(() => import('./Pages/Kids/Hub.jsx'));
+const KidsStoriesList = lazy(() => import('./Pages/Kids/StoriesList.jsx'));
+const KidsStoryDetail = lazy(() => import('./Pages/Kids/StoryDetail.jsx'));
+const KidsLessonsList = lazy(() => import('./Pages/Kids/LessonsList.jsx'));
+const KidsLessonDetail = lazy(() => import('./Pages/Kids/LessonDetail.jsx'));
+const KidsActivitiesList = lazy(() => import('./Pages/Kids/ActivitiesList.jsx'));
+const KidsActivityPlayer = lazy(() => import('./Pages/Kids/ActivityPlayer.jsx'));
+const KidsProgress = lazy(() => import('./Pages/Kids/Progress.jsx'));
+const KidsSongsList = lazy(() => import('./Pages/Kids/SongsList.jsx'));
 const Songs = lazy(() => import('./Pages/Songs.jsx'));
 const News = lazy(() => import('./Pages/News.jsx'));
 const Gallery = lazy(() => import('./Pages/Gallery.jsx'));
@@ -118,7 +128,15 @@ export default function App() {
             <Route path="/series" element={<PublicLayout><SeriesList /></PublicLayout>} />
             <Route path="/series/:slugOrId" element={<PublicLayout><SeriesDetail /></PublicLayout>} />
             <Route path="/devotions" element={<PublicLayout><Devotions /></PublicLayout>} />
-            <Route path="/kids" element={<PublicLayout><Kids /></PublicLayout>} />
+            <Route path="/kids" element={<PublicLayout><KidsHub /></PublicLayout>} />
+            <Route path="/kids/stories" element={<PublicLayout><KidsStoriesList /></PublicLayout>} />
+            <Route path="/kids/stories/:slug" element={<PublicLayout><KidsStoryDetail /></PublicLayout>} />
+            <Route path="/kids/lessons" element={<PublicLayout><KidsLessonsList /></PublicLayout>} />
+            <Route path="/kids/lessons/:slug" element={<PublicLayout><KidsLessonDetail /></PublicLayout>} />
+            <Route path="/kids/activities" element={<PublicLayout><KidsActivitiesList /></PublicLayout>} />
+            <Route path="/kids/activities/:slug" element={<PublicLayout><KidsActivityPlayer /></PublicLayout>} />
+            <Route path="/kids/progress" element={<PublicLayout><KidsProgress /></PublicLayout>} />
+            <Route path="/kids/songs" element={<PublicLayout><KidsSongsList /></PublicLayout>} />
             <Route path="/songs" element={<PublicLayout><Songs /></PublicLayout>} />
             <Route path="/news" element={<PublicLayout><News /></PublicLayout>} />
             <Route path="/gallery" element={<PublicLayout><Gallery /></PublicLayout>} />

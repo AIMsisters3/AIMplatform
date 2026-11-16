@@ -86,7 +86,11 @@ class Activity
 
     public function find(int $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM activities WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt = $this->db->prepare(
+            'SELECT a.*, l.slug AS lesson_slug FROM activities a
+             LEFT JOIN bible_lessons l ON l.id = a.lesson_id
+             WHERE a.id = :id AND a.deleted_at IS NULL LIMIT 1'
+        );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
         return $row ? self::decorateActivity($row) : null;
@@ -94,7 +98,11 @@ class Activity
 
     public function findBySlug(string $slug): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM activities WHERE slug = :slug AND deleted_at IS NULL LIMIT 1');
+        $stmt = $this->db->prepare(
+            'SELECT a.*, l.slug AS lesson_slug FROM activities a
+             LEFT JOIN bible_lessons l ON l.id = a.lesson_id
+             WHERE a.slug = :slug AND a.deleted_at IS NULL LIMIT 1'
+        );
         $stmt->execute(['slug' => $slug]);
         $row = $stmt->fetch();
         return $row ? self::decorateActivity($row) : null;
@@ -126,15 +134,37 @@ class Activity
         return $questions;
     }
 
-    /** Same shape as questionsWithAnswers(), with every answer-revealing field stripped - what the player (GET before submit) receives. */
+    /**
+     * Same shape as questionsWithAnswers(), with every answer-revealing
+     * field stripped - what the player (GET before submit) receives.
+     *
+     * Stripping is_correct/correct_order/match_value alone isn't enough
+     * for 'ordering' and 'matching': for those two types the admin
+     * builder's own OPTION ORDER (or, for matching, each option's
+     * match_value) *is* the answer, so returning options in storage
+     * order would just hand the child the solved puzzle to look at.
+     * 'ordering' options are shuffled before being sent; 'matching'
+     * gets a separate, shuffled `match_pool` of plain right-hand-side
+     * strings instead of each option carrying its own match_value, so
+     * the child sees the set of possible matches without which belongs
+     * to which left-hand item.
+     */
     public function questionsForPlayer(int $activityId): array
     {
         $questions = $this->questionsWithAnswers($activityId);
         return array_map(function (array $q): array {
+            $options = $q['options'];
+            if ($q['type'] === 'ordering' || $q['type'] === 'multiple_choice' || $q['type'] === 'picture_choice') {
+                shuffle($options);
+            }
+            if ($q['type'] === 'matching') {
+                $q['match_pool'] = array_values(array_map(fn ($o) => $o['match_value'], $options));
+                shuffle($q['match_pool']);
+            }
             $q['options'] = array_map(function (array $opt): array {
                 unset($opt['is_correct'], $opt['correct_order'], $opt['match_value']);
                 return $opt;
-            }, $q['options']);
+            }, $options);
             unset($q['explanation']); // shown only after submission
             return $q;
         }, $questions);
