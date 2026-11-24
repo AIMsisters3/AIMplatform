@@ -105,18 +105,19 @@ class Series
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO series (title, slug, description, cover_image, category_id, section, language, status)
-             VALUES (:title, :slug, :description, :cover_image, :category_id, :section, :language, :status)'
+            'INSERT INTO series (title, slug, description, bible_references, cover_image, category_id, section, language, status)
+             VALUES (:title, :slug, :description, :bible_references, :cover_image, :category_id, :section, :language, :status)'
         );
         $stmt->execute([
-            'title'       => $data['title'],
-            'slug'        => $data['slug'],
-            'description' => $data['description'] ?? null,
-            'cover_image' => $data['cover_image'] ?? null,
-            'category_id' => $data['category_id'] ?? null,
-            'section'     => $data['section'] ?? 'media_library',
-            'language'    => $data['language'] ?? 'English',
-            'status'      => $data['status'] ?? 'draft',
+            'title'            => $data['title'],
+            'slug'             => $data['slug'],
+            'description'      => $data['description'] ?? null,
+            'bible_references' => $data['bible_references'] ?? null,
+            'cover_image'      => $data['cover_image'] ?? null,
+            'category_id'      => $data['category_id'] ?? null,
+            'section'          => $data['section'] ?? 'media_library',
+            'language'         => $data['language'] ?? 'English',
+            'status'           => $data['status'] ?? 'draft',
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -125,7 +126,7 @@ class Series
     {
         $fields = [];
         $params = ['id' => $id];
-        foreach (['title', 'slug', 'description', 'cover_image', 'category_id', 'section', 'language', 'status'] as $field) {
+        foreach (['title', 'slug', 'description', 'bible_references', 'cover_image', 'category_id', 'section', 'language', 'status'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "$field = :$field";
                 $params[$field] = $data[$field];

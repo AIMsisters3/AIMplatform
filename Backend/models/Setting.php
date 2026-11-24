@@ -30,6 +30,17 @@ class Setting
     /** Fallback used only until an admin sets shop.low_stock_threshold for the first time — never silently treated as "the" threshold once a real value exists. */
     public const DEFAULT_LOW_STOCK_THRESHOLD = 5;
 
+    /**
+     * Site-wide config shared across the whole app (not Shop-specific) -
+     * currently just the official WhatsApp contact number, previously
+     * hardcoded independently in FloatingWhatsAppButton.jsx AND
+     * Contact.jsx. Both now read it from here instead, so there is
+     * exactly one place an admin sets the real number.
+     */
+    public const SITE_KEYS = [
+        'site.whatsapp_number' => 'WhatsApp Number',
+    ];
+
     /** The effective, admin-configurable low-stock threshold (spec: "admin-configurable threshold" — never hardcoded past this one read). */
     public function lowStockThreshold(): int
     {

@@ -49,4 +49,34 @@ class SettingController
         $this->model->setMany($toSet);
         json_ok(null, 'Shop settings updated.');
     }
+
+    /** GET /api/settings/site — public. Same "known keys only, default to ''" contract as shop(). */
+    public function site(): void
+    {
+        $keys = array_keys(Setting::SITE_KEYS);
+        $values = $this->model->getMany($keys);
+        $result = [];
+        foreach ($keys as $key) {
+            $result[$key] = $values[$key] ?? '';
+        }
+        json_ok(['items' => $result]);
+    }
+
+    /** PUT /api/settings/site (requires content.edit) body: {"site.whatsapp_number": "..."} */
+    public function updateSite(): void
+    {
+        require_permission('content.edit');
+        $body = get_json_body();
+
+        $allowedKeys = array_keys(Setting::SITE_KEYS);
+        $toSet = [];
+        foreach ($body as $key => $value) {
+            if (in_array($key, $allowedKeys, true)) {
+                $toSet[$key] = is_string($value) ? $value : (string) $value;
+            }
+        }
+
+        $this->model->setMany($toSet);
+        json_ok(null, 'Site settings updated.');
+    }
 }

@@ -20,6 +20,7 @@ require_once __DIR__ . '/../controllers/BibleLessonController.php';
 require_once __DIR__ . '/../controllers/ActivityController.php';
 require_once __DIR__ . '/../controllers/NoteController.php';
 require_once __DIR__ . '/../controllers/SeriesController.php';
+require_once __DIR__ . '/../controllers/ReadingPlanController.php';
 require_once __DIR__ . '/../controllers/BookmarkController.php';
 require_once __DIR__ . '/../controllers/WatchHistoryController.php';
 require_once __DIR__ . '/../controllers/SearchController.php';
@@ -386,6 +387,20 @@ function route(string $method, string $path)
         json_error('Series route not found.', 404);
     }
 
+    // ---------- BIBLE READING PLANS ----------
+    if ($resource === 'reading-plans') {
+        $ctrl = new ReadingPlanController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === null && $method === 'POST') return $ctrl->store();
+        if ($id !== null && $action === 'progress' && $method === 'POST') return $ctrl->completeDay((int) $id);
+        if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
+        if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
+        if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
+
+        json_error('Reading plan route not found.', 404);
+    }
+
     // ---------- BOOKMARKS ----------
     if ($resource === 'bookmarks') {
         $ctrl = new BookmarkController();
@@ -440,6 +455,8 @@ function route(string $method, string $path)
 
         if ($id === 'shop' && $method === 'GET') return $ctrl->shop();
         if ($id === 'shop' && $method === 'PUT') return $ctrl->updateShop();
+        if ($id === 'site' && $method === 'GET') return $ctrl->site();
+        if ($id === 'site' && $method === 'PUT') return $ctrl->updateSite();
 
         json_error('Settings route not found.', 404);
     }
