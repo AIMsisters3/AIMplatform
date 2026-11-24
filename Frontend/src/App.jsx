@@ -24,6 +24,7 @@ const BibleStudies = lazy(() => import('./Pages/BibleStudies.jsx'));
 const BibleStudyDetail = lazy(() => import('./Pages/BibleStudyDetail.jsx'));
 const SeriesList = lazy(() => import('./Pages/Series.jsx'));
 const SeriesDetail = lazy(() => import('./Pages/SeriesDetail.jsx'));
+const ReadingPlanDetail = lazy(() => import('./Pages/ReadingPlanDetail.jsx'));
 const Devotions = lazy(() => import('./Pages/Devotions.jsx'));
 // Little Lights (Children's Ministry) - replaces the old flat Kids.jsx
 // page (deleted) with a dedicated hub + Stories/Lessons/Activities area.
@@ -65,6 +66,8 @@ const ManageContent = lazy(() => import('./Admin/Pages/ManageContent.jsx'));
 const ManageCategories = lazy(() => import('./Admin/Pages/ManageCategories.jsx'));
 const ManageProducts = lazy(() => import('./Admin/Pages/ManageProducts.jsx'));
 const ManageSeries = lazy(() => import('./Admin/Pages/ManageSeries.jsx'));
+const ManageReadingPlans = lazy(() => import('./Admin/Pages/ManageReadingPlans.jsx'));
+const SiteSettings = lazy(() => import('./Admin/Pages/SiteSettings.jsx'));
 const ChildrenMinistry = lazy(() => import('./Admin/Pages/ChildrenMinistry.jsx'));
 const ManageOrders = lazy(() => import('./Admin/Pages/ManageOrders.jsx'));
 const ManageDeliveryAreas = lazy(() => import('./Admin/Pages/ManageDeliveryAreas.jsx'));
@@ -127,6 +130,7 @@ export default function App() {
             <Route path="/bible-studies/:slugOrId" element={<PublicLayout><BibleStudyDetail /></PublicLayout>} />
             <Route path="/series" element={<PublicLayout><SeriesList /></PublicLayout>} />
             <Route path="/series/:slugOrId" element={<PublicLayout><SeriesDetail /></PublicLayout>} />
+            <Route path="/reading-plans/:slugOrId" element={<PublicLayout><ReadingPlanDetail /></PublicLayout>} />
             <Route path="/devotions" element={<PublicLayout><Devotions /></PublicLayout>} />
             <Route path="/kids" element={<PublicLayout><KidsHub /></PublicLayout>} />
             <Route path="/kids/stories" element={<PublicLayout><KidsStoriesList /></PublicLayout>} />
@@ -177,11 +181,13 @@ export default function App() {
               <Route path="products" element={<ManageProducts />} />
               <Route path="business" element={<BusinessDashboard />} />
               <Route path="series" element={<ManageSeries />} />
+              <Route path="reading-plans" element={<ManageReadingPlans />} />
               <Route path="children" element={<ChildrenMinistry />} />
               <Route path="orders" element={<ManageOrders />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />
               <Route path="payments" element={<PaymentVerification />} />
               <Route path="shop-settings" element={<ShopSettings />} />
+              <Route path="site-settings" element={<SiteSettings />} />
               <Route path="reviews" element={<ManageReviews />} />
               <Route path="comments" element={<ModerateComments />} />
               <Route path="newsletter" element={<ManageNewsletter />} />

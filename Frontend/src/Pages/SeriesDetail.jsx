@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { PlayCircle, Layers, ArrowLeft, Headphones, FileText } from 'lucide-react';
+import { PlayCircle, Layers, ArrowLeft, Headphones, FileText, BookOpen } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentViewerModal from '../Components/ContentViewerModal.jsx';
 import { getItemKind } from '../utils/mediaKind.js';
@@ -134,6 +134,13 @@ export default function SeriesDetail() {
           {series.description && <p className="text-white/80 text-sm md:text-base max-w-2xl line-clamp-2">{series.description}</p>}
         </div>
       </div>
+
+      {series.bible_references && (
+        <div className="flex items-start gap-2 bg-surface rounded-2xl px-4 py-3 mb-8">
+          <BookOpen className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+          <span className="text-sm text-ink/70 italic">{series.bible_references}</span>
+        </div>
+      )}
 
       {needsFormatChoice ? (
         <div className="py-6">

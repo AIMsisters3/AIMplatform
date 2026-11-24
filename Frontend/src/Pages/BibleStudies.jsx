@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRight, BookOpen, ScrollText, Layers, Loader2, Inbox, Quote, Users, Sparkles,
-  Headphones, FileText, Clock, Calendar, HelpCircle,
+  Headphones, FileText, Calendar,
 } from 'lucide-react';
 import api from '../api/axios.js';
 import ContentCard from '../Components/ContentCard.jsx';
 import LiveNowStrip from '../Components/LiveNowStrip.jsx';
 import ExpandingSearchButton from '../Components/ExpandingSearchButton.jsx';
+import FloatingWhatsAppButton from '../Components/FloatingWhatsAppButton.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
@@ -29,16 +30,6 @@ const staggerContainer = {
 // display order is pinned, since the three are seeded together and
 // nothing guarantees the backend returns them in reading order.
 const PROPHECY_ORDER = ['Daniel', 'Revelation', 'Matthew 24'];
-
-// Bible Reading Plan / Bible Quiz / Family Bible Study (migration 040) -
-// same pinned-order treatment as Prophecy, plus an icon per card since
-// these render as plain tiles rather than ProphecyCard's photo style.
-const READING_PLAN_ORDER = ['Bible Reading Plan', 'Bible Quiz', 'Family Bible Study'];
-const READING_PLAN_ICONS = {
-  'Bible Reading Plan': Calendar,
-  'Bible Quiz': HelpCircle,
-  'Family Bible Study': Users,
-};
 
 /**
  * The Prophecy row's three permanent books - a deliberately more ornate,
@@ -170,12 +161,11 @@ const FORMAT_TILE = {
 export default function BibleStudies() {
   const { user } = useAuth();
   const { language } = useLanguage();
-  const [continuing, setContinuing] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
-  const [latest, setLatest] = useState([]);
-  const [latestLoading, setLatestLoading] = useState(true);
   const [allSeries, setAllSeries] = useState([]);
+  const [readingPlans, setReadingPlans] = useState([]);
+  const [readingPlansLoading, setReadingPlansLoading] = useState(true);
   const [search, setSearch] = useState('');
   const verse = useMemo(() => getVerseOfDay(), []);
 
@@ -190,20 +180,9 @@ export default function BibleStudies() {
 
   useEffect(() => {
     api.get('/bible-studies/featured', { params: { limit: 8 } })
-      .then((r) => r.data?.data?.items || [])
-      .catch(() => [])
-      .then((items) => {
-        setFeatured(items);
-        setFeaturedLoading(false);
-        // Latest Studies exists so a standalone upload has somewhere to
-        // be seen before it earns enough views/likes to rank into
-        // Featured - exclude whatever Featured already shows so nothing
-        // appears twice on the page.
-        return api.get('/bible-studies/latest', { params: { limit: 8, exclude: items.map((i) => i.id).join(',') } })
-          .then((r) => setLatest(r.data?.data?.items || []))
-          .catch(() => setLatest([]))
-          .finally(() => setLatestLoading(false));
-      });
+      .then((r) => setFeatured(r.data?.data?.items || []))
+      .catch(() => setFeatured([]))
+      .finally(() => setFeaturedLoading(false));
     // Fetched once, split client-side into Prophecy vs everything else -
     // there are only ever 3 Prophecy series (migration 039 seeds them,
     // nothing in the admin can add a 4th), so a single reasonably-sized
@@ -212,12 +191,13 @@ export default function BibleStudies() {
     api.get('/series', { params: { section: 'bible_study', limit: 50 } })
       .then((r) => setAllSeries(r.data?.data?.items || []))
       .catch(() => setAllSeries([]));
+    // The real Bible Reading Plan feature (migration 043) - a standalone
+    // daily-reading schedule, not a series/episode at all.
+    api.get('/reading-plans')
+      .then((r) => setReadingPlans(r.data?.data?.items || []))
+      .catch(() => setReadingPlans([]))
+      .finally(() => setReadingPlansLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (!user) { setContinuing([]); return; }
-    api.get('/bible-studies/continue').then((r) => setContinuing(r.data.data.items)).catch(() => setContinuing([]));
-  }, [user]);
 
   const prophecySeries = useMemo(
     () => [...allSeries]
@@ -225,19 +205,14 @@ export default function BibleStudies() {
       .sort((a, b) => PROPHECY_ORDER.indexOf(a.title) - PROPHECY_ORDER.indexOf(b.title)),
     [allSeries]
   );
-  const readingPlanSeries = useMemo(
-    () => [...allSeries]
-      .filter((s) => s.is_reading_plan)
-      .sort((a, b) => READING_PLAN_ORDER.indexOf(a.title) - READING_PLAN_ORDER.indexOf(b.title)),
-    [allSeries]
-  );
-  const otherSeries = useMemo(
-    () => allSeries.filter((s) => !s.is_prophecy && !s.is_reading_plan),
+  const exploreSeries = useMemo(
+    () => allSeries.filter((s) => !s.is_prophecy),
     [allSeries]
   );
   const isSearching = search.trim().length > 0;
 
   return (
+    <>
     <div className="min-h-screen bg-surface">
       {/* Hero — a deeper, contemplative indigo rather than the site's
           default purple-led hero (fitting a study/reflection page), with
@@ -299,28 +274,11 @@ export default function BibleStudies() {
       </section>
 
       {/* No padding when there's nothing to show here (LiveNowStrip
-          renders null with no live items, Continue Studying needs a
-          signed-in user) - otherwise an empty py-12 box leaves a blank
-          gap between the hero and the first curated band below. */}
-      <div className={`max-w-7xl mx-auto px-6 ${(continuing.length > 0 || isSearching) ? 'py-12' : 'pt-6'}`}>
+          renders null with no live items) - otherwise an empty py-12 box
+          leaves a blank gap between the hero and the first curated band
+          below. */}
+      <div className={`max-w-7xl mx-auto px-6 ${isSearching ? 'py-12' : 'pt-6'}`}>
         <LiveNowStrip endpoint="/bible-studies" itemHref={(item) => `/bible-studies/${item.slug}`} />
-
-        {continuing.length > 0 && !isSearching && (
-          <div className="mb-12">
-            <h2 className="font-display font-semibold text-lg mb-4">Continue Studying</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {continuing.map((item) => (
-                <Link key={item.id} to={`/bible-studies/${item.slug}`} className="glass-card p-5 hover:-translate-y-1 transition-transform">
-                  <h3 className="font-semibold mb-2">{item.title}</h3>
-                  <div className="h-1.5 rounded-full bg-ink/10 overflow-hidden mb-1">
-                    <div className="h-full bg-brand-gradient rounded-full" style={{ width: `${item.progress_percent}%` }} />
-                  </div>
-                  <p className="text-xs text-ink/40">{item.progress_percent}% complete</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         {isSearching && (
           /* Search mode - a flat filtered grid, same ContentCard the
@@ -367,9 +325,9 @@ export default function BibleStudies() {
         )}
       </div>
 
-      {/* Curated bands - each its own full-bleed, alternating-tint
-          section (icon + title + subtitle, then a tile grid), matching
-          the reference layout rather than one flat background. */}
+      {/* Exactly 4 curated bands, in this order, and nothing else:
+          Featured Studies -> Prophecies -> Bible Reading Plan ->
+          Explore Bible Topics (redesign spec). */}
       {!isSearching && (
         <>
           {/* Featured Studies - purely the most liked/viewed (see
@@ -411,11 +369,11 @@ export default function BibleStudies() {
             </SectionBand>
           )}
 
-          {/* Prophecy - exactly Daniel/Revelation/Matthew 24, permanent. */}
+          {/* Prophecies - exactly Daniel/Revelation/Matthew 24, permanent. */}
           {prophecySeries.length > 0 && (
             <SectionBand
               icon={ScrollText}
-              title="Prophecy"
+              title="Prophecies"
               subtitle="Daniel, Revelation and Matthew 24 — unlocking Bible prophecy for the last days."
             >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -424,36 +382,44 @@ export default function BibleStudies() {
             </SectionBand>
           )}
 
-          {/* Bible Reading Plan / Bible Quiz / Family Bible Study
-              (migration 040) - exactly these three, permanent, same
-              locked treatment as Prophecy but plain tiles since there's
-              no cover-art expectation here. */}
-          {readingPlanSeries.length > 0 && (
+          {/* Bible Reading Plan - a real, standalone daily-reading
+              schedule feature (migration 043 / ReadingPlanController),
+              not tied to any audio/PDF upload. */}
+          {(readingPlansLoading || readingPlans.length > 0) && (
             <SectionBand
               icon={Calendar}
               title="Bible Reading Plan"
-              subtitle="A simple plan to read through Scripture, plus tools to test and share what you're learning."
+              subtitle="Simple day-by-day plans to read through Scripture together."
             >
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {readingPlanSeries.map((s) => (
-                  <StudyTile
-                    key={s.id}
-                    to={`/series/${s.slug}`}
-                    icon={READING_PLAN_ICONS[s.title] || Calendar}
-                    title={s.title}
-                    meta={`${s.episode_count} ${Number(s.episode_count) === 1 ? 'item' : 'items'}`}
-                  />
-                ))}
-              </div>
+              {readingPlansLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-[70px] rounded-2xl bg-surface animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {readingPlans.map((p) => (
+                    <StudyTile
+                      key={p.id}
+                      to={`/reading-plans/${p.slug}`}
+                      icon={Calendar}
+                      title={p.title}
+                      meta={`${p.day_count} ${Number(p.day_count) === 1 ? 'day' : 'days'}`}
+                    />
+                  ))}
+                </div>
+              )}
             </SectionBand>
           )}
 
-          {/* Everything else - every other admin-created study series
-              (e.g. "The Great Controversy", "Steps to Christ"). */}
-          {otherSeries.length > 0 && (
+          {/* Explore Bible Topics - every other admin-created study
+              series/collection (e.g. "The Great Controversy", "Steps to
+              Christ"), fully dynamic - no hardcoded examples. */}
+          {exploreSeries.length > 0 && (
             <SectionBand
               icon={Layers}
-              title="Explore More Studies"
+              title="Explore Bible Topics"
               subtitle="Multi-chapter books and collections to study at your own pace."
               action={
                 <Link to="/series?section=bible_study" className="flex items-center gap-1 text-xs font-semibold text-secondary shrink-0">
@@ -465,7 +431,7 @@ export default function BibleStudies() {
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                 initial="hidden" animate="visible" variants={staggerContainer}
               >
-                {otherSeries.map((s) => (
+                {exploreSeries.map((s) => (
                   <motion.div key={s.id} variants={fadeUp}>
                     <StudyTile
                       to={`/series/${s.slug}`}
@@ -479,39 +445,8 @@ export default function BibleStudies() {
             </SectionBand>
           )}
 
-          {/* Latest Studies - standalone uploads (no collection card of
-              their own) that haven't yet earned a Featured spot, so
-              nothing new is invisible while it's still fresh. */}
-          {!latestLoading && latest.length > 0 && (
-            <SectionBand
-              icon={Clock}
-              title="Latest Studies"
-              subtitle="Freshly added studies, hot off the press."
-            >
-              <motion.div
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-                initial="hidden" animate="visible" variants={staggerContainer}
-              >
-                {latest.map((item) => {
-                  const kind = getItemKind(item);
-                  const { icon, label } = FORMAT_TILE[kind] || FORMAT_TILE.audio;
-                  return (
-                    <motion.div key={item.id} variants={fadeUp}>
-                      <StudyTile
-                        to={`/bible-studies/${item.slug}`}
-                        icon={icon}
-                        title={item.title}
-                        meta={label}
-                      />
-                    </motion.div>
-                  );
-                })}
-              </motion.div>
-            </SectionBand>
-          )}
-
-          {!featuredLoading && !latestLoading && featured.length === 0 && latest.length === 0
-            && prophecySeries.length === 0 && readingPlanSeries.length === 0 && otherSeries.length === 0 && (
+          {!featuredLoading && !readingPlansLoading && featured.length === 0
+            && prophecySeries.length === 0 && readingPlans.length === 0 && exploreSeries.length === 0 && (
             <div className="max-w-7xl mx-auto px-6 py-12">
               <div className="glass-card p-10 text-center">
                 <Inbox className="w-8 h-8 text-ink/25 mx-auto mb-3" />
@@ -552,5 +487,10 @@ export default function BibleStudies() {
         </div>
       )}
     </div>
+    {/* Fixed to the viewport, follows scroll - same component
+        BibleStudyDetail.jsx uses, reading its number from Site
+        Settings rather than a hardcoded link. */}
+    <FloatingWhatsAppButton />
+    </>
   );
 }

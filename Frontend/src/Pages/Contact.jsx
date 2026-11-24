@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Quote, Mail, Phone, MapPin, Send, HandHeart, BookOpen, Sunrise, Video, BookMarked, Bell, Loader2 } from 'lucide-react';
 import api from '../api/axios.js';
+import useWhatsAppNumber from '../hooks/useWhatsAppNumber.js';
 
 // Real ministry contact details — the same email already used as the
 // Contact form's own inbox on the backend (ContactController::CONTACT_INBOX).
 const CONTACT_EMAIL = 'aimsisters3@gmail.com';
-const CONTACT_WHATSAPP_DISPLAY = '+264 81 261 6938';
-const CONTACT_WHATSAPP_LINK = 'https://wa.me/264812616938';
 const CONTACT_LOCATION = 'Online';
 
 // Mirrors ContactController::SUBJECTS exactly (Backend/controllers/ContactController.php).
@@ -29,6 +28,7 @@ const fadeUp = {
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
 
 export default function Contact() {
+  const { link: whatsappLink, display: whatsappDisplay } = useWhatsAppNumber();
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -101,13 +101,15 @@ export default function Contact() {
             <p className="font-semibold text-sm mb-0.5">Email</p>
             <p className="text-ink/60 text-xs break-all">{CONTACT_EMAIL}</p>
           </motion.a>
-          <motion.a href={CONTACT_WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" variants={fadeUp} className="glass-card p-6 text-center hover:-translate-y-1 transition-transform">
-            <div className="w-12 h-12 rounded-full bg-brand-gradient flex items-center justify-center mx-auto mb-3 shadow-glass">
-              <Phone className="w-5 h-5 text-white" />
-            </div>
-            <p className="font-semibold text-sm mb-0.5">WhatsApp</p>
-            <p className="text-ink/60 text-xs">{CONTACT_WHATSAPP_DISPLAY}</p>
-          </motion.a>
+          {whatsappLink && (
+            <motion.a href={whatsappLink} target="_blank" rel="noopener noreferrer" variants={fadeUp} className="glass-card p-6 text-center hover:-translate-y-1 transition-transform">
+              <div className="w-12 h-12 rounded-full bg-brand-gradient flex items-center justify-center mx-auto mb-3 shadow-glass">
+                <Phone className="w-5 h-5 text-white" />
+              </div>
+              <p className="font-semibold text-sm mb-0.5">WhatsApp</p>
+              <p className="text-ink/60 text-xs">{whatsappDisplay}</p>
+            </motion.a>
+          )}
           <motion.div variants={fadeUp} className="glass-card p-6 text-center">
             <div className="w-12 h-12 rounded-full bg-brand-gradient flex items-center justify-center mx-auto mb-3 shadow-glass">
               <MapPin className="w-5 h-5 text-white" />

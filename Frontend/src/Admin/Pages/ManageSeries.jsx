@@ -82,7 +82,7 @@ export default function ManageSeries() {
   const [series, setSeries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ title: '', description: '', status: 'draft', section: 'media_library', cover_image: null });
+  const [form, setForm] = useState({ title: '', description: '', bible_references: '', status: 'draft', section: 'media_library', cover_image: null });
   const [expanded, setExpanded] = useState(null);
   const [episodes, setEpisodes] = useState({});
   const [attachForm, setAttachForm] = useState({});
@@ -111,7 +111,7 @@ export default function ManageSeries() {
     try {
       await api.post('/series', form);
       setMessage('Series created.');
-      setForm({ title: '', description: '', status: 'draft', section: 'media_library', cover_image: null });
+      setForm({ title: '', description: '', bible_references: '', status: 'draft', section: 'media_library', cover_image: null });
       load();
     } catch (err) {
       setMessage(err.response?.data?.message || 'Could not create series.');
@@ -126,7 +126,7 @@ export default function ManageSeries() {
 
   function startEditSeries(s) {
     setEditingSeriesId(s.id);
-    setEditForm({ title: s.title, description: s.description || '', status: s.status, section: s.section || 'media_library', cover_image: s.cover_image || null });
+    setEditForm({ title: s.title, description: s.description || '', bible_references: s.bible_references || '', status: s.status, section: s.section || 'media_library', cover_image: s.cover_image || null });
   }
 
   async function saveSeriesEdit(id) {
@@ -202,6 +202,13 @@ export default function ManageSeries() {
           <textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
             className="mt-1 w-full px-4 py-2.5 rounded-2xl border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
         </label>
+        {form.section === 'bible_study' && (
+          <label className="block md:col-span-2">
+            <span className="text-xs font-semibold text-ink/50">Bible References</span>
+            <input value={form.bible_references} onChange={(e) => setForm({ ...form, bible_references: e.target.value })} placeholder="e.g. Daniel 1-12"
+              className="mt-1 w-full px-4 py-2.5 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary" />
+          </label>
+        )}
         <SeriesThumbnailField value={form.cover_image} onChange={(url) => setForm({ ...form, cover_image: url })} />
         <label className="block">
           <span className="text-xs font-semibold text-ink/50">Appears Under</span>
@@ -239,6 +246,10 @@ export default function ManageSeries() {
                     className="w-full px-4 py-2 rounded-xl2 border border-ink/10 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-secondary" />
                   <textarea rows={2} value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     className="w-full px-4 py-2 rounded-2xl border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  {editForm.section === 'bible_study' && (
+                    <input value={editForm.bible_references} onChange={(e) => setEditForm({ ...editForm, bible_references: e.target.value })} placeholder="Bible References, e.g. Daniel 1-12"
+                      className="w-full px-4 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  )}
                   <SeriesThumbnailField value={editForm.cover_image} onChange={(url) => setEditForm({ ...editForm, cover_image: url })} />
                   <div className="flex flex-wrap gap-2">
                     <select value={editForm.section} onChange={(e) => setEditForm({ ...editForm, section: e.target.value })}
