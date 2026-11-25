@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Loader2, Inbox, Sparkles, Tag, ArrowRight } from 'lucide-react';
+import { Search, Loader2, Inbox, Sparkles, Tag, ArrowRight, X } from 'lucide-react';
 import api from '../api/axios.js';
 import ProductCard from '../Components/ProductCard.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
@@ -75,41 +75,34 @@ export default function Shop() {
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* Hero */}
-      {/* Dark-to-blue-to-pink - a more distinctive, premium-feeling
-          gradient than the site's default purple-led hero (spec: "stop
-          using purple for every hero"). */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-ink via-primary to-accent py-14">
-        <motion.div
-          className="absolute -top-16 -right-10 w-64 h-64 rounded-full bg-accent/20 blur-3xl pointer-events-none"
-          animate={{ y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <div className="relative max-w-7xl mx-auto px-6">
-          <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-xl">
-            <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white mb-3 break-words">
-              AIMsisters <span className="bg-gradient-to-r from-accent via-pink-300 to-white bg-clip-text text-transparent">Shop</span>
-            </h1>
-            <p className="text-white/85 text-base sm:text-lg">
-              Modest clothing, accessories, home & lifestyle, food, natural wellness products, and books — proudly Namibian.
-            </p>
-          </motion.div>
-          <motion.form
-            initial="hidden" animate="visible" variants={fadeUp}
-            onSubmit={(e) => e.preventDefault()}
-            className="relative max-w-lg mt-8"
-          >
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products..."
-              className="w-full pl-11 pr-4 py-3.5 rounded-full border-0 shadow-glass focus:outline-none focus:ring-2 focus:ring-white text-sm"
-            />
-          </motion.form>
-        </div>
-      </section>
+      {/* No hero section (redesign spec: "open directly into the
+          product-shopping experience") - just a working search bar,
+          functional rather than decorative, right above the products. */}
+      <div className="max-w-7xl mx-auto px-6 pt-8 pb-10">
+        <motion.form
+          initial="hidden" animate="visible" variants={fadeUp}
+          onSubmit={(e) => e.preventDefault()}
+          className="relative max-w-xl mx-auto mb-8"
+        >
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink/40" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products by name, category, description..."
+            className="w-full pl-11 pr-10 py-3.5 rounded-full border border-ink/10 bg-white shadow-glass focus:outline-none focus:ring-2 focus:ring-secondary text-sm"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface flex items-center justify-center text-ink/40 hover:text-ink"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </motion.form>
 
-      <div className="max-w-7xl mx-auto px-6 py-10">
         {!isFiltering && (
           <ProductRow title="New Arrivals" icon={Sparkles} products={newArrivals} />
         )}
