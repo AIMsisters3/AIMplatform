@@ -86,7 +86,7 @@ class CronController
     {
         $db = Database::getConnection();
         $stmt = $db->prepare(
-            "SELECT id, order_number, user_id, deposit_amount, deposit_deadline_at
+            "SELECT id, order_number, user_id, contact_phone, deposit_amount, deposit_deadline_at
              FROM orders
              WHERE order_kind = 'on_order' AND deposit_deadline_at IS NOT NULL
                AND deposit_paid_at IS NULL AND deposit_reminder_sent_at IS NULL
@@ -104,7 +104,8 @@ class CronController
                     (int) $row['user_id'], 'Deposit due soon',
                     "Order {$row['order_number']}: your deposit of N$" . number_format((float) $row['deposit_amount'], 2)
                         . ' is due by ' . date('j F Y, H:i', strtotime($row['deposit_deadline_at'])) . '.',
-                    'order', 'Deposit Reminder'
+                    'order', 'Deposit Reminder',
+                    '/orders', 'View Order', $row['contact_phone'] ?? null, (int) $row['id'], 'deposit_reminder'
                 );
             }
         }

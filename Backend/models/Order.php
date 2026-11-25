@@ -374,7 +374,8 @@ class Order
                 ? "Your Pay Later request {$orderNumber} has been submitted and is awaiting approval."
                 : "Your order {$orderNumber} has been received and is being processed.",
             $isPayLater ? 'pay_later' : 'order',
-            $isPayLater ? 'Pay Later' : 'Order Placed'
+            $isPayLater ? 'Pay Later' : 'Order Placed',
+            '/orders', 'View Order', $contactPhone, $orderId, 'order_placed'
         );
 
         return ['id' => $orderId];
@@ -412,7 +413,8 @@ class Order
         notify_shop_event(
             $userId, 'On-order request received',
             "Your order {$orderNumber} for on-order item(s) has been received. We'll confirm a deposit amount and supplier timeline shortly.",
-            'order', 'On-Order Item'
+            'order', 'On-Order Item',
+            '/orders', 'View Order', $contactPhone, $orderId, 'order_placed'
         );
 
         return ['id' => $orderId];
@@ -594,7 +596,8 @@ class Order
             notify_shop_event(
                 (int) $order['user_id'], 'Order update',
                 "Your order {$order['order_number']} is now: " . ucwords(str_replace('_', ' ', $status)) . '.',
-                'order', 'Order Update'
+                'order', 'Order Update',
+                '/orders', 'View Order', $order['contact_phone'] ?? null, (int) $order['id'], 'status_update'
             );
         }
         return $ok;
@@ -633,7 +636,8 @@ class Order
                 (int) $order['user_id'], 'Deposit required to proceed',
                 "Order {$order['order_number']}: a {$percent}% deposit of N$" . number_format($depositAmount, 2)
                     . ' is due by ' . date('j F Y, H:i', strtotime($deadlineAt)) . ' to confirm your order with our supplier.',
-                'order', 'Deposit Required'
+                'order', 'Deposit Required',
+                '/orders', 'View Order', $order['contact_phone'] ?? null, (int) $order['id'], 'deposit_required'
             );
         }
     }
@@ -664,7 +668,8 @@ class Order
                         (int) $order['user_id'], 'Your order has arrived',
                         "All items for order {$order['order_number']} have arrived from our supplier. "
                             . ($order['fulfillment_type'] === 'pickup' ? 'It will be ready for pickup once any remaining balance is paid.' : 'It will be prepared for delivery once any remaining balance is paid.'),
-                        'order', 'Order Arrived'
+                        'order', 'Order Arrived',
+                        '/orders', 'View Order', $order['contact_phone'] ?? null, (int) $order['id'], 'order_arrived'
                     );
                 }
             }
@@ -736,10 +741,39 @@ class Order
                 $paymentState === 'paid'
                     ? "Payment for order {$order['order_number']} has been fully verified. Thank you!"
                     : "A payment of N$" . number_format($amount, 2) . " for order {$order['order_number']} has been verified. Remaining balance: N$" . number_format($due - $newAmountPaid, 2) . '.',
-                'order', 'Payment Verified'
+                'order', 'Payment Verified',
+                '/orders', 'View Order', $order['contact_phone'] ?? null, (int) $order['id'], 'payment_approved'
             );
         }
         return $order;
+    }
+
+    /**
+     * A rejected payment_records row previously left orders.payment_state
+     * completely untouched - an admin browsing the orders table itself
+     * (not drilling into each payment record) had no way to see it was
+     * rejected. 'rejected' only ever applies when nothing has actually
+     * been paid yet on this order (a partial payment that's since been
+     * topped up by a different, verified payment must not be clobbered
+     * back to "rejected").
+     */
+    public function markPaymentRejected(int $orderId): void
+    {
+        $this->db->prepare(
+            "UPDATE orders SET payment_state = 'rejected' WHERE id = :id AND payment_state IN ('pending', 'awaiting_verification')"
+        )->execute(['id' => $orderId]);
+    }
+
+    /** Set the instant a refund is requested, so an admin scanning the orders table (not drilling into Refunds) already sees it's in motion. */
+    public function markRefundPending(int $orderId): void
+    {
+        $this->db->prepare("UPDATE orders SET payment_state = 'refund_pending' WHERE id = :id")->execute(['id' => $orderId]);
+    }
+
+    /** Only RefundController::process() calls this - a refund is never "refunded" on the order until the money has actually been sent (spec: never describe a refund as completed until processed). */
+    public function markRefunded(int $orderId): void
+    {
+        $this->db->prepare("UPDATE orders SET payment_state = 'refunded' WHERE id = :id")->execute(['id' => $orderId]);
     }
 
     public function cancel(int $id, string $reason): bool
@@ -767,9 +801,26 @@ class Order
         return $coupon;
     }
 
+    /**
+     * AIM-YYYYMMDD-NNN with NNN a sequential, never-reused counter
+     * starting at 001 each day (redesign spec - replaces the previous
+     * random-suffix format). The INSERT...ON DUPLICATE KEY UPDATE
+     * next_seq = LAST_INSERT_ID(next_seq + 1) trick is a single atomic
+     * statement - safe under concurrent checkouts on the same day
+     * without needing its own transaction or row lock, and
+     * order_number_counters.next_seq only ever increases, so a
+     * cancelled/deleted order's number is never handed out again.
+     */
     private function generateOrderNumber(): string
     {
-        return 'AIM-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        $dateKey = date('Ymd');
+        $this->db->prepare(
+            'INSERT INTO order_number_counters (date_key, next_seq) VALUES (:date_key, 1)
+             ON DUPLICATE KEY UPDATE next_seq = LAST_INSERT_ID(next_seq + 1)'
+        )->execute(['date_key' => $dateKey]);
+        $seq = (int) $this->db->lastInsertId();
+
+        return "AIM-{$dateKey}-" . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
     }
 
     private function generateSplitGroupId(): string

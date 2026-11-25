@@ -97,7 +97,12 @@ class Product
             $where[] = 'p.is_featured = 1';
         }
         if (!empty($filters['is_new'])) {
-            $where[] = 'p.is_new = 1';
+            // New Arrivals must actually be purchasable right now (spec:
+            // "only products that are currently in stock and available
+            // for purchase... do not show out-of-stock products") - same
+            // in-stock test as availabilityFor(), done in SQL here since
+            // it has to filter the result set, not just decorate it.
+            $where[] = "p.is_new = 1 AND p.status = 'active' AND p.sourcing_type != 'on_order' AND (p.stock_quantity - p.reserved_quantity) > 0";
         }
         if (!empty($filters['on_sale'])) {
             $where[] = "p.sale_price IS NOT NULL AND p.sale_price < p.price
@@ -288,6 +293,66 @@ class Product
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
         return array_map([$this, 'decorate'], $stmt->fetchAll());
+    }
+
+    /**
+     * "You May Also Like" (redesign spec §7) - genuine customer-behavior
+     * ranking (units sold * 5 + wishlist adds * 3, purchases weighted
+     * higher as stronger buying-intent evidence, same ratio convention
+     * featured()/popularityRanked() already use for views vs. sales),
+     * NOT the plain category match related() does. Excludes the current
+     * product and anything not actually purchasable right now (spec:
+     * "exclude unavailable products"). Backfills with same-category
+     * products when there aren't enough with real behavior data yet, so
+     * the section is never emptier than it needs to be - but never
+     * invents a score for them (spec: "do not display fake popularity").
+     */
+    public function youMayAlsoLike(int $excludeId, ?int $categoryId, int $limit = 8): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT p.*, cat.name AS category_name, cat.slug AS category_slug,
+                    (COALESCE(sold.units, 0) * 5 + COALESCE(liked.likes, 0) * 3) AS behavior_score
+             FROM products p
+             LEFT JOIN categories cat ON cat.id = p.category_id
+             LEFT JOIN (
+                 SELECT product_id, SUM(-quantity_change) AS units
+                 FROM stock_movements WHERE reason = 'sale' GROUP BY product_id
+             ) sold ON sold.product_id = p.id
+             LEFT JOIN (
+                 SELECT product_id, COUNT(*) AS likes FROM wishlists GROUP BY product_id
+             ) liked ON liked.product_id = p.id
+             WHERE p.deleted_at IS NULL AND p.status = 'active' AND p.id != :id
+               AND p.sourcing_type != 'on_order' AND (p.stock_quantity - p.reserved_quantity) > 0
+               AND (sold.units > 0 OR liked.likes > 0)
+             ORDER BY behavior_score DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue('id', $excludeId, PDO::PARAM_INT);
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        $picked = $stmt->fetchAll();
+
+        $remaining = $limit - count($picked);
+        if ($remaining > 0 && $categoryId) {
+            $excludeIds = array_merge([$excludeId], array_column($picked, 'id')) ?: [$excludeId];
+            $placeholders = implode(',', array_fill(0, count($excludeIds), '?'));
+            $stmt = $this->db->prepare(
+                "SELECT p.*, cat.name AS category_name, cat.slug AS category_slug
+                 FROM products p
+                 LEFT JOIN categories cat ON cat.id = p.category_id
+                 WHERE p.category_id = ? AND p.deleted_at IS NULL AND p.status = 'active'
+                   AND p.sourcing_type != 'on_order' AND (p.stock_quantity - p.reserved_quantity) > 0
+                   AND p.id NOT IN ($placeholders)
+                 LIMIT " . $remaining
+            );
+            $stmt->execute(array_merge([$categoryId], $excludeIds));
+            $picked = array_merge($picked, $stmt->fetchAll());
+        }
+
+        return array_map(function (array $row): array {
+            unset($row['behavior_score']);
+            return $this->decorate($row);
+        }, $picked);
     }
 
     /**

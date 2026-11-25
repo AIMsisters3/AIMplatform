@@ -4,6 +4,7 @@ require_once __DIR__ . '/../models/DeliveryArea.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/delivery_quote.php';
 
 /**
  * Delivery areas/fees + pickup locations — admin-configured (spec: "Do
@@ -70,5 +71,24 @@ class DeliveryAreaController
         }
         $this->model->delete($id);
         json_ok(null, 'Delivery area deleted.');
+    }
+
+    /**
+     * POST /api/delivery-areas/quote (public) body: {latitude, longitude}
+     * — the real delivery-fee quote for this exact point, computed
+     * server-side (never trusts a client-submitted fee - see this
+     * class's own docblock). Checked once more at order placement too,
+     * so a quote that goes stale between viewing and confirming can
+     * never be used to undercharge.
+     */
+    public function quote(): void
+    {
+        $body = get_json_body();
+        $lat = isset($body['latitude']) ? (float) $body['latitude'] : null;
+        $lng = isset($body['longitude']) ? (float) $body['longitude'] : null;
+        if ($lat === null || $lng === null || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            json_error('A valid latitude and longitude are required.', 422);
+        }
+        json_ok(compute_delivery_quote($lat, $lng));
     }
 }

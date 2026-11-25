@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/Product.php';
+require_once __DIR__ . '/Setting.php';
 require_once __DIR__ . '/../helpers/shop_notify.php';
 
 /**
@@ -120,8 +121,16 @@ class PayLater
                 );
             }
 
-            $details = $this->detailsFor($orderId);
-            $dueAt = date('Y-m-d H:i:s', strtotime("+{$details['requested_days']} days"));
+            // Strict 7-day payment period (redesign spec - no longer the
+            // customer/admin-chosen requested_days, which this column now
+            // only keeps for historical display). The deadline's TIME
+            // component is the admin-configured daily termination time
+            // (Setting::SHOP_KEYS['shop.pay_later_termination_time']),
+            // not simply "exactly 168 hours from now" - so every Pay
+            // Later order in the system terminates at the same clock
+            // time of day, matching the spec's Day 7 wording ("terminated
+            // at [configured time] if payment is not received").
+            $dueAt = self::computeDueAt();
 
             $this->db->prepare(
                 'UPDATE pay_later_details SET approved_at = NOW(), approved_by = :admin_id, due_at = :due_at WHERE order_id = :order_id'
@@ -141,11 +150,22 @@ class PayLater
             notify_shop_event(
                 (int) $order['user_id'],
                 'Pay Later request approved',
-                "Your Pay Later order {$order['order_number']} is approved. Payment is due by " . date('j F Y, H:i', strtotime($dueAt)) . '.',
+                "Your Pay Later order {$order['order_number']} is approved. Your 7-day payment period has started - payment is due by "
+                    . date('j F Y, H:i', strtotime($dueAt)) . '.',
                 'pay_later',
-                'Pay Later Approved'
+                'Pay Later Approved',
+                '/orders', 'View Order', $order['contact_phone'] ?? null, $orderId, 'pay_later_approved'
             );
         }
+    }
+
+    /** 7 days from now, at the admin-configured daily termination time (default 17:00, Africa/Windhoek - config.php's fixed app timezone). */
+    public static function computeDueAt(): string
+    {
+        $time = (new Setting())->getMany(['shop.pay_later_termination_time'])['shop.pay_later_termination_time'] ?? '';
+        $time = preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time) ? $time : '17:00';
+        $dueDate = date('Y-m-d', strtotime('+7 days'));
+        return "{$dueDate} {$time}:00";
     }
 
     public function decline(int $orderId, int $adminUserId, ?string $reason): void
@@ -189,38 +209,72 @@ class PayLater
         return ['reminders_sent' => $remindersSent, 'expired' => $expired];
     }
 
+    /**
+     * The spec's exact Day 3 / Day 6 / Day 7 schedule, counted from
+     * approved_at (Day 1 - the "your 7-day period has started" notice
+     * already fires inline in approve() itself, not from this sweep).
+     * Each threshold has its own "already sent" column so a sweep that
+     * runs every few minutes never re-sends the same reminder - and a
+     * payment made between sweeps is caught by the WHERE clause (payment
+     * no longer pending) before any reminder fires at all.
+     */
     private function sendDueReminders(): int
     {
         $stmt = $this->db->prepare(
-            "SELECT pld.*, o.order_number, o.user_id
+            "SELECT pld.*, o.order_number, o.user_id, o.contact_phone
              FROM pay_later_details pld
              JOIN orders o ON o.id = pld.order_id
              WHERE o.status = 'awaiting_payment' AND o.payment_state NOT IN ('paid', 'partially_paid')
-               AND pld.reminder_sent_at IS NULL
-               AND pld.due_at <= DATE_ADD(NOW(), INTERVAL 1 DAY)"
+               AND pld.approved_at IS NOT NULL
+               AND (pld.reminder_day3_sent_at IS NULL OR pld.reminder_day6_sent_at IS NULL OR pld.reminder_day7_sent_at IS NULL)"
         );
         $stmt->execute();
-        $due = $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
 
-        foreach ($due as $row) {
-            $this->db->prepare('UPDATE pay_later_details SET reminder_sent_at = NOW() WHERE order_id = :id')->execute(['id' => $row['order_id']]);
-            if ($row['user_id']) {
-                notify_shop_event(
-                    (int) $row['user_id'],
-                    'Pay Later payment due soon',
-                    "Your Pay Later order {$row['order_number']} is due by " . date('j F Y, H:i', strtotime($row['due_at'])) . '. Please complete payment to avoid cancellation.',
-                    'pay_later',
-                    'Payment Reminder'
-                );
+        $sentCount = 0;
+        foreach ($rows as $row) {
+            $daysSinceApproval = (int) floor((time() - strtotime($row['approved_at'])) / 86400);
+            $todayIsDueDate = date('Y-m-d') === date('Y-m-d', strtotime($row['due_at']));
+
+            if ($daysSinceApproval >= 6 && $todayIsDueDate && !$row['reminder_day7_sent_at']) {
+                $this->sendReminder($row, 'reminder_day7_sent_at',
+                    'Final day to pay - Pay Later',
+                    "Today is the final day to complete payment for order {$row['order_number']}. "
+                        . 'Your order will be terminated at ' . date('H:i', strtotime($row['due_at'])) . " if payment is not received.",
+                    'pay_later_reminder_day7');
+                $sentCount++;
+            } elseif ($daysSinceApproval >= 5 && !$row['reminder_day6_sent_at']) {
+                $this->sendReminder($row, 'reminder_day6_sent_at',
+                    'Payment due tomorrow - Pay Later',
+                    "Your order {$row['order_number']} will be terminated tomorrow if payment is not received.",
+                    'pay_later_reminder_day6');
+                $sentCount++;
+            } elseif ($daysSinceApproval >= 2 && !$row['reminder_day3_sent_at']) {
+                $this->sendReminder($row, 'reminder_day3_sent_at',
+                    'Two days remaining - Pay Later',
+                    "You have only two days remaining to complete your payment for order {$row['order_number']}.",
+                    'pay_later_reminder_day3');
+                $sentCount++;
             }
         }
-        return count($due);
+        return $sentCount;
+    }
+
+    private function sendReminder(array $row, string $column, string $title, string $message, string $eventType): void
+    {
+        $this->db->prepare("UPDATE pay_later_details SET {$column} = NOW() WHERE order_id = :id")->execute(['id' => $row['order_id']]);
+        if ($row['user_id']) {
+            notify_shop_event(
+                (int) $row['user_id'], $title, $message, 'pay_later', 'Pay Later Reminder',
+                '/orders', 'View Order', $row['contact_phone'] ?? null, (int) $row['order_id'], $eventType
+            );
+        }
     }
 
     private function expireOverdue(): int
     {
         $stmt = $this->db->prepare(
-            "SELECT pld.*, o.order_number, o.user_id
+            "SELECT pld.*, o.order_number, o.user_id, o.contact_phone
              FROM pay_later_details pld
              JOIN orders o ON o.id = pld.order_id
              WHERE o.status = 'awaiting_payment' AND o.payment_state NOT IN ('paid', 'partially_paid')
@@ -252,9 +306,9 @@ class PayLater
                     );
                 }
 
-                $this->db->prepare('UPDATE pay_later_details SET expired_at = NOW() WHERE order_id = :id')->execute(['id' => $orderId]);
+                $this->db->prepare('UPDATE pay_later_details SET expired_at = NOW(), terminated_at = NOW() WHERE order_id = :id')->execute(['id' => $orderId]);
                 $this->db->prepare(
-                    "UPDATE orders SET status = 'cancelled', payment_state = 'expired', cancelled_at = NOW(), cancellation_reason = 'Pay Later deadline passed unpaid.' WHERE id = :id"
+                    "UPDATE orders SET status = 'terminated', payment_state = 'expired', cancelled_at = NOW(), cancellation_reason = 'Pay Later 7-day deadline passed unpaid.' WHERE id = :id"
                 )->execute(['id' => $orderId]);
 
                 $this->db->commit();
@@ -268,10 +322,11 @@ class PayLater
             if ($row['user_id']) {
                 notify_shop_event(
                     (int) $row['user_id'],
-                    'Pay Later order cancelled',
-                    "Your Pay Later order {$row['order_number']} was cancelled because payment wasn't received by the deadline.",
+                    'Pay Later order terminated',
+                    "Your Pay Later order {$row['order_number']} was terminated because payment wasn't received within the 7-day period.",
                     'pay_later',
-                    'Order Cancelled'
+                    'Order Terminated',
+                    '/orders', 'View Order', $row['contact_phone'] ?? null, $orderId, 'pay_later_terminated'
                 );
             }
         }

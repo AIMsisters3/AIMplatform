@@ -97,9 +97,7 @@ class ProductController
             json_error('Product not found.', 404);
         }
 
-        $related = $product['category_id']
-            ? $this->model->related((int) $product['id'], (int) $product['category_id'])
-            : [];
+        $related = $this->model->youMayAlsoLike((int) $product['id'], $product['category_id'] ? (int) $product['category_id'] : null);
 
         $viewer = optional_auth();
         if ($viewer) {

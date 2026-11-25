@@ -21,6 +21,7 @@ require_once __DIR__ . '/../controllers/ActivityController.php';
 require_once __DIR__ . '/../controllers/NoteController.php';
 require_once __DIR__ . '/../controllers/SeriesController.php';
 require_once __DIR__ . '/../controllers/ReadingPlanController.php';
+require_once __DIR__ . '/../controllers/NotificationWebhookController.php';
 require_once __DIR__ . '/../controllers/BookmarkController.php';
 require_once __DIR__ . '/../controllers/WatchHistoryController.php';
 require_once __DIR__ . '/../controllers/SearchController.php';
@@ -468,6 +469,12 @@ function route(string $method, string $path)
         json_error('Settings route not found.', 404);
     }
 
+    // ---------- WEBHOOKS (external providers - no user session; each endpoint validates the provider's own request signature) ----------
+    if ($resource === 'webhooks') {
+        if ($id === 'twilio-status' && $method === 'POST') return (new NotificationWebhookController())->twilioStatus();
+        json_error('Webhook route not found.', 404);
+    }
+
     // ---------- CRON (shared-secret auth, not a user session — see CronController) ----------
     if ($resource === 'cron') {
         if ($id === 'run-due-tasks' && $method === 'POST') return (new CronController())->runDueTasks();
@@ -479,6 +486,7 @@ function route(string $method, string $path)
         $ctrl = new DeliveryAreaController();
 
         if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === 'quote' && $method === 'POST') return $ctrl->quote();
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $method === 'DELETE') return $ctrl->destroy((int) $id);

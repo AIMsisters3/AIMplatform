@@ -165,3 +165,32 @@ define('MAIL_LOGO_URL', env('MAIL_LOGO_URL', APP_URL . '/assets/logo.png'));
 // other app that also happens to use Google sign-in - see its own
 // verifyGoogleIdToken() docblock for why that check matters.
 define('GOOGLE_CLIENT_ID', env('GOOGLE_CLIENT_ID', ''));
+
+// --- SMS / WhatsApp (Twilio) ---
+// Left blank by default — send_sms()/send_whatsapp() (helpers/
+// sms_notify.php) fail gracefully (logged, never pretended as sent) when
+// these aren't set, same contract as send_email(). TWILIO_WHATSAPP_FROM
+// is optional and separate from TWILIO_FROM_NUMBER: a WhatsApp sender
+// needs its own Twilio approval (sandbox for testing, a registered
+// number for production) even on an account already sending SMS fine -
+// get an Account SID + Auth Token from the Twilio Console, an SMS-
+// capable number for TWILIO_FROM_NUMBER, and (once approved) a WhatsApp
+// sender for TWILIO_WHATSAPP_FROM in the form "whatsapp:+14155238886".
+define('TWILIO_ACCOUNT_SID', env('TWILIO_ACCOUNT_SID', ''));
+define('TWILIO_AUTH_TOKEN', env('TWILIO_AUTH_TOKEN', ''));
+define('TWILIO_FROM_NUMBER', env('TWILIO_FROM_NUMBER', ''));
+define('TWILIO_WHATSAPP_FROM', env('TWILIO_WHATSAPP_FROM', ''));
+
+// --- Delivery distance pricing (Mapbox) ---
+// A public Mapbox access token (Mapbox account -> Tokens) with the
+// Directions API enabled. Left blank by default - helpers/
+// delivery_quote.php falls back to "quote unavailable, admin will
+// confirm manually" rather than ever inventing a distance.
+define('MAPBOX_ACCESS_TOKEN', env('MAPBOX_ACCESS_TOKEN', ''));
+
+// The dispatch/warehouse location delivery distance is measured FROM -
+// plain lat/lng, admin-configurable via Shop Settings (site-wide default
+// here is Windhoek city centre, deliberately not a specific street
+// address until an admin sets the real one).
+define('SHOP_DISPATCH_LATITUDE', (float) env('SHOP_DISPATCH_LATITUDE', -22.5700));
+define('SHOP_DISPATCH_LONGITUDE', (float) env('SHOP_DISPATCH_LONGITUDE', 17.0836));

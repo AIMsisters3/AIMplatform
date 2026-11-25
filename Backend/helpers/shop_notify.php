@@ -18,16 +18,24 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/sms_notify.php';
 require_once __DIR__ . '/../emails/order_notification_template.php';
 
 /**
  * @param int $userId
  * @param string $title Short in-app notification title / email heading.
- * @param string $message Longer body — shown in-app and in the email.
+ * @param string $message Longer body — shown in-app, in the email, and (verbatim) as the SMS/WhatsApp text.
  * @param string $type Notification::create()'s `type` column (drives the bell icon on the frontend).
  * @param string $eyebrow Small all-caps email label (e.g. "Pay Later", "Payment Received").
  * @param string $linkPath Relative frontend path (e.g. "/orders") — becomes both the in-app link_url and the email's CTA button target.
  * @param string $buttonLabel Email CTA button text.
+ * @param ?string $phone The order's contact_phone — pass it whenever the
+ *   call site has an order in hand (every Shop event does) so the
+ *   customer is reached even while offline (spec: "notifications must
+ *   also be sent to the customer's phone number, even when the customer
+ *   is offline"). null skips SMS/WhatsApp entirely (e.g. admin-only alerts).
+ * @param ?int $orderId For the notification_messages log row.
+ * @param ?string $eventType A short slug (e.g. 'payment_rejected') for the log row - not shown to the customer.
  */
 function notify_shop_event(
     int $userId,
@@ -36,7 +44,10 @@ function notify_shop_event(
     string $type,
     string $eyebrow,
     string $linkPath = '/orders',
-    string $buttonLabel = 'View Order'
+    string $buttonLabel = 'View Order',
+    ?string $phone = null,
+    ?int $orderId = null,
+    ?string $eventType = null
 ): void {
     try {
         (new Notification())->create($userId, $title, $message, $type, $linkPath, 'user', 'store');
@@ -48,15 +59,21 @@ function notify_shop_event(
         $stmt = Database::getConnection()->prepare('SELECT email, name FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
-        if (!$user || !$user['email']) {
-            return;
+        if ($user && $user['email']) {
+            $url = rtrim(FRONTEND_URL, '/') . $linkPath;
+            $html = order_notification_email_html($eyebrow, $title, $message, $buttonLabel, $url);
+            send_email($user['email'], $title, $html);
         }
-
-        $url = rtrim(FRONTEND_URL, '/') . $linkPath;
-        $html = order_notification_email_html($eyebrow, $title, $message, $buttonLabel, $url);
-        send_email($user['email'], $title, $html);
     } catch (Throwable $e) {
         error_log("Shop email notification failed for user {$userId}: " . $e->getMessage());
+    }
+
+    if ($phone) {
+        try {
+            send_order_sms($phone, $message, $userId, $orderId, $eventType);
+        } catch (Throwable $e) {
+            error_log("Shop SMS notification failed for user {$userId}: " . $e->getMessage());
+        }
     }
 }
 

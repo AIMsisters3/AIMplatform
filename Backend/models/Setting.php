@@ -21,10 +21,21 @@ class Setting
         'shop.business_email'                  => 'Business Email',
         'shop.business_phone'                  => 'Business Phone',
         'shop.business_address'                => 'Business Address',
+        'shop.mobile_wallet_number'            => 'Mobile Wallet Number',
         'shop.payment_instructions_bank'       => 'Bank Transfer Instructions',
         'shop.payment_instructions_mobile_wallet' => 'Mobile Wallet Instructions',
         'shop.refund_policy'                   => 'Returns & Refunds Policy',
         'shop.low_stock_threshold'             => 'Low Stock Alert Threshold',
+        // "AIM-YYYYMMDD-001 Pay Later complete admin/customer experience" spec:
+        // a strict 7-day Pay Later period, terminated at this clock time
+        // each day (Africa/Windhoek - config.php's single fixed app timezone).
+        'shop.pay_later_termination_time'      => 'Pay Later Daily Termination Time (HH:MM)',
+        // Distance-based delivery pricing (helpers/delivery_quote.php) -
+        // base_fee + per_km_fee * distance, clamped to [min_fee, max_fee].
+        'shop.delivery_base_fee'               => 'Delivery Base Fee (N$)',
+        'shop.delivery_fee_per_km'             => 'Delivery Fee per Kilometre (N$)',
+        'shop.delivery_min_fee'                => 'Minimum Delivery Fee (N$)',
+        'shop.delivery_max_fee'                => 'Maximum Delivery Fee (N$, optional)',
     ];
 
     /** Fallback used only until an admin sets shop.low_stock_threshold for the first time — never silently treated as "the" threshold once a real value exists. */

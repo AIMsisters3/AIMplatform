@@ -33,6 +33,7 @@ class RefundController
         }
 
         $id = $this->model->create($orderId, $amount, $body['reason'] ?? null, (int) $payload['sub']);
+        $this->orderModel->markRefundPending($orderId);
         json_created(['id' => $id], 'Refund requested.');
     }
 
@@ -95,12 +96,15 @@ class RefundController
             return;
         }
 
+        $this->orderModel->markRefunded((int) $refund['order_id']);
+
         $order = $this->orderModel->find((int) $refund['order_id']);
         if ($order && $order['user_id']) {
             notify_shop_event(
                 (int) $order['user_id'], 'Refund processed',
                 "A refund of N$" . number_format((float) $refund['amount'], 2) . " for order {$order['order_number']} has been processed via {$body['method']}.",
-                'order', 'Refund Processed'
+                'order', 'Refund Processed',
+                '/orders', 'View Order', $order['contact_phone'] ?? null, (int) $order['id'], 'refund_processed'
             );
         }
 

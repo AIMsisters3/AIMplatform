@@ -155,13 +155,16 @@ class PaymentController
             return;
         }
 
+        $this->orderModel->markPaymentRejected((int) $record['order_id']);
+
         $order = $this->orderModel->find((int) $record['order_id']);
         if ($order && $order['user_id']) {
             require_once __DIR__ . '/../helpers/shop_notify.php';
             notify_shop_event(
                 (int) $order['user_id'], 'Payment could not be verified',
                 "We could not verify a payment of N$" . number_format((float) $record['amount'], 2) . " for order {$order['order_number']}. Reason: {$reason}. Please check the details and submit again, or contact us.",
-                'order', 'Payment Rejected'
+                'order', 'Payment Rejected',
+                '/orders', 'View Order', $order['contact_phone'] ?? null, (int) $order['id'], 'payment_rejected'
             );
         }
 
