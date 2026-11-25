@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image as ImageIcon, Video, Upload } from 'lucide-react';
+import { Image as ImageIcon, Video, Upload, Headphones } from 'lucide-react';
 import api from '../../../api/axios.js';
 import Dropzone from '../upload/Dropzone.jsx';
 import { uploadFileChunked } from '../../utils/chunkedUpload.js';
@@ -8,6 +8,11 @@ const KIND_META = {
   image: { icon: ImageIcon, accept: 'image/*', folder: 'children', chunked: false },
   video: { icon: Video, accept: 'video/*', folder: 'children/stories', chunked: true },
   document: { icon: Upload, accept: '.pdf', folder: 'children', chunked: false },
+  // Not Children's-Ministry-specific despite this file's folder - the
+  // Bible Studies chapter builder (Admin/Pages/BibleStudies/
+  // CollectionsTab.jsx) reuses this same generic field for its audio/PDF
+  // uploads rather than duplicating upload logic a third time.
+  audio: { icon: Headphones, accept: 'audio/*', folder: 'bible_studies', chunked: true },
 };
 
 /**

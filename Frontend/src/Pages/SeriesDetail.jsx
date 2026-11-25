@@ -135,10 +135,15 @@ export default function SeriesDetail() {
         </div>
       </div>
 
-      {series.bible_references && (
-        <div className="flex items-start gap-2 bg-surface rounded-2xl px-4 py-3 mb-8">
-          <BookOpen className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
-          <span className="text-sm text-ink/70 italic">{series.bible_references}</span>
+      {(series.intro || series.bible_references) && (
+        <div className="glass-card p-5 mb-8 space-y-3">
+          {series.intro && <p className="text-sm text-ink/70 leading-relaxed whitespace-pre-line">{series.intro}</p>}
+          {series.bible_references && (
+            <div className="flex items-start gap-2 bg-surface rounded-2xl px-4 py-3">
+              <BookOpen className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+              <span className="text-sm text-ink/70 italic">{series.bible_references}</span>
+            </div>
+          )}
         </div>
       )}
 

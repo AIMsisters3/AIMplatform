@@ -26,11 +26,6 @@ const staggerContainer = {
   visible: { transition: { staggerChildren: 0.08 } },
 };
 
-// Daniel/Revelation/Matthew 24 (migration 039) - the one place their
-// display order is pinned, since the three are seeded together and
-// nothing guarantees the backend returns them in reading order.
-const PROPHECY_ORDER = ['Daniel', 'Revelation', 'Matthew 24'];
-
 /**
  * The Prophecy row's three permanent books - a deliberately more ornate,
  * "anchor" treatment than a plain SeriesCard (full-bleed cover art, a
@@ -183,12 +178,13 @@ export default function BibleStudies() {
       .then((r) => setFeatured(r.data?.data?.items || []))
       .catch(() => setFeatured([]))
       .finally(() => setFeaturedLoading(false));
-    // Fetched once, split client-side into Prophecy vs everything else -
-    // there are only ever 3 Prophecy series (migration 039 seeds them,
-    // nothing in the admin can add a 4th), so a single reasonably-sized
-    // fetch covers every series this page needs without a dedicated
-    // is_prophecy filter on the backend.
-    api.get('/series', { params: { section: 'bible_study', limit: 50 } })
+    // Fetched once, split client-side into Prophecy vs everything else.
+    // sort=order_index uses the admin-set display order (Bible Studies
+    // admin -> Prophecy/Explore Bible Topics) instead of the generic
+    // /series page's own "most recently active first" default - an
+    // admin can now create additional Prophecy collections too, so this
+    // can no longer assume exactly 3.
+    api.get('/series', { params: { section: 'bible_study', limit: 50, sort: 'order_index' } })
       .then((r) => setAllSeries(r.data?.data?.items || []))
       .catch(() => setAllSeries([]));
     // The real Bible Reading Plan feature (migration 043) - a standalone
@@ -200,9 +196,7 @@ export default function BibleStudies() {
   }, []);
 
   const prophecySeries = useMemo(
-    () => [...allSeries]
-      .filter((s) => s.is_prophecy)
-      .sort((a, b) => PROPHECY_ORDER.indexOf(a.title) - PROPHECY_ORDER.indexOf(b.title)),
+    () => allSeries.filter((s) => s.is_prophecy),
     [allSeries]
   );
   const exploreSeries = useMemo(

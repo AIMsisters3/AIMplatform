@@ -2,9 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon, Lock } from 'lucide-react';
 import api from '../../api/axios.js';
 
+// Bible Study is deliberately absent here - Prophecy/Explore Bible Topics
+// collections now have their own dedicated chapter-builder admin area
+// (Admin/Pages/BibleStudiesAdmin.jsx) instead of being created as a plain
+// series through this generic page.
 const SECTIONS = [
   { value: 'media_library', label: 'Content / Media Library' },
-  { value: 'bible_study', label: 'Bible Study' },
 ];
 
 // A series-level image, distinct from any individual episode's own
@@ -93,7 +96,7 @@ export default function ManageSeries() {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get('/series', { params: { status: 'all', limit: 100 } })
+    api.get('/series', { params: { status: 'all', limit: 100, section: 'media_library' } })
       .then((r) => setSeries(r.data.data.items))
       .catch(() => setSeries([]))
       .finally(() => setLoading(false));

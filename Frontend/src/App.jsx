@@ -67,6 +67,7 @@ const ManageCategories = lazy(() => import('./Admin/Pages/ManageCategories.jsx')
 const ManageProducts = lazy(() => import('./Admin/Pages/ManageProducts.jsx'));
 const ManageSeries = lazy(() => import('./Admin/Pages/ManageSeries.jsx'));
 const ManageReadingPlans = lazy(() => import('./Admin/Pages/ManageReadingPlans.jsx'));
+const BibleStudiesAdmin = lazy(() => import('./Admin/Pages/BibleStudiesAdmin.jsx'));
 const SiteSettings = lazy(() => import('./Admin/Pages/SiteSettings.jsx'));
 const ChildrenMinistry = lazy(() => import('./Admin/Pages/ChildrenMinistry.jsx'));
 const ManageOrders = lazy(() => import('./Admin/Pages/ManageOrders.jsx'));
@@ -182,6 +183,7 @@ export default function App() {
               <Route path="business" element={<BusinessDashboard />} />
               <Route path="series" element={<ManageSeries />} />
               <Route path="reading-plans" element={<ManageReadingPlans />} />
+              <Route path="bible-studies" element={<BibleStudiesAdmin />} />
               <Route path="children" element={<ChildrenMinistry />} />
               <Route path="orders" element={<ManageOrders />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />

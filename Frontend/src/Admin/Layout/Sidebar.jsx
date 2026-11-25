@@ -7,7 +7,7 @@ const items = [
   { to: '/admin/content', label: 'Manage Content', icon: '📋' },
   { to: '/admin/categories', label: 'Manage Categories', icon: '🏷️' },
   { to: '/admin/series', label: 'Manage Series', icon: '🎬' },
-  { to: '/admin/reading-plans', label: 'Bible Reading Plans', icon: '📅' },
+  { to: '/admin/bible-studies', label: 'Bible Studies', icon: '📖' },
   { to: '/admin/children', label: "Children's Ministry", icon: '🧸' },
   { to: '/admin/products', label: 'Manage Products', icon: '🛍️' },
   { to: '/admin/business', label: 'Business Dashboard', icon: '📊' },

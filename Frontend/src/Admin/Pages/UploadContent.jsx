@@ -6,7 +6,7 @@ import RichTextEditor from '../Components/upload/RichTextEditor.jsx';
 import TagInput from '../Components/upload/TagInput.jsx';
 import { uploadFileChunked, cancelChunkedUpload } from '../utils/chunkedUpload.js';
 import {
-  Video, Film, Headphones, FileText, Image as ImageIcon, FileType, BookOpen,
+  Video, Film, Headphones, FileText, Image as ImageIcon, FileType,
   Palette, MessageSquare, Music2,
   Newspaper, BookHeart, Images, ChevronDown, ChevronUp, Loader2, CheckCircle2,
   AlertCircle, Sparkles, ArrowLeft, Library, Baby, Radio, RotateCcw, X, Upload,
@@ -19,9 +19,15 @@ import {
 // below); Bible Study picks its format via the "Study Type" field; Gallery
 // is a single fixed media_type (SINGLETON_MEDIA_TYPE), so no further choice
 // is needed once that section is picked.
+// Bible Study is deliberately absent here - it now has its own dedicated
+// admin area (Admin/Pages/BibleStudiesAdmin.jsx: Prophecy/Explore Bible
+// Topics chapter builder) instead of being created through the general
+// Upload Content flow, per the redesign spec ("remove it under Manage
+// Content"). The backend still fully supports content_type='bible_study'
+// (ContentController/BibleStudy model, untouched) - only this picker's
+// entry point is gone.
 const SECTIONS = [
   { key: 'media_library', label: 'Content / Media Library', icon: Library },
-  { key: 'bible_study', label: 'Bible Study', icon: BookOpen },
   { key: 'devotions', label: 'Devotion', icon: BookHeart },
   { key: 'kids', label: 'Children', icon: Baby },
   { key: 'songs', label: 'Songs', icon: Music2 },
