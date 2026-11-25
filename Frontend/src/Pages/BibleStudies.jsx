@@ -16,6 +16,21 @@ import { usePaginatedList } from '../hooks/usePaginatedList.js';
 import { getVerseOfDay } from '../utils/verseOfDay.js';
 import { getItemKind } from '../utils/mediaKind.js';
 import bibleStudyHero from '../assets/bible-study-hero.png';
+import danielCover from '../assets/prophecy/daniel.webp';
+import revelationCover from '../assets/prophecy/revelation.webp';
+import matthew24Cover from '../assets/prophecy/matthew-24.webp';
+
+// Per explicit request: these three always show this exact artwork,
+// regardless of whatever (if anything) is set in series.cover_image for
+// them - not admin-uploadable, bundled straight into the build. Keyed by
+// slug so any FUTURE admin-created Prophecy collection (the redesign
+// spec does allow adding more) still falls through to the normal
+// cover_image-or-placeholder treatment below.
+const PROPHECY_HARDCODED_COVERS = {
+  daniel: danielCover,
+  revelation: revelationCover,
+  'matthew-24': matthew24Cover,
+};
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -34,6 +49,34 @@ const staggerContainer = {
  * page's centerpiece, not blend into an admin-growable list.
  */
 function ProphecyCard({ s }) {
+  const hardcoded = PROPHECY_HARDCODED_COVERS[s.slug];
+
+  // Already-finished artwork (title/subtitle/reference baked in) - shown
+  // as-is with just a small "Explore" affordance, not the generic
+  // overlay treatment below (which would otherwise duplicate the title).
+  if (hardcoded) {
+    return (
+      <Link
+        to={`/series/${s.slug}`}
+        className="group relative block rounded-3xl overflow-hidden shadow-glass h-64 sm:h-72 ring-1 ring-accent/25 hover:ring-accent/50 transition-all"
+      >
+        <img
+          src={hardcoded}
+          alt={s.title}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/35 via-transparent to-transparent" />
+        <div className="absolute bottom-5 left-6">
+          <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-ink text-xs font-bold shadow-glass group-hover:bg-accent group-hover:text-white transition-colors">
+            Explore <ArrowRight className="w-3.5 h-3.5" />
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <Link
       to={`/series/${s.slug}`}

@@ -112,12 +112,12 @@ class BibleStudy
      * $minViews/$minLikes are the admin-configurable eligibility
      * threshold (Bible Studies Settings - redesign spec: "must appear at
      * least after 10 views and 5 likes"). A pinned-and-not-expired study
-     * always qualifies regardless of threshold. If nothing clears the
-     * threshold at all but at least one study has SOME real engagement,
-     * the single highest-scoring one is still returned rather than an
-     * empty row - "the most viewed/liked must always be visible" - but
-     * if literally nothing has any engagement yet, this returns empty
-     * rather than inventing popularity (explicit spec requirement).
+     * always qualifies regardless of threshold - that's a deliberate
+     * admin action, never a guess. Nothing else ever bypasses the
+     * threshold: a study with fewer views/likes than configured simply
+     * doesn't show, even if it would otherwise be the top-ranked one -
+     * the admin's own settings are the actual contract here, not a
+     * suggestion with an automatic escape hatch.
      */
     public function featuredRanked(int $limit, int $minViews = 10, int $minLikes = 5): array
     {
@@ -138,13 +138,6 @@ class BibleStudy
 
         $eligible = array_values(array_filter($all, fn ($row) => $row['is_pinned']
             || ((int) $row['views'] >= $minViews && (int) $row['likes_count'] >= $minLikes)));
-
-        // Nothing met the threshold - fall back to the single
-        // top-ranked study, but only if it has genuine engagement
-        // (never show a study with zero views/likes as "featured").
-        if (empty($eligible) && !empty($all) && ((int) $all[0]['views'] > 0 || (int) $all[0]['likes_count'] > 0)) {
-            $eligible = [$all[0]];
-        }
 
         return array_map(function (array $row): array {
             $row = decorate_live_status(normalize_media_row($row));
