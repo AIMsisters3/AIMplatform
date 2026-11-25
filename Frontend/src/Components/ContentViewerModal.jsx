@@ -350,14 +350,14 @@ export default function ContentViewerModal({ item, onClose }) {
           )}
 
           {kind === 'article' && !item.media_url && item.thumbnail && !mediaError && (
-            <div className="h-56 w-full overflow-hidden">
+            <div className="h-56 w-full overflow-hidden bg-brand-gradient-soft flex items-center justify-center">
               <img
                 src={item.thumbnail}
                 alt={item.title}
                 loading="lazy"
                 decoding="async"
                 onError={() => setMediaError(true)}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
             </div>
           )}

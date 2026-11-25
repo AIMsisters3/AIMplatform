@@ -413,9 +413,9 @@ export default function Home() {
                 variants={fadeUp}
                 whileHover={{ scale: 1.04 }}
                 onClick={() => handleOpenItem(item)}
-                className="aspect-square rounded-xl2 overflow-hidden shadow-glass cursor-pointer"
+                className="aspect-square rounded-xl2 overflow-hidden shadow-glass cursor-pointer bg-brand-gradient-soft flex items-center justify-center"
               >
-                <img src={item.thumbnail || item.media_url} alt={item.title} className="w-full h-full object-cover" />
+                <img src={item.thumbnail || item.media_url} alt={item.title} className="w-full h-full object-contain" />
               </motion.div>
             ))}
           </motion.div>

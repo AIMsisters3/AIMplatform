@@ -33,7 +33,7 @@ export default function Gallery() {
                 onClick={() => setActiveItem(item)}
                 className="aspect-square rounded-xl2 overflow-hidden bg-brand-gradient-soft cursor-pointer hover:opacity-90 transition"
               >
-                {item.thumbnail && <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />}
+                {item.thumbnail && <img src={item.thumbnail} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-contain" />}
               </button>
             ))}
           </div>

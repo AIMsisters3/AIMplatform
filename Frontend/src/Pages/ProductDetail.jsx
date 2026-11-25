@@ -331,7 +331,7 @@ export default function ProductDetail() {
         <div>
           <div className="aspect-square rounded-xl3 overflow-hidden bg-brand-gradient-soft flex items-center justify-center mb-3">
             {images[activeImage] ? (
-              <img src={images[activeImage].url} alt={images[activeImage].alt_text || product.name} className="w-full h-full object-cover" />
+              <img src={images[activeImage].url} alt={images[activeImage].alt_text || product.name} className="w-full h-full object-contain" />
             ) : (
               <Package className="w-16 h-16 text-secondary/40" />
             )}
@@ -344,7 +344,7 @@ export default function ProductDetail() {
                   onClick={() => setActiveImage(i)}
                   className={`shrink-0 w-16 h-16 rounded-xl2 overflow-hidden border-2 transition ${i === activeImage ? 'border-secondary' : 'border-transparent opacity-70'}`}
                 >
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  <img src={img.url} alt="" className="w-full h-full object-contain" />
                 </button>
               ))}
             </div>

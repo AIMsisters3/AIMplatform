@@ -65,7 +65,7 @@ export default function LessonsList() {
                 <Link to={`/kids/lessons/${l.slug}`} className="group block rounded-[1.75rem] overflow-hidden bg-white shadow-lg hover:-translate-y-1.5 hover:shadow-xl transition-all">
                   <div className="relative h-32 bg-gradient-to-br from-sky-200 to-blue-300">
                     {l.cover_image ? (
-                      <img src={l.cover_image} alt="" loading="lazy" className="w-full h-full object-cover" />
+                      <img src={l.cover_image} alt="" loading="lazy" className="w-full h-full object-contain" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><BookOpen className="w-9 h-9 text-white/70" /></div>
                     )}

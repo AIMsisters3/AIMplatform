@@ -50,7 +50,7 @@ export default function LessonDetail() {
   return (
     <div className="min-h-screen pb-16" style={{ backgroundColor: '#FFF8EC' }}>
       <div className="relative h-56 sm:h-64 bg-gradient-to-br from-sky-400 to-blue-500 overflow-hidden">
-        {item.cover_image && <img src={item.cover_image} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />}
+        {item.cover_image && <img src={item.cover_image} alt="" className="absolute inset-0 w-full h-full object-contain opacity-40" />}
         <div className="absolute inset-0 bg-gradient-to-t from-[#FFF8EC] via-transparent to-transparent" />
         <div className="relative z-10 max-w-3xl mx-auto px-6 pt-6 h-full flex flex-col justify-between">
           <Link to="/kids/lessons" className="inline-flex items-center gap-1.5 text-white font-bold text-sm w-fit">

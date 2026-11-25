@@ -48,7 +48,7 @@ export default function ContentCard({ item, onClick }) {
             loading="lazy"
             decoding="async"
             onError={() => setThumbnailBroken(true)}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         ) : (
           <span className="text-4xl brand-gradient-text font-display font-bold">AIM</span>

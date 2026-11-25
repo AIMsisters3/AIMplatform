@@ -76,7 +76,7 @@ export default function StoryDetail() {
               {related.slice(0, 6).map((s) => (
                 <Link key={s.id} to={`/kids/stories/${s.slug}`} className="group block rounded-2xl overflow-hidden bg-white shadow-md hover:-translate-y-1 transition-transform">
                   <div className="relative h-24 bg-gradient-to-br from-orange-200 to-amber-300">
-                    {s.thumbnail ? <img src={s.thumbnail} alt="" className="w-full h-full object-cover" /> : (
+                    {s.thumbnail ? <img src={s.thumbnail} alt="" className="w-full h-full object-contain" /> : (
                       <div className="w-full h-full flex items-center justify-center"><BookHeart className="w-6 h-6 text-white/70" /></div>
                     )}
                     <PlayCircle className="absolute bottom-1.5 right-1.5 w-5 h-5 text-white drop-shadow" />

@@ -24,7 +24,7 @@ function LeadStory({ item, onClick }) {
       initial="hidden"
       animate="visible"
       variants={fadeUp}
-      className="group relative w-full text-left rounded-3xl overflow-hidden shadow-glass min-h-[280px] sm:min-h-[380px] flex items-end"
+      className="group relative w-full text-left rounded-3xl overflow-hidden shadow-glass min-h-[280px] sm:min-h-[380px] flex items-end bg-ink"
     >
       {item.thumbnail ? (
         <img
@@ -32,7 +32,7 @@ function LeadStory({ item, onClick }) {
           alt={item.title}
           loading="lazy"
           decoding="async"
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="absolute inset-0 w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
         />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#1B1839] to-accent" />

@@ -89,7 +89,7 @@ function QuestionCard({ question, answer, onChange }) {
               selected ? 'border-secondary bg-secondary/10 text-secondary' : 'border-ink/10 bg-white text-ink hover:border-secondary/30'
             }`}
           >
-            {o.image_url && <img src={o.image_url} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />}
+            {o.image_url && <img src={o.image_url} alt="" className="w-12 h-12 rounded-xl object-contain shrink-0" />}
             {o.label}
           </button>
         );
@@ -247,7 +247,7 @@ export default function ActivityPlayer() {
             initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}
             className="rounded-[1.75rem] bg-white shadow-lg p-6 sm:p-8"
           >
-            {question.image_url && <img src={question.image_url} alt="" className="w-full max-h-56 object-cover rounded-2xl mb-5" />}
+            {question.image_url && <img src={question.image_url} alt="" className="w-full max-h-56 object-contain rounded-2xl mb-5" />}
             <h2 className="font-display font-bold text-xl text-ink mb-6">{question.prompt}</h2>
             <QuestionCard question={question} answer={answers[question.id]} onChange={(next) => setAnswers((a) => ({ ...a, [question.id]: next }))} />
           </motion.div>

@@ -81,7 +81,7 @@ export default function StoriesList() {
                 <Link to={`/kids/stories/${s.slug}`} className="group block rounded-[1.75rem] overflow-hidden bg-white shadow-lg hover:-translate-y-1.5 hover:shadow-xl transition-all">
                   <div className="relative h-40 bg-gradient-to-br from-orange-200 to-amber-300 overflow-hidden">
                     {s.thumbnail ? (
-                      <img src={s.thumbnail} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <img src={s.thumbnail} alt="" loading="lazy" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><BookHeart className="w-10 h-10 text-white/70" /></div>
                     )}

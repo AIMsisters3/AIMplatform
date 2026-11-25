@@ -54,7 +54,7 @@ export default function ProductCard({ product, onWishlistChange }) {
     >
       <div className="relative aspect-[4/5] bg-brand-gradient-soft overflow-hidden">
         {product.thumbnail ? (
-          <img src={product.thumbnail} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={product.thumbnail} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Package className="w-10 h-10 text-secondary/50" />
