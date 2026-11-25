@@ -52,6 +52,14 @@ class Series
         // row itself was created earlier. Falls back to the series' own
         // created_at when it has no published episodes yet, so a fresh,
         // empty series still sorts somewhere sensible instead of via NULL.
+        // Default order is "most recently active series first" (unchanged
+        // behavior for the generic /series page). Explore Bible Topics /
+        // Prophecy instead ask for admin-set order via ?sort=order_index -
+        // see SeriesController::index().
+        $orderBy = ($filters['sort'] ?? null) === 'order_index'
+            ? 's.order_index ASC, s.created_at ASC'
+            : 'latest_episode_at DESC';
+
         $sql = "SELECT s.*, cat.name AS category_name,
                     (SELECT COUNT(*) FROM content c WHERE c.series_id = s.id AND c.deleted_at IS NULL AND c.status = 'published') AS episode_count,
                     COALESCE(
@@ -60,9 +68,9 @@ class Series
                     ) AS latest_episode_at
                 FROM series s
                 LEFT JOIN categories cat ON cat.id = s.category_id
-                WHERE " . implode(' AND ', $where) . '
-                ORDER BY latest_episode_at DESC
-                LIMIT :limit OFFSET :offset';
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY $orderBy
+                LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
         foreach ($params as $k => $v) {
@@ -102,17 +110,45 @@ class Series
         return array_map('normalize_media_row', $stmt->fetchAll());
     }
 
+    /**
+     * Same as episodes() but includes drafts and the bible_studies
+     * extension's format/study_guide_url joined in - the admin chapter
+     * builder (SeriesController::chaptersAdmin()) needs both, since a
+     * "chapter" there is really up to two content rows sharing one
+     * episode_number (one audio-format, one pdf-format - see
+     * SeriesController::saveChapters()'s own docblock for why).
+     */
+    public function episodesAdmin(int $seriesId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT c.*, bs.format, bs.study_guide_url
+             FROM content c
+             LEFT JOIN bible_studies bs ON bs.content_id = c.id
+             WHERE c.series_id = :series_id AND c.deleted_at IS NULL
+             ORDER BY c.season_number ASC, c.episode_number ASC, c.id ASC"
+        );
+        $stmt->execute(['series_id' => $seriesId]);
+        return array_map('normalize_media_row', $stmt->fetchAll());
+    }
+
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO series (title, slug, description, bible_references, cover_image, category_id, section, language, status)
-             VALUES (:title, :slug, :description, :bible_references, :cover_image, :category_id, :section, :language, :status)'
+            'INSERT INTO series (title, slug, description, bible_references, intro, order_index, is_prophecy, cover_image, category_id, section, language, status)
+             VALUES (:title, :slug, :description, :bible_references, :intro, :order_index, :is_prophecy, :cover_image, :category_id, :section, :language, :status)'
         );
         $stmt->execute([
             'title'            => $data['title'],
             'slug'             => $data['slug'],
             'description'      => $data['description'] ?? null,
             'bible_references' => $data['bible_references'] ?? null,
+            'intro'            => $data['intro'] ?? null,
+            'order_index'      => (int) ($data['order_index'] ?? 0),
+            // Settable only from the dedicated Prophecy admin tab
+            // (redesign spec §3 explicitly asks for admin-creatable
+            // additional Prophecy collections, unlike the original
+            // migration-039 design where this had no write path at all).
+            'is_prophecy'      => !empty($data['is_prophecy']) ? 1 : 0,
             'cover_image'      => $data['cover_image'] ?? null,
             'category_id'      => $data['category_id'] ?? null,
             'section'          => $data['section'] ?? 'media_library',
@@ -126,7 +162,7 @@ class Series
     {
         $fields = [];
         $params = ['id' => $id];
-        foreach (['title', 'slug', 'description', 'bible_references', 'cover_image', 'category_id', 'section', 'language', 'status'] as $field) {
+        foreach (['title', 'slug', 'description', 'bible_references', 'intro', 'order_index', 'cover_image', 'category_id', 'section', 'language', 'status'] as $field) {
             if (array_key_exists($field, $data)) {
                 $fields[] = "$field = :$field";
                 $params[$field] = $data[$field];

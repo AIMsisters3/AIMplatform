@@ -41,6 +41,32 @@ class Setting
         'site.whatsapp_number' => 'WhatsApp Number',
     ];
 
+    /** Bible Studies-specific settings (redesign spec §8) - the WhatsApp number itself is deliberately NOT duplicated here, see SITE_KEYS above. */
+    public const BIBLE_STUDY_KEYS = [
+        'bible_study.page_visible'        => 'Bible Studies Page Visible to Public',
+        'bible_study.featured_limit'      => 'Featured Studies Display Limit',
+        'bible_study.featured_min_views'  => 'Featured Minimum Views',
+        'bible_study.featured_min_likes'  => 'Featured Minimum Likes',
+        'bible_study.default_sort'        => 'Default Study Sorting',
+    ];
+
+    public const DEFAULT_FEATURED_LIMIT = 8;
+    public const DEFAULT_FEATURED_MIN_VIEWS = 10;
+    public const DEFAULT_FEATURED_MIN_LIKES = 5;
+
+    /** The effective Featured Studies settings - every value defaults until an admin overrides it, same pattern as lowStockThreshold(). */
+    public function bibleStudyFeaturedSettings(): array
+    {
+        $v = $this->getMany(['bible_study.featured_limit', 'bible_study.featured_min_views', 'bible_study.featured_min_likes']);
+        return [
+            'limit'     => ((int) ($v['bible_study.featured_limit'] ?? 0)) ?: self::DEFAULT_FEATURED_LIMIT,
+            'min_views' => isset($v['bible_study.featured_min_views']) && $v['bible_study.featured_min_views'] !== ''
+                ? (int) $v['bible_study.featured_min_views'] : self::DEFAULT_FEATURED_MIN_VIEWS,
+            'min_likes' => isset($v['bible_study.featured_min_likes']) && $v['bible_study.featured_min_likes'] !== ''
+                ? (int) $v['bible_study.featured_min_likes'] : self::DEFAULT_FEATURED_MIN_LIKES,
+        ];
+    }
+
     /** The effective, admin-configurable low-stock threshold (spec: "admin-configurable threshold" — never hardcoded past this one read). */
     public function lowStockThreshold(): int
     {

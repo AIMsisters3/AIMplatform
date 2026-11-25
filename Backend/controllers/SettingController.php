@@ -79,4 +79,34 @@ class SettingController
         $this->model->setMany($toSet);
         json_ok(null, 'Site settings updated.');
     }
+
+    /** GET /api/settings/bible-study — public. Same "known keys only, default to ''" contract as shop()/site(). */
+    public function bibleStudy(): void
+    {
+        $keys = array_keys(Setting::BIBLE_STUDY_KEYS);
+        $values = $this->model->getMany($keys);
+        $result = [];
+        foreach ($keys as $key) {
+            $result[$key] = $values[$key] ?? '';
+        }
+        json_ok(['items' => $result]);
+    }
+
+    /** PUT /api/settings/bible-study (requires content.edit) */
+    public function updateBibleStudy(): void
+    {
+        require_permission('content.edit');
+        $body = get_json_body();
+
+        $allowedKeys = array_keys(Setting::BIBLE_STUDY_KEYS);
+        $toSet = [];
+        foreach ($body as $key => $value) {
+            if (in_array($key, $allowedKeys, true)) {
+                $toSet[$key] = is_string($value) ? $value : (string) $value;
+            }
+        }
+
+        $this->model->setMany($toSet);
+        json_ok(null, 'Bible Studies settings updated.');
+    }
 }

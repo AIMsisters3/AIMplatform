@@ -105,35 +105,96 @@ class BibleStudy
     /**
      * The Bible Studies page's own "Featured Studies" row - purely
      * views + likes (score = views + likes*5, same weighting
-     * Content::featuredRanked() uses), no admin-pinned is_featured bonus.
-     * Deliberately not the same ranking Content::featuredRanked() feeds
-     * the Home page's blended Featured section with - that one folds in
-     * an admin pin; this one is explicitly "the most liked, viewed
-     * studies" and nothing else, so a visitor only ever sees what's
-     * genuinely popular here.
+     * Content::featuredRanked() uses), no admin-pinned is_featured bonus
+     * on the generic Content side - pinning here is its own explicit
+     * bible_studies.featured_pinned_until instead (see setFeaturedPin()).
+     *
+     * $minViews/$minLikes are the admin-configurable eligibility
+     * threshold (Bible Studies Settings - redesign spec: "must appear at
+     * least after 10 views and 5 likes"). A pinned-and-not-expired study
+     * always qualifies regardless of threshold. If nothing clears the
+     * threshold at all but at least one study has SOME real engagement,
+     * the single highest-scoring one is still returned rather than an
+     * empty row - "the most viewed/liked must always be visible" - but
+     * if literally nothing has any engagement yet, this returns empty
+     * rather than inventing popularity (explicit spec requirement).
      */
-    public function featuredRanked(int $limit): array
+    public function featuredRanked(int $limit, int $minViews = 10, int $minLikes = 5): array
     {
         $stmt = $this->db->prepare(
             "SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name,
                     (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
-                    (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5) AS popularity_score
+                    (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5) AS popularity_score,
+                    (bs.featured_pinned_until IS NOT NULL AND bs.featured_pinned_until > NOW()) AS is_pinned
              FROM content c
              JOIN bible_studies bs ON bs.content_id = c.id
              LEFT JOIN categories cat ON cat.id = c.category_id
              WHERE c.content_type = 'bible_study' AND c.deleted_at IS NULL AND c.status = 'published'
-             ORDER BY popularity_score DESC, COALESCE(c.publish_date, c.created_at) DESC
-             LIMIT :limit"
+                AND bs.featured_excluded = 0
+             ORDER BY is_pinned DESC, popularity_score DESC, COALESCE(c.publish_date, c.created_at) DESC"
         );
-        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
+        $all = $stmt->fetchAll();
+
+        $eligible = array_values(array_filter($all, fn ($row) => $row['is_pinned']
+            || ((int) $row['views'] >= $minViews && (int) $row['likes_count'] >= $minLikes)));
+
+        // Nothing met the threshold - fall back to the single
+        // top-ranked study, but only if it has genuine engagement
+        // (never show a study with zero views/likes as "featured").
+        if (empty($eligible) && !empty($all) && ((int) $all[0]['views'] > 0 || (int) $all[0]['likes_count'] > 0)) {
+            $eligible = [$all[0]];
+        }
 
         return array_map(function (array $row): array {
             $row = decorate_live_status(normalize_media_row($row));
             $row['likes_count'] = (int) $row['likes_count'];
-            unset($row['popularity_score']);
+            unset($row['popularity_score'], $row['is_pinned']);
             return $row;
-        }, $stmt->fetchAll());
+        }, array_slice($eligible, 0, $limit));
+    }
+
+    /**
+     * Every published Bible Study with its engagement, for the admin
+     * Featured Studies management screen - unlike featuredRanked(),
+     * this never filters by threshold/exclusion, so an admin can see
+     * (and fix) the full picture, not just what's currently showing.
+     */
+    public function featuredAdmin(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT c.id, c.title, c.slug, c.status, c.views,
+                    bs.featured_excluded, bs.featured_pinned_until,
+                    (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                    (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5) AS popularity_score
+             FROM content c
+             JOIN bible_studies bs ON bs.content_id = c.id
+             WHERE c.content_type = 'bible_study' AND c.deleted_at IS NULL AND c.status = 'published'
+             ORDER BY popularity_score DESC"
+        );
+        $rows = $stmt->fetchAll();
+        foreach ($rows as $i => &$row) {
+            $row['rank'] = $i + 1;
+            $row['likes_count'] = (int) $row['likes_count'];
+            $row['views'] = (int) $row['views'];
+            $row['featured_excluded'] = (bool) $row['featured_excluded'];
+            $row['is_pinned'] = !empty($row['featured_pinned_until']) && strtotime($row['featured_pinned_until']) > time();
+            unset($row['popularity_score']);
+        }
+        return $rows;
+    }
+
+    public function setFeaturedExcluded(int $contentId, bool $excluded): void
+    {
+        $stmt = $this->db->prepare('UPDATE bible_studies SET featured_excluded = :v WHERE content_id = :id');
+        $stmt->execute(['v' => $excluded ? 1 : 0, 'id' => $contentId]);
+    }
+
+    /** $until: null clears the pin; otherwise a 'Y-m-d H:i:s' timestamp. */
+    public function setFeaturedPin(int $contentId, ?string $until): void
+    {
+        $stmt = $this->db->prepare('UPDATE bible_studies SET featured_pinned_until = :v WHERE content_id = :id');
+        $stmt->execute(['v' => $until, 'id' => $contentId]);
     }
 
     /**

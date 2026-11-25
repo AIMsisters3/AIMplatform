@@ -311,12 +311,15 @@ function route(string $method, string $path)
 
         if ($id === 'continue' && $method === 'GET') return $ctrl->continueStudying();
         if ($id === 'featured' && $method === 'GET') return $ctrl->featured();
+        if ($id === 'featured-admin' && $method === 'GET') return $ctrl->featuredAdmin();
         if ($id === 'latest' && $method === 'GET') return $ctrl->latest();
         if ($id === null && $method === 'GET') return $ctrl->index();
         if ($id !== null && $action === 'progress' && $method === 'GET') return $ctrl->getProgress((int) $id);
         if ($id !== null && $action === 'progress' && $method === 'POST') return $ctrl->updateProgress((int) $id);
         if ($id !== null && $action === 'notes' && $method === 'GET') return $ctrl->listNotes((int) $id);
         if ($id !== null && $action === 'notes' && $method === 'POST') return $ctrl->createNote((int) $id);
+        if ($id !== null && $action === 'featured-exclude' && $method === 'POST') return $ctrl->setFeaturedExcluded((int) $id);
+        if ($id !== null && $action === 'featured-pin' && $method === 'POST') return $ctrl->setFeaturedPin((int) $id);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
 
         json_error('Bible study route not found.', 404);
@@ -380,6 +383,8 @@ function route(string $method, string $path)
         if ($id === null && $method === 'POST') return $ctrl->store();
         if ($id !== null && $action === 'episodes' && $subId === null && $method === 'POST') return $ctrl->attachEpisode((int) $id);
         if ($id !== null && $action === 'episodes' && $subId !== null && $method === 'DELETE') return $ctrl->detachEpisode((int) $id, (int) $subId);
+        if ($id !== null && $action === 'chapters' && $method === 'GET') return $ctrl->chaptersAdmin((int) $id);
+        if ($id !== null && $action === 'chapters' && $method === 'PUT') return $ctrl->saveChapters((int) $id);
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show($id);
         if ($id !== null && $action === null && $method === 'PUT') return $ctrl->update((int) $id);
         if ($id !== null && $action === null && $method === 'DELETE') return $ctrl->destroy((int) $id);
@@ -457,6 +462,8 @@ function route(string $method, string $path)
         if ($id === 'shop' && $method === 'PUT') return $ctrl->updateShop();
         if ($id === 'site' && $method === 'GET') return $ctrl->site();
         if ($id === 'site' && $method === 'PUT') return $ctrl->updateSite();
+        if ($id === 'bible-study' && $method === 'GET') return $ctrl->bibleStudy();
+        if ($id === 'bible-study' && $method === 'PUT') return $ctrl->updateBibleStudy();
 
         json_error('Settings route not found.', 404);
     }

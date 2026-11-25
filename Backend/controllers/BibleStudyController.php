@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../models/BibleStudy.php';
+require_once __DIR__ . '/../models/Setting.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
@@ -42,8 +43,36 @@ class BibleStudyController
     /** GET /api/bible-studies/featured?limit= — the Bible Studies page's own "Featured Studies" row (most liked/viewed). */
     public function featured(): void
     {
-        $limit = min(20, max(1, (int) ($_GET['limit'] ?? 8)));
-        json_ok(['items' => $this->model->featuredRanked($limit)]);
+        $settings = (new Setting())->bibleStudyFeaturedSettings();
+        $limit = min(20, max(1, (int) ($_GET['limit'] ?? $settings['limit'])));
+        json_ok(['items' => $this->model->featuredRanked($limit, $settings['min_views'], $settings['min_likes'])]);
+    }
+
+    /** GET /api/bible-studies/featured-admin (requires content.edit) — every published study's engagement, for the Featured Studies management screen. */
+    public function featuredAdmin(): void
+    {
+        require_permission('content.edit');
+        json_ok(['items' => $this->model->featuredAdmin()]);
+    }
+
+    /** POST /api/bible-studies/{id}/featured-exclude (requires content.edit) body: {excluded: bool} */
+    public function setFeaturedExcluded(int $contentId): void
+    {
+        require_permission('content.edit');
+        $body = get_json_body();
+        $this->model->setFeaturedExcluded($contentId, !empty($body['excluded']));
+        json_ok(null, 'Updated.');
+    }
+
+    /** POST /api/bible-studies/{id}/featured-pin (requires content.edit) body: {hours: int|null} — null/omitted clears the pin. */
+    public function setFeaturedPin(int $contentId): void
+    {
+        require_permission('content.edit');
+        $body = get_json_body();
+        $hours = isset($body['hours']) ? (int) $body['hours'] : null;
+        $until = $hours && $hours > 0 ? date('Y-m-d H:i:s', time() + $hours * 3600) : null;
+        $this->model->setFeaturedPin($contentId, $until);
+        json_ok(['pinned_until' => $until], $until ? 'Pinned.' : 'Pin cleared.');
     }
 
     /**
