@@ -58,14 +58,14 @@ function ProphecyCard({ s }) {
     return (
       <Link
         to={`/series/${s.slug}`}
-        className="group relative block rounded-3xl overflow-hidden shadow-glass h-64 sm:h-72 ring-1 ring-accent/25 hover:ring-accent/50 transition-all"
+        className="group relative block rounded-3xl overflow-hidden shadow-glass aspect-video bg-ink ring-1 ring-accent/25 hover:ring-accent/50 transition-all"
       >
         <img
           src={hardcoded}
           alt={s.title}
           loading="lazy"
           decoding="async"
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="absolute inset-0 w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink/35 via-transparent to-transparent" />
         <div className="absolute bottom-5 left-6">
@@ -78,38 +78,58 @@ function ProphecyCard({ s }) {
   }
 
   return (
-    <Link
+    <CollectionCard
       to={`/series/${s.slug}`}
-      className="group relative block rounded-3xl overflow-hidden shadow-glass h-64 sm:h-72 ring-1 ring-accent/25 hover:ring-accent/50 transition-all"
+      coverImage={s.cover_image}
+      title={s.title}
+      meta={`${s.episode_count} ${Number(s.episode_count) === 1 ? 'study' : 'studies'}`}
+      badge="Prophecy"
+      badgeIcon={ScrollText}
+      placeholderIcon={ScrollText}
+      accent
+    />
+  );
+}
+
+/**
+ * The one full-image card shape every Bible Studies collection/plan uses
+ * (Prophecy's own non-hardcoded fallback, Explore Bible Topics, Bible
+ * Reading Plan) - per explicit request, none of these should ever look
+ * like a plain icon-and-text row once an admin has uploaded real cover
+ * art for it. `aspect-video` + `object-contain` (rather than a fixed
+ * pixel height + object-cover) shows the WHOLE uploaded image, never
+ * cropped - any letterboxing is from the source image's own proportions,
+ * not this card cutting into it.
+ */
+function CollectionCard({ to, coverImage, title, meta, badge, badgeIcon: BadgeIcon, placeholderIcon: PlaceholderIcon, accent = false }) {
+  return (
+    <Link
+      to={to}
+      className={`group relative block rounded-3xl overflow-hidden shadow-glass aspect-video bg-ink ${accent ? 'ring-1 ring-accent/25 hover:ring-accent/50' : ''} transition-all`}
     >
-      {s.cover_image ? (
+      {coverImage ? (
         <img
-          src={s.cover_image}
-          alt={s.title}
+          src={coverImage}
+          alt={title}
           loading="lazy"
           decoding="async"
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="absolute inset-0 w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
         />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#3D2E6B] to-primary">
-          <ScrollText className="absolute -bottom-6 -right-6 w-40 h-40 text-white/5" />
-          <div className="absolute top-5 right-5 w-24 h-24 rounded-full border border-accent/25" />
-          <div className="absolute top-5 right-5 w-16 h-16 mt-4 ml-4 rounded-full border border-accent/15" />
+        <div className="absolute inset-0 bg-gradient-to-br from-ink via-[#3D2E6B] to-primary flex items-center justify-center">
+          {PlaceholderIcon && <PlaceholderIcon className="w-16 h-16 text-white/10" />}
         </div>
       )}
-      {/* Gold accent line - the one cue that reads "permanent, never
-          just another admin card" at a glance, even before the badge. */}
-      <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-accent via-secondary to-accent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/30 to-transparent" />
-      <div className="absolute inset-0 p-6 flex flex-col justify-end">
-        <span className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-wide mb-3 shadow-glass ring-2 ring-white/25">
-          <ScrollText className="w-3 h-3" /> Prophecy
-        </span>
-        <h3 className="text-2xl font-display font-extrabold text-white leading-tight mb-2 [text-shadow:0_2px_16px_rgba(0,0,0,0.45)]">{s.title}</h3>
-        <div className="w-10 h-0.5 rounded-full bg-accent/70 mb-2" />
-        <p className="text-white/70 text-sm">
-          {s.episode_count} {Number(s.episode_count) === 1 ? 'study' : 'studies'}
-        </p>
+      {accent && <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-accent via-secondary to-accent" />}
+      <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/20 to-transparent" />
+      <div className="absolute inset-0 p-5 flex flex-col justify-end">
+        {badge && (
+          <span className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-wide mb-2 shadow-glass ring-2 ring-white/25">
+            {BadgeIcon && <BadgeIcon className="w-3 h-3" />} {badge}
+          </span>
+        )}
+        <h3 className="text-lg font-display font-extrabold text-white leading-tight mb-1 [text-shadow:0_2px_16px_rgba(0,0,0,0.45)] line-clamp-2">{title}</h3>
+        {meta && <p className="text-white/70 text-xs">{meta}</p>}
       </div>
     </Link>
   );
@@ -431,18 +451,21 @@ export default function BibleStudies() {
               {readingPlansLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-[70px] rounded-2xl bg-surface animate-pulse" />
+                    <div key={i} className="aspect-video rounded-3xl bg-surface animate-pulse" />
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {readingPlans.map((p) => (
-                    <StudyTile
+                    <CollectionCard
                       key={p.id}
                       to={`/reading-plans/${p.slug}`}
-                      icon={Calendar}
+                      coverImage={p.cover_image}
                       title={p.title}
                       meta={`${p.day_count} ${Number(p.day_count) === 1 ? 'day' : 'days'}`}
+                      badge="Reading Plan"
+                      badgeIcon={Calendar}
+                      placeholderIcon={Calendar}
                     />
                   ))}
                 </div>
@@ -470,11 +493,14 @@ export default function BibleStudies() {
               >
                 {exploreSeries.map((s) => (
                   <motion.div key={s.id} variants={fadeUp}>
-                    <StudyTile
+                    <CollectionCard
                       to={`/series/${s.slug}`}
-                      icon={Layers}
+                      coverImage={s.cover_image}
                       title={s.title}
                       meta={`${s.episode_count} ${Number(s.episode_count) === 1 ? 'chapter' : 'chapters'}`}
+                      badge="Bible Topic"
+                      badgeIcon={Layers}
+                      placeholderIcon={Layers}
                     />
                   </motion.div>
                 ))}

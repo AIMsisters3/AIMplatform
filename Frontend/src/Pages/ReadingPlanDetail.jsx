@@ -73,9 +73,10 @@ export default function ReadingPlanDetail() {
       </Link>
 
       <div className="relative rounded-xl3 overflow-hidden mb-10 shadow-glass">
-        <div className="h-56 md:h-64 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
+        {/* aspect-video + object-contain shows the whole cover, never cropped. */}
+        <div className="aspect-video bg-ink flex items-center justify-center overflow-hidden">
           {plan.cover_image ? (
-            <img src={plan.cover_image} alt={plan.title} className="w-full h-full object-cover" />
+            <img src={plan.cover_image} alt={plan.title} className="w-full h-full object-contain" />
           ) : (
             <CalendarDays className="w-14 h-14 text-secondary" />
           )}

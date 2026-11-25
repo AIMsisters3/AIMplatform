@@ -106,9 +106,11 @@ export default function SeriesDetail() {
       </Link>
 
       <div className="relative rounded-xl3 overflow-hidden mb-10 shadow-glass">
-        <div className="h-64 md:h-80 bg-brand-gradient-soft flex items-center justify-center overflow-hidden">
+        {/* aspect-video + object-contain (not a fixed height + object-
+            cover) shows the whole uploaded cover - never cropped. */}
+        <div className="aspect-video bg-ink flex items-center justify-center overflow-hidden">
           {series.cover_image ? (
-            <img src={series.cover_image} alt={series.title} className="w-full h-full object-cover" />
+            <img src={series.cover_image} alt={series.title} className="w-full h-full object-contain" />
           ) : (
             <Layers className="w-14 h-14 text-secondary" />
           )}
