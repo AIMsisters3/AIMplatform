@@ -1,6 +1,8 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
+require_once __DIR__ . '/../helpers/live_status.php';
 
 /**
  * Backs bible_studies / bible_study_progress / bible_study_notes
@@ -46,14 +48,25 @@ class BibleStudy
             $params['language'] = $filters['language'];
         }
         if (!empty($filters['search'])) {
-            $where[] = '(c.title LIKE :search OR c.tags LIKE :search OR c.bible_references LIKE :search)';
-            $params['search'] = '%' . $filters['search'] . '%';
+            // Three distinct placeholders, not :search reused three times
+            // - see Content::all()'s matching comment: real (non-emulated)
+            // prepared statements give each occurrence its own bind slot.
+            $where[] = '(c.title LIKE :search1 OR c.tags LIKE :search2 OR c.bible_references LIKE :search3)';
+            $needle = '%' . $filters['search'] . '%';
+            $params['search1'] = $needle;
+            $params['search2'] = $needle;
+            $params['search3'] = $needle;
+        }
+        if (!empty($filters['is_live'])) {
+            $where[] = live_window_sql('c');
         }
 
-        $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
+        $sql = 'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name,
+                    s.title AS series_title, s.slug AS series_slug
                 FROM content c
                 JOIN bible_studies bs ON bs.content_id = c.id
                 LEFT JOIN categories cat ON cat.id = c.category_id
+                LEFT JOIN series s ON s.id = c.series_id
                 WHERE ' . implode(' AND ', $where) . '
                 ORDER BY COALESCE(c.publish_date, c.created_at) DESC
                 LIMIT :limit OFFSET :offset';
@@ -65,18 +78,158 @@ class BibleStudy
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
-    public function findByContentId(int $contentId): ?array
+    /** $currentVisitorKey powers liked_by_me (content_likes) - same pattern as Content::find()/findBySlug(). */
+    public function findByContentId(int $contentId, string $currentVisitorKey = ''): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT c.*, bs.format, bs.study_guide_url
+            'SELECT c.*, bs.format, bs.study_guide_url,
+                (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                EXISTS(SELECT 1 FROM content_likes cl2 WHERE cl2.content_id = c.id AND cl2.visitor_key = :current_visitor) AS liked_by_me
              FROM content c JOIN bible_studies bs ON bs.content_id = c.id
              WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
         );
-        $stmt->execute(['id' => $contentId]);
-        return $stmt->fetch() ?: null;
+        $stmt->execute(['id' => $contentId, 'current_visitor' => $currentVisitorKey]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+        $row = decorate_live_status(normalize_media_row($row));
+        $row['likes_count'] = (int) $row['likes_count'];
+        $row['liked_by_me'] = (bool) $row['liked_by_me'];
+        return $row;
+    }
+
+    /**
+     * The Bible Studies page's own "Featured Studies" row - purely
+     * views + likes (score = views + likes*5, same weighting
+     * Content::featuredRanked() uses), no admin-pinned is_featured bonus
+     * on the generic Content side - pinning here is its own explicit
+     * bible_studies.featured_pinned_until instead (see setFeaturedPin()).
+     *
+     * $minViews/$minLikes are the admin-configurable eligibility
+     * threshold (Bible Studies Settings - redesign spec: "must appear at
+     * least after 10 views and 5 likes"). A pinned-and-not-expired study
+     * always qualifies regardless of threshold - that's a deliberate
+     * admin action, never a guess. Nothing else ever bypasses the
+     * threshold: a study with fewer views/likes than configured simply
+     * doesn't show, even if it would otherwise be the top-ranked one -
+     * the admin's own settings are the actual contract here, not a
+     * suggestion with an automatic escape hatch.
+     */
+    public function featuredRanked(int $limit, int $minViews = 10, int $minLikes = 5): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name,
+                    (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                    (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5) AS popularity_score,
+                    (bs.featured_pinned_until IS NOT NULL AND bs.featured_pinned_until > NOW()) AS is_pinned
+             FROM content c
+             JOIN bible_studies bs ON bs.content_id = c.id
+             LEFT JOIN categories cat ON cat.id = c.category_id
+             WHERE c.content_type = 'bible_study' AND c.deleted_at IS NULL AND c.status = 'published'
+                AND bs.featured_excluded = 0
+             ORDER BY is_pinned DESC, popularity_score DESC, COALESCE(c.publish_date, c.created_at) DESC"
+        );
+        $stmt->execute();
+        $all = $stmt->fetchAll();
+
+        $eligible = array_values(array_filter($all, fn ($row) => $row['is_pinned']
+            || ((int) $row['views'] >= $minViews && (int) $row['likes_count'] >= $minLikes)));
+
+        return array_map(function (array $row): array {
+            $row = decorate_live_status(normalize_media_row($row));
+            $row['likes_count'] = (int) $row['likes_count'];
+            unset($row['popularity_score'], $row['is_pinned']);
+            return $row;
+        }, array_slice($eligible, 0, $limit));
+    }
+
+    /**
+     * Every published Bible Study with its engagement, for the admin
+     * Featured Studies management screen - unlike featuredRanked(),
+     * this never filters by threshold/exclusion, so an admin can see
+     * (and fix) the full picture, not just what's currently showing.
+     */
+    public function featuredAdmin(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT c.id, c.title, c.slug, c.status, c.views,
+                    bs.featured_excluded, bs.featured_pinned_until,
+                    (SELECT COUNT(*) FROM content_likes cl WHERE cl.content_id = c.id) AS likes_count,
+                    (c.views + (SELECT COUNT(*) FROM content_likes cl3 WHERE cl3.content_id = c.id) * 5) AS popularity_score
+             FROM content c
+             JOIN bible_studies bs ON bs.content_id = c.id
+             WHERE c.content_type = 'bible_study' AND c.deleted_at IS NULL AND c.status = 'published'
+             ORDER BY popularity_score DESC"
+        );
+        $rows = $stmt->fetchAll();
+        foreach ($rows as $i => &$row) {
+            $row['rank'] = $i + 1;
+            $row['likes_count'] = (int) $row['likes_count'];
+            $row['views'] = (int) $row['views'];
+            $row['featured_excluded'] = (bool) $row['featured_excluded'];
+            $row['is_pinned'] = !empty($row['featured_pinned_until']) && strtotime($row['featured_pinned_until']) > time();
+            unset($row['popularity_score']);
+        }
+        return $rows;
+    }
+
+    public function setFeaturedExcluded(int $contentId, bool $excluded): void
+    {
+        $stmt = $this->db->prepare('UPDATE bible_studies SET featured_excluded = :v WHERE content_id = :id');
+        $stmt->execute(['v' => $excluded ? 1 : 0, 'id' => $contentId]);
+    }
+
+    /** $until: null clears the pin; otherwise a 'Y-m-d H:i:s' timestamp. */
+    public function setFeaturedPin(int $contentId, ?string $until): void
+    {
+        $stmt = $this->db->prepare('UPDATE bible_studies SET featured_pinned_until = :v WHERE content_id = :id');
+        $stmt->execute(['v' => $until, 'id' => $contentId]);
+    }
+
+    /**
+     * The Bible Studies page's "Latest Studies" row - standalone uploads
+     * (not part of any collection, so they have no series card to be
+     * found through) that haven't yet earned enough views/likes to rank
+     * into Featured. $excludeIds lets the controller leave out whatever
+     * is already showing in Featured, so the same study never appears
+     * twice on the page.
+     */
+    public function latestStandalone(int $limit, array $excludeIds = []): array
+    {
+        $where = [
+            "c.content_type = 'bible_study'", 'c.deleted_at IS NULL', "c.status = 'published'",
+            'c.series_id IS NULL',
+        ];
+        $params = [];
+        if ($excludeIds !== []) {
+            $placeholders = [];
+            foreach (array_values($excludeIds) as $i => $id) {
+                $key = "exclude{$i}";
+                $placeholders[] = ":{$key}";
+                $params[$key] = (int) $id;
+            }
+            $where[] = 'c.id NOT IN (' . implode(',', $placeholders) . ')';
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT c.*, bs.format, bs.study_guide_url, cat.name AS category_name
+             FROM content c
+             JOIN bible_studies bs ON bs.content_id = c.id
+             LEFT JOIN categories cat ON cat.id = c.category_id
+             WHERE ' . implode(' AND ', $where) . '
+             ORDER BY COALESCE(c.publish_date, c.created_at) DESC
+             LIMIT :limit'
+        );
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_INT);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
     /** Called right after Content::create() for a content_type='bible_study' row. */
@@ -139,7 +292,7 @@ class BibleStudy
         $stmt->bindValue('u', $userId, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map(fn ($row) => decorate_live_status(normalize_media_row($row)), $stmt->fetchAll());
     }
 
     // ---------------------------------------------------------
@@ -155,12 +308,26 @@ class BibleStudy
         return $stmt->fetchAll();
     }
 
-    public function createNote(int $userId, int $contentId, string $body): int
+    /** Every note belonging to one user, across every study - backs the "My Notes" notebook list. */
+    public function notesForUser(int $userId): array
     {
         $stmt = $this->db->prepare(
-            'INSERT INTO bible_study_notes (user_id, content_id, body) VALUES (:u, :c, :body)'
+            'SELECT n.*, c.title AS study_title, c.slug AS study_slug
+             FROM bible_study_notes n
+             LEFT JOIN content c ON c.id = n.content_id
+             WHERE n.user_id = :u
+             ORDER BY n.updated_at DESC'
         );
-        $stmt->execute(['u' => $userId, 'c' => $contentId, 'body' => $body]);
+        $stmt->execute(['u' => $userId]);
+        return $stmt->fetchAll();
+    }
+
+    public function createNote(int $userId, int $contentId, string $body, ?string $title = null): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO bible_study_notes (user_id, content_id, title, body) VALUES (:u, :c, :title, :body)'
+        );
+        $stmt->execute(['u' => $userId, 'c' => $contentId, 'title' => $title, 'body' => $body]);
         return (int) $this->db->lastInsertId();
     }
 
@@ -171,8 +338,26 @@ class BibleStudy
         return $stmt->fetch() ?: null;
     }
 
-    public function updateNote(int $id, string $body): bool
+    /** A single note plus its associated study's title/slug, for the notebook detail/print page. */
+    public function findNoteWithStudy(int $id): ?array
     {
+        $stmt = $this->db->prepare(
+            'SELECT n.*, c.title AS study_title, c.slug AS study_slug
+             FROM bible_study_notes n
+             LEFT JOIN content c ON c.id = n.content_id
+             WHERE n.id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /** $title: pass null to leave the existing title untouched (vs. clearing it), '' to explicitly clear it. */
+    public function updateNote(int $id, string $body, ?string $title = null, bool $titleProvided = false): bool
+    {
+        if ($titleProvided) {
+            $stmt = $this->db->prepare('UPDATE bible_study_notes SET body = :body, title = :title WHERE id = :id');
+            return $stmt->execute(['body' => $body, 'title' => $title, 'id' => $id]);
+        }
         $stmt = $this->db->prepare('UPDATE bible_study_notes SET body = :body WHERE id = :id');
         return $stmt->execute(['body' => $body, 'id' => $id]);
     }

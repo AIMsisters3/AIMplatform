@@ -16,7 +16,6 @@ function welcome_email_html(string $unsubscribeUrl): string
 
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
       <tr><td style="padding:5px 0; font-size:16px; line-height:1.6; color:#2D2A4A;"><span style="color:#7A2CF3; font-weight:700;">&bull;</span>&nbsp; Devotions</td></tr>
-      <tr><td style="padding:5px 0; font-size:16px; line-height:1.6; color:#2D2A4A;"><span style="color:#7A2CF3; font-weight:700;">&bull;</span>&nbsp; Bible Studies</td></tr>
       <tr><td style="padding:5px 0; font-size:16px; line-height:1.6; color:#2D2A4A;"><span style="color:#7A2CF3; font-weight:700;">&bull;</span>&nbsp; Ministry News</td></tr>
     </table>
 

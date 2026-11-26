@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Mail, Search, UserX } from 'lucide-react';
+import { Mail, Search, UserX, Send, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import api from '../../api/axios.js';
 
 const STATUSES = ['', 'pending', 'subscribed', 'unsubscribed'];
@@ -11,6 +11,8 @@ export default function ManageNewsletter() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deactivatingId, setDeactivatingId] = useState(null);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -24,6 +26,19 @@ export default function ManageNewsletter() {
     const timer = setTimeout(load, 300);
     return () => clearTimeout(timer);
   }, [load]);
+
+  async function handleSendTestEmail() {
+    setTestingEmail(true);
+    setTestResult(null);
+    try {
+      const r = await api.post('/newsletter/test-email');
+      setTestResult({ ok: r.data?.data?.sent, message: r.data?.message, detail: r.data?.data?.detail, driver: r.data?.data?.mail_driver, to: r.data?.data?.to });
+    } catch (err) {
+      setTestResult({ ok: false, message: err.response?.data?.message || 'Could not reach the server to send a test email.', detail: null });
+    } finally {
+      setTestingEmail(false);
+    }
+  }
 
   const handleDeactivate = async (subscriber) => {
     if (!window.confirm(`Deactivate ${subscriber.email}? They will stop receiving AIMsisters emails.`)) return;
@@ -60,15 +75,47 @@ export default function ManageNewsletter() {
         </div>
       </div>
 
-      <div className="glass-card p-6 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-brand-gradient-soft flex items-center justify-center">
-          <Mail className="w-5 h-5 text-secondary" />
+      <div className="glass-card p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex items-center gap-4 flex-1">
+          <div className="w-12 h-12 rounded-full bg-brand-gradient-soft flex items-center justify-center shrink-0">
+            <Mail className="w-5 h-5 text-secondary" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{count}</p>
+            <p className="text-xs text-ink/50">Active subscribers</p>
+          </div>
         </div>
-        <div>
-          <p className="text-2xl font-bold">{count}</p>
-          <p className="text-xs text-ink/50">Active subscribers</p>
-        </div>
+        <button
+          onClick={handleSendTestEmail}
+          disabled={testingEmail}
+          className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-brand-gradient text-white text-sm font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"
+        >
+          {testingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {testingEmail ? 'Sending...' : 'Send Test Email'}
+        </button>
       </div>
+
+      {/* Sends a real email to your own account address using the exact
+          same delivery path every subscriber email goes through - the
+          fastest way to confirm right now whether SMTP/Brevo is actually
+          working, without needing server/log access. Never claims success
+          unless the mail provider actually accepted it. */}
+      {testResult && (
+        <div className={`glass-card p-5 flex items-start gap-3 border ${testResult.ok ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50'}`}>
+          {testResult.ok ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          )}
+          <div className="min-w-0">
+            <p className={`text-sm font-semibold ${testResult.ok ? 'text-emerald-700' : 'text-red-600'}`}>{testResult.message}</p>
+            {testResult.to && <p className="text-xs text-ink/50 mt-1">To: {testResult.to} &middot; Driver: {testResult.driver}</p>}
+            {testResult.detail && (
+              <p className="text-xs text-ink/60 mt-2 font-mono bg-white/60 rounded-lg px-3 py-2 break-all">{testResult.detail}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-ink/50">Loading subscribers...</p>

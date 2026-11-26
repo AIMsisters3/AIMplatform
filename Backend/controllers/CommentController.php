@@ -5,6 +5,7 @@ require_once __DIR__ . '/../models/Content.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../helpers/permissions.php';
+require_once __DIR__ . '/../helpers/visitor.php';
 
 class CommentController
 {
@@ -17,12 +18,13 @@ class CommentController
         $this->contentModel = new Content();
     }
 
-    /** GET /api/content/{id}/comments - public; shows liked_by_me if signed in */
+    /** GET /api/content/{id}/comments - public; shows liked_by_me for guest or signed-in viewer alike */
     public function index(int $contentId): void
     {
         $payload = optional_auth();
         $userId = $payload['sub'] ?? null;
-        json_ok(['items' => $this->model->forContent($contentId, $userId ? (int) $userId : null)]);
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+        json_ok(['items' => $this->model->forContent($contentId, $visitorKey)]);
     }
 
     /** POST /api/content/{id}/comments (auth required) body: {body, parent_id?} */
@@ -91,14 +93,22 @@ class CommentController
         json_ok(null, 'Comment status updated.');
     }
 
-    /** POST /api/comments/{id}/like (auth required) */
+    /**
+     * POST /api/comments/{id}/like - anyone can like, signed in or not
+     * (per explicit request), same guest-cookie identity
+     * ContentController::toggleLike() already uses.
+     */
     public function like(int $id): void
     {
-        $payload = require_auth();
         if (!$this->model->find($id)) {
             json_error('Comment not found.', 404);
         }
-        json_ok($this->model->toggleLike($id, (int) $payload['sub']));
+
+        $payload = optional_auth();
+        $userId = $payload['sub'] ?? null;
+        $visitorKey = $userId ? 'user:' . $userId : 'guest:' . get_visitor_key();
+
+        json_ok($this->model->toggleLike($id, $visitorKey, $userId ? (int) $userId : null));
     }
 
     /** DELETE /api/comments/{id} (owner or admin) */

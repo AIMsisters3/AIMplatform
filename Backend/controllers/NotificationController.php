@@ -27,6 +27,20 @@ class NotificationController
         ]);
     }
 
+    /** GET /api/notifications/admin — the signed-in admin's operational alerts (Store, Contact, Subscriptions, Testimonies, ...) + unread_count. Separate from index()'s general-user feed. */
+    public function adminIndex(): void
+    {
+        $payload = require_role(['admin', 'superadmin']);
+        $userId = (int) $payload['sub'];
+        $page  = max(1, (int) ($_GET['page'] ?? 1));
+        $limit = min(50, (int) ($_GET['limit'] ?? 20));
+
+        json_ok([
+            'items'         => $this->model->forAdmin($userId, $limit, ($page - 1) * $limit),
+            'unread_count'  => $this->model->unreadCountAdmin($userId),
+        ]);
+    }
+
     /** POST /api/notifications/{id}/read */
     public function markRead(int $id): void
     {
@@ -39,11 +53,19 @@ class NotificationController
         json_ok(null, 'Marked as read.');
     }
 
-    /** POST /api/notifications/read-all */
+    /** POST /api/notifications/read-all — only clears the general user feed; admin alerts are untouched (use markAllReadAdmin). */
     public function markAllRead(): void
     {
         $payload = require_auth();
-        $this->model->markAllRead((int) $payload['sub']);
+        $this->model->markAllRead((int) $payload['sub'], 'user');
+        json_ok(null, 'All notifications marked as read.');
+    }
+
+    /** POST /api/notifications/admin/read-all — only clears the admin operational feed. */
+    public function markAllReadAdmin(): void
+    {
+        $payload = require_role(['admin', 'superadmin']);
+        $this->model->markAllRead((int) $payload['sub'], 'admin');
         json_ok(null, 'All notifications marked as read.');
     }
 }

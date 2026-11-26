@@ -33,7 +33,7 @@ $path   = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $path = '/' . ltrim($path, '/');
 
 // Strip the folder prefix if the app isn't served from web root,
-// e.g. http://localhost/AIMTech/Backend/api/content
+// e.g. http://localhost/AIMplatform/Backend/api/content
 $path = preg_replace('#^.*?(/api/.*)#', '$1', $path);
 
 try {

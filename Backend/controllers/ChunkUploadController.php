@@ -198,6 +198,13 @@ class ChunkUploadController
             }
         }
 
+        // See UploadController::store()'s identical chmod() for why this
+        // matters - a rename()/copy() out of storage/ (0700-protected,
+        // see Backend/storage/.htaccess) into uploads/ can just as easily
+        // inherit permissions the public-facing webserver process can't
+        // actually read back.
+        @chmod($destination, 0644);
+
         $this->deleteSession($sessionDir);
 
         json_created([

@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/media_url.php';
 
 /** Backs `watch_history` (migration 006) — powers Continue Watching + "% watched". */
 class WatchHistory
@@ -54,6 +55,6 @@ class WatchHistory
         $stmt->bindValue('u', $userId, PDO::PARAM_INT);
         $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
-        return $stmt->fetchAll();
+        return array_map('normalize_media_row', $stmt->fetchAll());
     }
 }

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import WhatsAppIcon from './icons/WhatsAppIcon.jsx';
 
 // Same VITE_BACKEND_URL as src/api/axios.js — falls back to the local
 // XAMPP path so this keeps working unchanged in local dev.
-const BACKEND_SHARE_BASE = `${(import.meta.env.VITE_BACKEND_URL || 'http://localhost/AIMTech/Backend').replace(/\/$/, '')}/share.php`;
+const BACKEND_SHARE_BASE = `${(import.meta.env.VITE_BACKEND_URL || 'http://localhost/AIMplatform/Backend').replace(/\/$/, '')}/share.php`;
 
 export default function ShareButton({ item }) {
   const [copied, setCopied] = useState(false);
@@ -21,19 +22,25 @@ export default function ShareButton({ item }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 shrink-0">
+      {/* Icon-only (spec: replace the word with its icon everywhere) -
+          aria-label/title keep these labeled for screen readers and on
+          hover without taking up row width. */}
       <button
         onClick={handleWhatsApp}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#25D366] text-white text-xs font-semibold shadow-glass hover:opacity-90 transition"
+        aria-label="Share on WhatsApp"
+        title="Share on WhatsApp"
+        className="flex items-center justify-center w-9 h-9 rounded-full bg-[#25D366] text-white shadow-glass hover:opacity-90 transition shrink-0"
       >
-        Share on WhatsApp
+        <WhatsAppIcon className="w-4 h-4" />
       </button>
       <button
         onClick={handleCopy}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface text-ink/70 text-xs font-semibold border border-ink/10 hover:bg-ink/5 transition"
+        aria-label={copied ? 'Link copied' : 'Copy link'}
+        title={copied ? 'Link copied' : 'Copy link'}
+        className="flex items-center justify-center w-9 h-9 rounded-full bg-surface text-ink/70 border border-ink/10 hover:bg-ink/5 transition shrink-0"
       >
-        {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-        {copied ? 'Copied' : 'Copy link'}
+        {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
       </button>
     </div>
   );

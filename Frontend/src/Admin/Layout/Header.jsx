@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import NotificationsBell from '../../Components/NotificationsBell.jsx';
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -19,10 +20,7 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="relative w-10 h-10 rounded-full glass-card flex items-center justify-center">
-          🔔
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent text-[10px] text-white flex items-center justify-center">3</span>
-        </button>
+        <NotificationsBell variant="admin" />
 
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-brand-gradient flex items-center justify-center text-white font-semibold">
