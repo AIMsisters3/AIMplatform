@@ -71,6 +71,7 @@ const BibleStudiesAdmin = lazy(() => import('./Admin/Pages/BibleStudiesAdmin.jsx
 const SiteSettings = lazy(() => import('./Admin/Pages/SiteSettings.jsx'));
 const ChildrenMinistry = lazy(() => import('./Admin/Pages/ChildrenMinistry.jsx'));
 const ManageOrders = lazy(() => import('./Admin/Pages/ManageOrders.jsx'));
+const AdminStockRequests = lazy(() => import('./Admin/Pages/AdminStockRequests.jsx'));
 const ManageDeliveryAreas = lazy(() => import('./Admin/Pages/ManageDeliveryAreas.jsx'));
 const PaymentVerification = lazy(() => import('./Admin/Pages/PaymentVerification.jsx'));
 const ShopSettings = lazy(() => import('./Admin/Pages/ShopSettings.jsx'));
@@ -186,6 +187,7 @@ export default function App() {
               <Route path="bible-studies" element={<BibleStudiesAdmin />} />
               <Route path="children" element={<ChildrenMinistry />} />
               <Route path="orders" element={<ManageOrders />} />
+              <Route path="stock-requests" element={<AdminStockRequests />} />
               <Route path="delivery-areas" element={<ManageDeliveryAreas />} />
               <Route path="payments" element={<PaymentVerification />} />
               <Route path="shop-settings" element={<ShopSettings />} />

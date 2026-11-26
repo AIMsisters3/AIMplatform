@@ -80,13 +80,21 @@ class Payment
     }
 
     /** @return bool false if the record wasn't in a verifiable state (already decided) — caller should treat as a no-op, not an error, for idempotency. */
-    public function markVerified(int $id, int $verifiedBy): bool
+    /**
+     * @param float|null $verifiedAmount the admin's own confirmed amount
+     *   (e.g. from the actual bank/wallet statement), overriding what the
+     *   customer typed when submitting — they sometimes only pay a
+     *   deposit or a different amount than they claimed. Null keeps the
+     *   customer-submitted amount as-is.
+     */
+    public function markVerified(int $id, int $verifiedBy, ?float $verifiedAmount = null): bool
     {
         $stmt = $this->db->prepare(
-            "UPDATE payment_records SET status = 'verified', verified_by = :verified_by, verified_at = NOW()
+            "UPDATE payment_records SET status = 'verified', verified_by = :verified_by, verified_at = NOW(),
+                amount = COALESCE(:amount, amount)
              WHERE id = :id AND status = 'awaiting_verification'"
         );
-        $stmt->execute(['verified_by' => $verifiedBy, 'id' => $id]);
+        $stmt->execute(['verified_by' => $verifiedBy, 'amount' => $verifiedAmount, 'id' => $id]);
         return $stmt->rowCount() > 0;
     }
 

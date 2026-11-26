@@ -33,7 +33,7 @@ function downloadOrdersCsv(orders) {
   URL.revokeObjectURL(url);
 }
 
-const STATUSES = ['', 'awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered', 'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'];
+const STATUSES = ['', 'awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered', 'waiting_for_stock', 'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'completed', 'cancelled', 'terminated'];
 const ORDER_KINDS = ['', 'standard', 'pay_later', 'on_order'];
 const DOCUMENT_LINKS = [
   { type: 'confirmation', label: 'Confirmation' },
@@ -58,11 +58,14 @@ const STATUS_BADGE = {
   awaiting_payment: 'bg-amber-100 text-amber-700',
   processing: 'bg-sky-100 text-sky-700',
   supplier_ordered: 'bg-sky-100 text-sky-700',
+  waiting_for_stock: 'bg-amber-100 text-amber-700',
   arrived: 'bg-violet-100 text-violet-700',
   ready_for_pickup: 'bg-violet-100 text-violet-700',
   shipped: 'bg-secondary/10 text-secondary',
   delivered: 'bg-emerald-100 text-emerald-700',
+  completed: 'bg-emerald-100 text-emerald-700',
   cancelled: 'bg-red-100 text-red-600',
+  terminated: 'bg-red-100 text-red-600',
 };
 
 function label(s) {
@@ -77,6 +80,8 @@ export default function ManageOrders() {
   const [expanded, setExpanded] = useState(null);
   const [details, setDetails] = useState({});
   const [tracking, setTracking] = useState({});
+  const [pendingStatus, setPendingStatus] = useState({}); // orderId -> status picked in the dropdown but not yet saved
+  const [rowMessage, setRowMessage] = useState({}); // orderId -> {text, kind: 'error'|'success'}
   const [depositForm, setDepositForm] = useState({}); // orderId -> {percent, deadline}
   const [message, setMessage] = useState('');
   const [refunds, setRefunds] = useState({}); // orderId -> refund[]
@@ -169,14 +174,16 @@ export default function ManageOrders() {
     }
   }
 
-  async function updateStatus(orderId, newStatus) {
-    setMessage('');
+  async function saveStatus(order) {
+    const newStatus = pendingStatus[order.id] ?? order.status;
+    setRowMessage((m) => ({ ...m, [order.id]: null }));
     try {
-      await api.post(`/orders/${orderId}/status`, { status: newStatus, tracking_number: tracking[orderId] || undefined });
+      await api.post(`/orders/${order.id}/status`, { status: newStatus, tracking_number: tracking[order.id] || undefined });
+      setRowMessage((m) => ({ ...m, [order.id]: { kind: 'success', text: `Saved — status is now "${label(newStatus)}".` } }));
       load();
-      refreshDetail(orderId);
+      refreshDetail(order.id);
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Could not update status.');
+      setRowMessage((m) => ({ ...m, [order.id]: { kind: 'error', text: err.response?.data?.message || 'Could not update status.' } }));
     }
   }
 
@@ -361,26 +368,33 @@ export default function ManageOrders() {
                       </div>
                     )}
 
-                    <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-ink/10">
-                      <select
-                        defaultValue={o.status}
-                        onChange={(e) => updateStatus(o.id, e.target.value)}
-                        className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
-                      >
-                        {STATUSES.filter((s) => s).map((s) => <option key={s} value={s}>{label(s)}</option>)}
-                      </select>
-                      <input
-                        value={tracking[o.id] ?? o.tracking_number ?? ''}
-                        onChange={(e) => setTracking((t) => ({ ...t, [o.id]: e.target.value }))}
-                        placeholder="Tracking number"
-                        className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
-                      />
-                      <button
-                        onClick={() => updateStatus(o.id, o.status)}
-                        className="px-4 py-2 rounded-xl2 bg-brand-gradient text-white text-xs font-semibold shadow-glass"
-                      >
-                        Save
-                      </button>
+                    <div className="pt-3 border-t border-ink/10 space-y-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <select
+                          value={pendingStatus[o.id] ?? o.status}
+                          onChange={(e) => setPendingStatus((p) => ({ ...p, [o.id]: e.target.value }))}
+                          className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                        >
+                          {STATUSES.filter((s) => s).map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                        </select>
+                        <input
+                          value={tracking[o.id] ?? o.tracking_number ?? ''}
+                          onChange={(e) => setTracking((t) => ({ ...t, [o.id]: e.target.value }))}
+                          placeholder="Tracking number"
+                          className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                        />
+                        <button
+                          onClick={() => saveStatus(o)}
+                          className="px-4 py-2 rounded-xl2 bg-brand-gradient text-white text-xs font-semibold shadow-glass"
+                        >
+                          Save Status
+                        </button>
+                      </div>
+                      {rowMessage[o.id] && (
+                        <p className={`text-xs font-semibold ${rowMessage[o.id].kind === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {rowMessage[o.id].text}
+                        </p>
+                      )}
                     </div>
 
                     <div className="pt-3 border-t border-ink/10">

@@ -6,6 +6,7 @@ export default function PaymentVerification() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [verifiedAmounts, setVerifiedAmounts] = useState({}); // paymentId -> string
 
   const load = useCallback(() => {
     setLoading(true);
@@ -26,10 +27,17 @@ export default function PaymentVerification() {
     }
   }
 
-  async function verify(id) {
-    if (!confirm('Confirm you have checked the actual funds/reference and this payment is genuine?')) return;
+  async function verify(id, claimedAmount) {
+    const amountStr = verifiedAmounts[id];
+    const amount = amountStr !== undefined && amountStr !== '' ? Number(amountStr) : null;
+    if (amount !== null && (!Number.isFinite(amount) || amount <= 0)) {
+      setMessage('Please enter a valid amount, or leave it as the claimed amount.');
+      return;
+    }
+    const confirmedAmount = amount ?? claimedAmount;
+    if (!confirm(`Confirm you have checked the actual funds/reference, and record N$${confirmedAmount.toFixed(2)} as received?`)) return;
     try {
-      await api.post(`/payments/${id}/verify`);
+      await api.post(`/payments/${id}/verify`, amount !== null ? { verified_amount: amount } : {});
       load();
     } catch (err) {
       setMessage(err.response?.data?.message || 'Could not verify payment.');
@@ -84,6 +92,16 @@ export default function PaymentVerification() {
                 <p className="text-xs text-ink/40 mt-1">
                   Order total N$ {Number(p.grand_total).toFixed(2)} · already paid N$ {Number(p.amount_paid).toFixed(2)} · submitted {new Date(p.submitted_at).toLocaleString()}
                 </p>
+                <label className="block mt-2">
+                  <span className="text-[11px] font-semibold text-ink/50">Amount actually received (e.g. only a deposit?)</span>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={verifiedAmounts[p.id] ?? ''}
+                    onChange={(e) => setVerifiedAmounts((v) => ({ ...v, [p.id]: e.target.value }))}
+                    placeholder={Number(p.amount).toFixed(2)}
+                    className="mt-0.5 w-32 px-2 py-1.5 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                  />
+                </label>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {p.proof_file_path && (
@@ -91,7 +109,7 @@ export default function PaymentVerification() {
                     <Eye className="w-3.5 h-3.5" /> View Proof
                   </button>
                 )}
-                <button onClick={() => verify(p.id)} className="px-4 py-2 rounded-xl2 bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5">
+                <button onClick={() => verify(p.id, Number(p.amount))} className="px-4 py-2 rounded-xl2 bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Verify
                 </button>
                 <button onClick={() => reject(p.id)} className="px-4 py-2 rounded-xl2 bg-red-500 text-white text-xs font-semibold flex items-center gap-1.5">

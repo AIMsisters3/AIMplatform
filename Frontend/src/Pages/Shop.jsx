@@ -75,11 +75,16 @@ export default function Shop() {
   const isFiltering = Boolean(search || categoryId || sort || onSale || minPrice || maxPrice);
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface relative overflow-hidden">
       {/* No hero section (redesign spec: "open directly into the
           product-shopping experience") - just a working search bar,
-          functional rather than decorative, right above the products. */}
-      <div className="max-w-7xl mx-auto px-6 pt-8 pb-10">
+          functional rather than decorative, right above the products.
+          Soft background blobs only (bug report: "decorate even the
+          background... things must look beautiful") - same pattern as
+          Home.jsx/BibleStudies.jsx, never interactive (pointer-events-none). */}
+      <div className="absolute -top-24 -right-20 w-80 h-80 rounded-full bg-secondary/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 -left-24 w-72 h-72 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
+      <div className="max-w-7xl mx-auto px-6 pt-8 pb-10 relative">
         <motion.form
           initial="hidden" animate="visible" variants={fadeUp}
           onSubmit={(e) => e.preventDefault()}

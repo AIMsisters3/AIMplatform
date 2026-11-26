@@ -150,8 +150,9 @@ class PayLater
             notify_shop_event(
                 (int) $order['user_id'],
                 'Pay Later request approved',
-                "Your Pay Later order {$order['order_number']} is approved. Your 7-day payment period has started - payment is due by "
-                    . date('j F Y, H:i', strtotime($dueAt)) . '.',
+                "Your Pay Later order {$order['order_number']} is approved. Your items are reserved for exactly 7 days - payment is due by "
+                    . date('j F Y, H:i', strtotime($dueAt))
+                    . '. If payment is not received by then, your reservation ends automatically and the items go back on sale to other customers.',
                 'pay_later',
                 'Pay Later Approved',
                 '/orders', 'View Order', $order['contact_phone'] ?? null, $orderId, 'pay_later_approved'

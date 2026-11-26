@@ -222,7 +222,8 @@ export default function Checkout() {
           </div>
 
           <div className="glass-card p-6">
-            <h3 className="font-display font-semibold mb-4">Coupon Code</h3>
+            <h3 className="font-display font-semibold mb-1">Coupon Code</h3>
+            <p className="text-xs text-ink/45 mb-4">A promo code for a discount, if you have one (e.g. from a promotion or an admin). Leave this blank otherwise — it's optional.</p>
             <input
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value)}

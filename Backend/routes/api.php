@@ -38,6 +38,7 @@ require_once __DIR__ . '/../controllers/RefundController.php';
 require_once __DIR__ . '/../controllers/ReviewController.php';
 require_once __DIR__ . '/../controllers/WishlistController.php';
 require_once __DIR__ . '/../controllers/FeaturedController.php';
+require_once __DIR__ . '/../controllers/StockRequestController.php';
 require_once __DIR__ . '/../helpers/response.php';
 require_once __DIR__ . '/../helpers/permissions.php';
 
@@ -236,6 +237,17 @@ function route(string $method, string $path)
         if ($id !== null && $action === null && $method === 'GET') return $ctrl->show((int) $id);
 
         json_error('Order route not found.', 404);
+    }
+
+    // ---------- STOCK REQUESTS ----------
+    if ($resource === 'stock-requests') {
+        $ctrl = new StockRequestController();
+
+        if ($id === null && $method === 'GET') return $ctrl->index();
+        if ($id === null && $method === 'POST') return $ctrl->store();
+        if ($id !== null && $action === 'status' && $method === 'POST') return $ctrl->updateStatus((int) $id);
+
+        json_error('Stock request route not found.', 404);
     }
 
     // ---------- REVIEWS (moderation) ----------

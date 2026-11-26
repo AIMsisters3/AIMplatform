@@ -580,7 +580,10 @@ class Order
 
     public function updateFulfillmentStatus(int $id, string $status, ?string $trackingNumber = null): bool
     {
-        $valid = ['awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered', 'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'];
+        $valid = [
+            'awaiting_approval', 'awaiting_payment', 'processing', 'supplier_ordered', 'waiting_for_stock',
+            'arrived', 'ready_for_pickup', 'shipped', 'delivered', 'completed', 'cancelled', 'terminated',
+        ];
         if (!in_array($status, $valid, true)) {
             return false;
         }
@@ -591,6 +594,18 @@ class Order
             $order = $this->find($id);
             if ($order && (float) $order['amount_paid'] < (float) $order['grand_total']) {
                 throw new OrderException('This order still has an outstanding balance — it cannot be marked ' . str_replace('_', ' ', $status) . ' yet.');
+            }
+        }
+        // Never tell a customer their order has arrived/shipped/is ready
+        // when an item on it went out of stock after ordering and the
+        // customer hasn't yet chosen wait/replace/refund — that would be
+        // sending a notification that doesn't fit what's actually in
+        // stock. See migration 046's order_items.resolution_status.
+        if (in_array($status, ['arrived', 'ready_for_pickup', 'shipped', 'delivered', 'completed'], true)) {
+            $unresolved = array_filter($this->itemsForOrder($id), fn ($i) => $i['resolution_status'] === 'unavailable');
+            if (!empty($unresolved)) {
+                $names = implode(', ', array_map(fn ($i) => $i['product_name'], $unresolved));
+                throw new OrderException("This order still has an item flagged unavailable ({$names}) — resolve it (wait/replace/refund) before marking the order {$status}.");
             }
         }
 

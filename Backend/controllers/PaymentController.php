@@ -115,7 +115,13 @@ class PaymentController
         json_ok(['items' => $this->model->queue($limit, ($page - 1) * $limit)]);
     }
 
-    /** POST /api/payments/{id}/verify (requires orders.manage) */
+    /**
+     * POST /api/payments/{id}/verify (requires orders.manage)
+     * body: {verified_amount?} — the admin's own confirmed amount (e.g.
+     * off the actual bank/wallet statement), when it differs from what
+     * the customer typed in (a partial/deposit payment, or a typo).
+     * Omit it to keep the customer-submitted amount.
+     */
     public function verify(int $id): void
     {
         $payload = require_permission('orders.manage');
@@ -124,13 +130,22 @@ class PaymentController
             json_error('Payment record not found.', 404);
         }
 
-        $ok = $this->model->markVerified($id, (int) $payload['sub']);
+        $body = get_json_body();
+        $verifiedAmount = null;
+        if (isset($body['verified_amount']) && is_numeric($body['verified_amount'])) {
+            $verifiedAmount = (float) $body['verified_amount'];
+            if ($verifiedAmount <= 0) {
+                json_error('The verified amount must be greater than zero.', 422);
+            }
+        }
+
+        $ok = $this->model->markVerified($id, (int) $payload['sub'], $verifiedAmount);
         if (!$ok) {
             json_error('This payment has already been decided.', 409);
             return;
         }
 
-        $this->orderModel->applyVerifiedPayment((int) $record['order_id'], (float) $record['amount']);
+        $this->orderModel->applyVerifiedPayment((int) $record['order_id'], $verifiedAmount ?? (float) $record['amount']);
         json_ok(null, 'Payment verified.');
     }
 

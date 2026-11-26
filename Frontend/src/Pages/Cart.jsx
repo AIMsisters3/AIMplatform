@@ -86,8 +86,12 @@ export default function Cart() {
             const key = lineKey(item.product_id, item.variant_id);
             const stock = availability[key];
             const isShort = stock && !stock.ok;
+            // Only in-stock items carry a real cap — on-order items have
+            // available_quantity === null (not stock-limited the same
+            // way, see Order::checkAvailability()), so the "+" stays free.
+            const atMax = stock && stock.available_quantity != null && item.quantity >= stock.available_quantity;
             return (
-              <div key={key} className={`glass-card p-4 flex items-center gap-4 ${isShort ? 'ring-2 ring-red-300' : ''}`}>
+              <div key={key} className={`glass-card p-4 flex flex-wrap items-center gap-4 ${isShort ? 'ring-2 ring-red-300' : ''}`}>
                 <div className="w-20 h-20 rounded-xl2 bg-brand-gradient-soft flex items-center justify-center overflow-hidden shrink-0">
                   {item.thumbnail ? (
                     <img src={item.thumbnail} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
@@ -95,8 +99,8 @@ export default function Cart() {
                     <Package className="w-6 h-6 text-secondary/60" />
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold truncate">{item.name}</h3>
+                <div className="flex-1 min-w-[140px]">
+                  <h3 className="font-semibold">{item.name}</h3>
                   {item.variant_attributes && (
                     <p className="text-xs text-ink/50">
                       {Object.entries(item.variant_attributes).map(([k, v]) => `${k}: ${v}`).join(' · ')}
@@ -121,6 +125,11 @@ export default function Cart() {
                       )}
                     </p>
                   )}
+                  {!isShort && atMax && (
+                    <p className="flex items-center gap-1 text-xs font-semibold text-amber-600 mt-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Only {stock.available_quantity} in stock — that's all of it in your cart.
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -132,8 +141,10 @@ export default function Cart() {
                   </button>
                   <span className="w-6 text-center text-sm font-semibold">{item.quantity}</span>
                   <button
-                    onClick={() => setQuantity(item.product_id, item.quantity + 1, item.variant_id)}
-                    className="w-8 h-8 rounded-full glass-card flex items-center justify-center hover:bg-white"
+                    onClick={() => !atMax && setQuantity(item.product_id, item.quantity + 1, item.variant_id)}
+                    disabled={atMax}
+                    title={atMax ? `Only ${stock.available_quantity} in stock` : undefined}
+                    className="w-8 h-8 rounded-full glass-card flex items-center justify-center hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                     aria-label="Increase quantity"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -157,14 +168,11 @@ export default function Cart() {
             <span>Subtotal</span>
             <span>N$ {subtotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm text-ink/70 mb-4">
-            <span>Delivery</span>
-            <span>{hasPhysical ? 'Calculated at checkout' : 'N/A'}</span>
+          <div className="border-t border-ink/10 pt-4 flex justify-between font-bold mb-2">
+            <span>Total</span>
+            <span>N$ {subtotal.toFixed(2)}</span>
           </div>
-          <div className="border-t border-ink/10 pt-4 flex justify-between font-bold mb-6">
-            <span>Estimated Total</span>
-            <span>N$ {subtotal.toFixed(2)}{hasPhysical ? '+' : ''}</span>
-          </div>
+          {hasPhysical && <p className="text-xs text-ink/45 mb-4">Delivery/pickup fee (if any) is added once we confirm where to send it.</p>}
           {stockIssues.length > 0 && (
             <p className="flex items-start gap-2 text-xs font-semibold text-red-600 mb-4 bg-red-50 rounded-2xl px-4 py-3">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />

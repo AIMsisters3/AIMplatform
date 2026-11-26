@@ -12,6 +12,7 @@ const items = [
   { to: '/admin/products', label: 'Manage Products', icon: '🛍️' },
   { to: '/admin/business', label: 'Business Dashboard', icon: '📊' },
   { to: '/admin/orders', label: 'Orders', icon: '📦' },
+  { to: '/admin/stock-requests', label: 'Stock Requests', icon: '🔔' },
   { to: '/admin/delivery-areas', label: 'Delivery & Pickup', icon: '🚚' },
   { to: '/admin/payments', label: 'Payment Verification', icon: '💳' },
   { to: '/admin/shop-settings', label: 'Shop Settings', icon: '⚙️' },
