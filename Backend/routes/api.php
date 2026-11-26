@@ -227,6 +227,8 @@ function route(string $method, string $path)
         if ($id !== null && $action === 'pay-later' && $subId === 'decline' && $method === 'POST') return $ctrl->declinePayLater((int) $id);
         if ($id !== null && $action === 'deposit' && $method === 'POST') return $ctrl->setDeposit((int) $id);
         if ($id !== null && $action === 'item-procurement' && $subId !== null && $method === 'POST') return $ctrl->updateItemProcurement((int) $id, (int) $subId);
+        if ($id !== null && $action === 'delivery-quote' && $method === 'POST') return $ctrl->deliveryQuote((int) $id);
+        if ($id !== null && $action === 'fulfillment' && $method === 'POST') return $ctrl->chooseFulfillment((int) $id);
         if ($id !== null && $action === 'payments' && $method === 'POST') return (new PaymentController())->submit((int) $id);
         if ($id !== null && $action === 'payments' && $method === 'GET') return (new PaymentController())->forOrder((int) $id);
         if ($id !== null && $action === 'refunds' && $method === 'POST') return (new RefundController())->request((int) $id);

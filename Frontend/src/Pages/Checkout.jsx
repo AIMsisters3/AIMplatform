@@ -1,16 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, Truck, MapPin, Clock, Info } from 'lucide-react';
+import { CheckCircle2, Clock, Info, Copy, Check } from 'lucide-react';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api/axios.js';
-import DeliveryLocationPicker from '../Components/DeliveryLocationPicker.jsx';
-import { matchDeliveryArea } from '../utils/geo.js';
 
 const METHOD_LABELS = {
   manual_bank: 'Bank Transfer',
   manual_mobile_wallet: 'Mobile Wallet',
 };
+
+/** Shows the admin-configured bank/mobile-wallet details right where the
+ * customer picks that payment method — spec bug report: "you didnt even
+ * display the number when the user chose ewallet or bank transwfer." */
+function PaymentMethodDetails({ method, shopSettings }) {
+  const [copied, setCopied] = useState(false);
+  const number = method === 'manual_mobile_wallet' ? shopSettings['shop.mobile_wallet_number'] : null;
+  const instructions = shopSettings[`shop.payment_instructions_${method === 'manual_mobile_wallet' ? 'mobile_wallet' : 'bank'}`];
+
+  if (!number && !instructions) return null;
+
+  function handleCopy() {
+    if (!number) return;
+    navigator.clipboard?.writeText(number).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  return (
+    <div className="mt-3 p-4 rounded-xl2 bg-secondary/5 border border-secondary/20">
+      {number && (
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div>
+            <p className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide">Mobile Wallet Number</p>
+            <p className="text-lg font-bold text-ink">{number}</p>
+          </div>
+          <button
+            type="button" onClick={handleCopy}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white text-xs font-semibold shadow-glass hover:bg-surface transition shrink-0"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
+      {instructions && <p className="text-sm text-ink/70 whitespace-pre-line">{instructions}</p>}
+    </div>
+  );
+}
 
 export default function Checkout() {
   const { items, subtotal, hasOnOrder, clear } = useCart();
@@ -20,13 +58,8 @@ export default function Checkout() {
   const [methods, setMethods] = useState([]);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [payLaterDays, setPayLaterDays] = useState(7);
-  const [deliveryAreas, setDeliveryAreas] = useState([]);
-  const [fulfillmentType, setFulfillmentType] = useState('delivery');
-  const [deliveryAreaId, setDeliveryAreaId] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
-  const [deliveryLocation, setDeliveryLocation] = useState(null); // {lat, lng}
-  const [autoMatchedAreaName, setAutoMatchedAreaName] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState('');
@@ -51,42 +84,11 @@ export default function Checkout() {
         if (list.length) setPaymentMethod(list.find((m) => m !== 'pay_later') || list[0]);
       })
       .catch(() => setMethods(['manual_bank']));
-    api.get('/delivery-areas').then((r) => setDeliveryAreas(r.data?.data?.items || [])).catch(() => setDeliveryAreas([]));
     api.get('/settings/shop').then((r) => setShopSettings(r.data?.data?.items || {})).catch(() => setShopSettings({}));
   }, []);
 
-  const deliveryOptions = deliveryAreas.filter((a) => !a.is_pickup);
-  const pickupOptions = deliveryAreas.filter((a) => a.is_pickup);
-  const areaOptions = fulfillmentType === 'pickup' ? pickupOptions : deliveryOptions;
-  const selectedArea = areaOptions.find((a) => String(a.id) === String(deliveryAreaId));
-  const deliveryFee = fulfillmentType === 'delivery' ? Number(selectedArea?.fee || 0) : 0;
-  const estimatedTotal = subtotal + deliveryFee;
-
+  const estimatedTotal = subtotal;
   const payLaterEligible = !hasOnOrder;
-
-  useEffect(() => {
-    setDeliveryAreaId('');
-    setDeliveryLocation(null);
-    setAutoMatchedAreaName('');
-  }, [fulfillmentType]);
-
-  // Once the customer pins (or "Use My Location"s) a spot on the map,
-  // auto-select the delivery area whose admin-configured center+radius
-  // actually contains it — spec: "pick it up to be the delivery area"
-  // instead of making them separately choose one from the dropdown. The
-  // dropdown itself is left untouched and still fully editable, so a
-  // customer whose real address falls outside every configured zone (or
-  // who simply disagrees with the match) can still pick manually.
-  function handlePinChange(location) {
-    setDeliveryLocation(location);
-    const match = matchDeliveryArea(deliveryOptions, location.lat, location.lng);
-    if (match) {
-      setDeliveryAreaId(String(match.id));
-      setAutoMatchedAreaName(match.name);
-    } else {
-      setAutoMatchedAreaName('');
-    }
-  }
 
   async function handlePlaceOrder(e) {
     e.preventDefault();
@@ -95,29 +97,13 @@ export default function Checkout() {
       setError('Please provide a phone number so we can reach you.');
       return;
     }
-    if (fulfillmentType === 'delivery' && !deliveryAreaId) {
-      setError('Please choose your delivery area.');
-      return;
-    }
-    if (fulfillmentType === 'delivery' && !deliveryLocation) {
-      setError('Please pin your delivery location on the map below.');
-      return;
-    }
-    if (fulfillmentType === 'pickup' && pickupOptions.length > 0 && !deliveryAreaId) {
-      setError('Please choose a pickup location.');
-      return;
-    }
 
     setPlacing(true);
     try {
       const { data } = await api.post('/orders', {
         items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id || undefined, quantity: i.quantity })),
-        fulfillment_type: fulfillmentType,
-        delivery_area_id: deliveryAreaId || undefined,
         contact_name: contactName.trim() || undefined,
         contact_phone: contactPhone.trim(),
-        delivery_latitude: fulfillmentType === 'delivery' ? deliveryLocation?.lat : undefined,
-        delivery_longitude: fulfillmentType === 'delivery' ? deliveryLocation?.lng : undefined,
         coupon_code: couponCode || undefined,
         payment_method: paymentMethod === 'pay_later' ? 'pay_later' : paymentMethod,
         pay_later_days: paymentMethod === 'pay_later' ? payLaterDays : undefined,
@@ -160,12 +146,23 @@ export default function Checkout() {
           ))}
         </div>
 
-        {paymentMethod !== 'pay_later' && (shopSettings[`shop.payment_instructions_${paymentMethod === 'manual_mobile_wallet' ? 'mobile_wallet' : 'bank'}`]) && (
-          <div className="glass-card p-5 text-left mb-8">
-            <h3 className="font-display font-semibold mb-2">{METHOD_LABELS[paymentMethod]} Instructions</h3>
-            <p className="text-sm text-ink/70 whitespace-pre-line">
-              {shopSettings[`shop.payment_instructions_${paymentMethod === 'manual_mobile_wallet' ? 'mobile_wallet' : 'bank'}`]}
+        {paymentMethod !== 'pay_later' && (
+          <div className="glass-card p-5 text-left mb-6">
+            <h3 className="font-display font-semibold mb-2">{METHOD_LABELS[paymentMethod]} Details</h3>
+            <PaymentMethodDetails method={paymentMethod} shopSettings={shopSettings} />
+          </div>
+        )}
+
+        {paymentMethod !== 'pay_later' && (
+          <div className="rounded-2xl bg-secondary text-white p-5 text-left mb-8 shadow-glass">
+            <p className="font-display font-semibold mb-1">Next step: upload your proof of payment</p>
+            <p className="text-sm text-white/90">
+              Once you've paid, go to <strong>My Orders</strong> and tap <strong>Submit Payment Proof</strong> on this order —
+              that's how we confirm it. Your order stays "Awaiting Payment" until you do this.
             </p>
+            <Link to="/orders" className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-full bg-white text-secondary text-sm font-bold shadow-glass hover:opacity-90 transition">
+              Go Submit Payment Proof
+            </Link>
           </div>
         )}
         <div className="flex gap-3 justify-center">
@@ -191,45 +188,13 @@ export default function Checkout() {
         </p>
       )}
 
+      <p className="flex items-start gap-2 text-sm text-ink/60 mb-6 bg-brand-gradient-soft rounded-2xl px-4 py-3">
+        <Info className="w-4 h-4 text-secondary shrink-0 mt-0.5" />
+        We'll ask whether you'd like delivery or pickup — and your delivery location — once your order is ready. No need to arrange that now.
+      </p>
+
       <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="glass-card p-6">
-            <h3 className="font-display font-semibold mb-4">Delivery or Pickup</h3>
-            <div className="inline-flex rounded-xl2 border border-ink/10 p-1 bg-surface/60 mb-4">
-              {[{ value: 'delivery', label: 'Delivery', icon: Truck }, { value: 'pickup', label: 'Pickup', icon: MapPin }].map((f) => (
-                <button
-                  key={f.value} type="button" onClick={() => setFulfillmentType(f.value)}
-                  className={`px-4 py-1.5 rounded-xl2 text-xs font-semibold flex items-center gap-1.5 transition ${
-                    fulfillmentType === f.value ? 'bg-brand-gradient text-white shadow-glass' : 'text-ink/60'
-                  }`}
-                >
-                  <f.icon className="w-3.5 h-3.5" /> {f.label}
-                </button>
-              ))}
-            </div>
-
-            {areaOptions.length > 0 ? (
-              <select
-                value={deliveryAreaId}
-                onChange={(e) => { setDeliveryAreaId(e.target.value); setAutoMatchedAreaName(''); }}
-                className="w-full px-4 py-3 rounded-xl2 border border-ink/10 focus:outline-none focus:ring-2 focus:ring-secondary"
-              >
-                <option value="">{fulfillmentType === 'pickup' ? 'Choose a pickup location...' : 'Choose your delivery area...'}</option>
-                {areaOptions.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}{a.is_pickup ? '' : ` — N$ ${Number(a.fee).toFixed(2)}`}</option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-sm text-ink/50">No {fulfillmentType} options are configured yet — please contact us to arrange {fulfillmentType}.</p>
-            )}
-            {autoMatchedAreaName && String(selectedArea?.id) === deliveryAreaId && (
-              <p className="text-xs text-emerald-600 font-medium mt-2">
-                Matched to "{autoMatchedAreaName}" from your pinned location below — change it above if that's wrong.
-              </p>
-            )}
-            {selectedArea?.instructions && <p className="text-xs text-ink/45 mt-2">{selectedArea.instructions}</p>}
-          </div>
-
           <div className="glass-card p-6">
             <h3 className="font-display font-semibold mb-4">Contact</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -254,17 +219,6 @@ export default function Checkout() {
                 />
               </label>
             </div>
-
-            {/* Real pin, not a hand-typed street address — the ministry's
-                delivery person gets a map to follow, not a description to
-                interpret. See DeliveryLocationPicker.jsx. Pinning here also
-                auto-selects the matching delivery area above. */}
-            {fulfillmentType === 'delivery' && (
-              <div className="mt-4 pt-4 border-t border-ink/10">
-                <p className="text-sm font-semibold mb-2">Delivery Location</p>
-                <DeliveryLocationPicker value={deliveryLocation} onChange={handlePinChange} />
-              </div>
-            )}
           </div>
 
           <div className="glass-card p-6">
@@ -281,10 +235,13 @@ export default function Checkout() {
             <h3 className="font-display font-semibold mb-4">Payment Method</h3>
             <div className="space-y-2">
               {methods.map((m) => (
-                <label key={m} className="flex items-center gap-3 px-4 py-3 rounded-xl2 border border-ink/10 cursor-pointer has-[:checked]:border-secondary has-[:checked]:bg-secondary/5">
-                  <input type="radio" name="payment_method" value={m} checked={paymentMethod === m} onChange={() => setPaymentMethod(m)} />
-                  <span className="text-sm">{METHOD_LABELS[m] || m}</span>
-                </label>
+                <div key={m}>
+                  <label className="flex items-center gap-3 px-4 py-3 rounded-xl2 border border-ink/10 cursor-pointer has-[:checked]:border-secondary has-[:checked]:bg-secondary/5">
+                    <input type="radio" name="payment_method" value={m} checked={paymentMethod === m} onChange={() => setPaymentMethod(m)} />
+                    <span className="text-sm">{METHOD_LABELS[m] || m}</span>
+                  </label>
+                  {paymentMethod === m && <PaymentMethodDetails method={m} shopSettings={shopSettings} />}
+                </div>
               ))}
               {payLaterEligible && (
                 <label className="flex items-center gap-3 px-4 py-3 rounded-xl2 border border-ink/10 cursor-pointer has-[:checked]:border-secondary has-[:checked]:bg-secondary/5">
@@ -327,14 +284,11 @@ export default function Checkout() {
             <span>Subtotal</span>
             <span>N$ {subtotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm text-ink/70 mb-4">
-            <span>Delivery</span>
-            <span>{fulfillmentType === 'pickup' ? 'Free (pickup)' : selectedArea ? `N$ ${deliveryFee.toFixed(2)}` : '—'}</span>
-          </div>
-          <div className="border-t border-ink/10 pt-4 flex justify-between font-bold mb-6">
-            <span>Estimated Total</span>
+          <div className="border-t border-ink/10 pt-4 flex justify-between font-bold mb-2">
+            <span>Total</span>
             <span>N$ {estimatedTotal.toFixed(2)}</span>
           </div>
+          <p className="text-xs text-ink/45 mb-6">Delivery/pickup fee (if any) is added once we confirm where to send it.</p>
           <button
             disabled={placing}
             className="w-full py-3 rounded-full bg-brand-gradient text-white font-semibold shadow-glass hover:opacity-90 transition disabled:opacity-60"

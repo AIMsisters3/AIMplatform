@@ -8,6 +8,7 @@ import api from '../api/axios.js';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import ProductCard from '../Components/ProductCard.jsx';
+import FloatingCartButton from '../Components/FloatingCartButton.jsx';
 
 const ATTRIBUTE_LABELS = {
   size: 'Size', color: 'Color', fit: 'Fit', material: 'Material',
@@ -168,6 +169,7 @@ export default function ProductDetail() {
 
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
+  const [fallbackRelated, setFallbackRelated] = useState([]);
   const [deliveryAreas, setDeliveryAreas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -200,6 +202,19 @@ export default function ProductDetail() {
   useEffect(() => {
     api.get('/delivery-areas').then((r) => setDeliveryAreas(r.data?.data?.items || [])).catch(() => setDeliveryAreas([]));
   }, []);
+
+  // Shopping must never dead-end below a product (bug report: "the user
+  // doesnt always have to go back once they open the product... below
+  // the review of an opened item must the shop continue"). related is a
+  // purchase/wishlist-ranked match that's legitimately empty for a new or
+  // uncategorized product — this fallback guarantees something to keep
+  // browsing either way.
+  useEffect(() => {
+    if (!product || related.length > 0) { setFallbackRelated([]); return; }
+    api.get('/products', { params: { limit: 9 } })
+      .then((r) => setFallbackRelated((r.data?.data?.items || []).filter((p) => p.id !== product.id).slice(0, 8)))
+      .catch(() => setFallbackRelated([]));
+  }, [product, related.length]);
 
   // Which attribute keys (Size, Color, ...) this product's variants vary
   // by, and the distinct values offered for each — built from whatever
@@ -439,7 +454,7 @@ export default function ProductDetail() {
             <div className="glass-card p-4 mb-5 space-y-2">
               {cheapestDelivery !== null && (
                 <p className="flex items-center gap-2 text-sm text-ink/70">
-                  <Truck className="w-4 h-4 text-secondary shrink-0" /> Delivery from N$ {cheapestDelivery.toFixed(2)} depending on your area — choose yours at checkout.
+                  <Truck className="w-4 h-4 text-secondary shrink-0" /> Delivery from N$ {cheapestDelivery.toFixed(2)} depending on your area — we'll ask where once your order is ready.
                 </p>
               )}
               {pickupOnly.length > 0 && (
@@ -474,14 +489,22 @@ export default function ProductDetail() {
 
       <ProductReviews productId={product.id} user={user} />
 
-      {related.length > 0 && (
+      {related.length > 0 ? (
         <div className="mt-16">
           <h2 className="text-lg font-display font-bold text-ink mb-5">You May Also Like</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {related.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </div>
+      ) : fallbackRelated.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-lg font-display font-bold text-ink mb-5">More From The Shop</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {fallbackRelated.map((p) => <ProductCard key={p.id} product={p} />)}
+          </div>
+        </div>
       )}
+      <FloatingCartButton />
     </div>
   );
 }

@@ -100,9 +100,15 @@ class OrderController
 
     /**
      * POST /api/orders — place an order from a cart payload.
-     * body: {items: [{product_id, variant_id?, quantity}], fulfillment_type, delivery_area_id?,
-     *        contact_name? (optional), contact_phone (required), delivery_latitude?, delivery_longitude?
-     *        (required iff fulfillment_type === 'delivery'), coupon_code?, payment_method, pay_later_days?}
+     *
+     * Delivery/pickup is deliberately NOT collected here — the customer
+     * chooses that (and, for delivery, where) once the order is marked
+     * "arrived" (see chooseFulfillment() below). This was an explicit
+     * product correction: checkout only needs to know who to contact and
+     * how they'll pay.
+     *
+     * body: {items: [{product_id, variant_id?, quantity}], contact_name? (optional),
+     *        contact_phone (required), coupon_code?, payment_method, pay_later_days?}
      */
     public function store(): void
     {
@@ -115,29 +121,9 @@ class OrderController
         $body = get_json_body();
 
         $items = is_array($body['items'] ?? null) ? $body['items'] : [];
-        $fulfillmentType = $body['fulfillment_type'] ?? 'delivery';
-        $deliveryAreaId = !empty($body['delivery_area_id']) ? (int) $body['delivery_area_id'] : null;
         $paymentMethod = $body['payment_method'] ?? 'manual_bank';
         $couponCode = !empty($body['coupon_code']) ? trim($body['coupon_code']) : null;
         $payLaterDays = isset($body['pay_later_days']) ? (int) $body['pay_later_days'] : null;
-
-        // Delivery location pinned on the checkout map (migration 027) —
-        // real GPS/map coordinates, never a hand-typed address. Only
-        // required for fulfillment_type === 'delivery'; a pickup order
-        // has nowhere to deliver to, so it's simply never collected there.
-        $deliveryLatitude = null;
-        $deliveryLongitude = null;
-        if ($fulfillmentType === 'delivery') {
-            if (!isset($body['delivery_latitude'], $body['delivery_longitude'])
-                || !is_numeric($body['delivery_latitude']) || !is_numeric($body['delivery_longitude'])) {
-                json_error('Please pin your delivery location on the map.', 422);
-            }
-            $deliveryLatitude = (float) $body['delivery_latitude'];
-            $deliveryLongitude = (float) $body['delivery_longitude'];
-            if ($deliveryLatitude < -90 || $deliveryLatitude > 90 || $deliveryLongitude < -180 || $deliveryLongitude > 180) {
-                json_error('That delivery location looks invalid — please re-pin it on the map.', 422);
-            }
-        }
 
         if (empty($items)) {
             json_error('Your cart is empty.', 422);
@@ -162,15 +148,15 @@ class OrderController
             $result = $this->model->createFromCart(
                 (int) $payload['sub'],
                 $items,
-                $fulfillmentType,
-                $deliveryAreaId,
+                null,
+                null,
                 $shippingAddress,
                 $couponCode,
                 $paymentMethod,
                 $body['payment_details'] ?? [],
                 $payLaterDays,
-                $deliveryLatitude,
-                $deliveryLongitude,
+                null,
+                null,
                 $contactName !== '' ? $contactName : null,
                 $contactPhone
             );
@@ -180,6 +166,66 @@ class OrderController
         }
 
         json_created($result, count($result['orders']) > 1 ? 'Your cart was split into two orders — see details below.' : 'Order placed successfully.');
+    }
+
+    /**
+     * POST /api/orders/{id}/delivery-quote — read-only preview while the
+     * customer is choosing where to be delivered to, before they commit.
+     * body: {latitude, longitude}
+     */
+    public function deliveryQuote(int $id): void
+    {
+        $payload = require_auth();
+        $body = get_json_body();
+        if (!isset($body['latitude'], $body['longitude']) || !is_numeric($body['latitude']) || !is_numeric($body['longitude'])) {
+            json_error('A map location is required for a delivery quote.', 422);
+        }
+        $lat = (float) $body['latitude'];
+        $lng = (float) $body['longitude'];
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            json_error('That location looks invalid — please re-pin it on the map.', 422);
+        }
+
+        try {
+            $quote = $this->model->previewDeliveryQuote($id, (int) $payload['sub'], $lat, $lng);
+        } catch (OrderException $e) {
+            json_error($e->getMessage(), 422);
+            return;
+        }
+        json_ok($quote);
+    }
+
+    /**
+     * POST /api/orders/{id}/fulfillment — the customer's delivery/pickup
+     * choice, made once the order is "arrived". body:
+     * {fulfillment_type: 'delivery'|'pickup', latitude?, longitude?, manual_address?}
+     * For delivery, either a map pin (latitude+longitude) or a manual_address
+     * fallback is required — never both required at once.
+     */
+    public function chooseFulfillment(int $id): void
+    {
+        $payload = require_auth();
+        $body = get_json_body();
+        $fulfillmentType = $body['fulfillment_type'] ?? '';
+
+        $lat = null;
+        $lng = null;
+        if (isset($body['latitude'], $body['longitude']) && is_numeric($body['latitude']) && is_numeric($body['longitude'])) {
+            $lat = (float) $body['latitude'];
+            $lng = (float) $body['longitude'];
+            if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+                json_error('That location looks invalid — please re-pin it on the map.', 422);
+            }
+        }
+        $manualAddress = !empty($body['manual_address']) ? trim($body['manual_address']) : null;
+
+        try {
+            $order = $this->model->chooseFulfillment($id, (int) $payload['sub'], $fulfillmentType, $lat, $lng, $manualAddress);
+        } catch (OrderException $e) {
+            json_error($e->getMessage(), 422);
+            return;
+        }
+        json_ok(['item' => $order], 'Thank you — your ' . $fulfillmentType . ' details have been saved.');
     }
 
     /** GET /api/orders/payment-methods — public: which payment methods checkout can offer right now. */

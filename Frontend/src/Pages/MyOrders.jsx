@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Clock, Truck, Link2, Upload, Loader2, Eye, CheckCircle2, XCircle, FileText } from 'lucide-react';
+import { Package, Clock, Truck, Link2, Upload, Loader2, Eye, CheckCircle2, XCircle, FileText, AlertCircle, MapPin } from 'lucide-react';
 import api from '../api/axios.js';
+import FulfillmentChoice from '../Components/FulfillmentChoice.jsx';
 
 const DOCUMENT_LINKS = [
   { type: 'confirmation', label: 'Order Confirmation' },
@@ -135,8 +136,11 @@ function PaymentSubmitForm({ orderId, defaultAmount, onSubmitted }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-xs font-semibold text-secondary">
-        <Upload className="w-3.5 h-3.5" /> Submit Payment Reference / Proof
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl2 bg-brand-gradient text-white text-sm font-bold shadow-glass hover:opacity-90 transition"
+      >
+        <Upload className="w-4 h-4" /> Submit Payment Proof
       </button>
     );
   }
@@ -174,10 +178,32 @@ export default function MyOrders() {
 
   useEffect(() => {
     api.get('/orders')
-      .then((r) => setOrders(r.data.data.items))
+      .then((r) => {
+        const items = r.data.data.items;
+        setOrders(items);
+        // Open straight to whichever order needs the customer's
+        // attention — proof of payment, or a delivery/pickup choice —
+        // instead of making them discover and click to find it.
+        const needsAction = items.find((o) => needsPaymentProof(o) || needsFulfillmentChoice(o));
+        if (needsAction) {
+          setExpanded(needsAction.id);
+          api.get(`/orders/${needsAction.id}`)
+            .then((r2) => setDetails((d) => ({ ...d, [needsAction.id]: r2.data.data.item })))
+            .catch(() => {});
+        }
+      })
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));
   }, []);
+
+  function needsPaymentProof(o) {
+    const balanceDue = Number(o.grand_total) - Number(o.amount_paid || 0);
+    return o.status !== 'awaiting_approval' && !CLOSED_PAYMENT_STATES.includes(o.payment_state) && balanceDue > 0;
+  }
+
+  function needsFulfillmentChoice(o) {
+    return o.status === 'arrived' && !o.fulfillment_type;
+  }
 
   function toggleExpand(orderId) {
     if (expanded === orderId) {
@@ -190,6 +216,11 @@ export default function MyOrders() {
         .then((r) => setDetails((d) => ({ ...d, [orderId]: r.data.data.item })))
         .catch(() => {});
     }
+  }
+
+  function handleFulfillmentChosen(orderId, updatedOrder) {
+    setDetails((d) => ({ ...d, [orderId]: updatedOrder }));
+    setOrders((list) => list.map((o) => (o.id === orderId ? { ...o, ...updatedOrder } : o)));
   }
 
   return (
@@ -208,9 +239,16 @@ export default function MyOrders() {
           {orders.map((o) => {
             const d = details[o.id];
             const balanceDue = Number(o.grand_total) - Number(o.amount_paid || 0);
-            const canSubmitPayment = o.status !== 'awaiting_approval' && !CLOSED_PAYMENT_STATES.includes(o.payment_state) && balanceDue > 0;
+            const canSubmitPayment = needsPaymentProof(o);
+            const needsFulfillment = needsFulfillmentChoice(o);
             return (
               <div key={o.id} className="glass-card p-5">
+                {(canSubmitPayment || needsFulfillment) && (
+                  <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold w-fit">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {needsFulfillment ? 'Action needed — choose delivery or pickup' : 'Action needed — submit payment proof'}
+                  </div>
+                )}
                 <button
                   onClick={() => toggleExpand(o.id)}
                   className="w-full flex flex-wrap items-center justify-between gap-3 text-left"
@@ -232,6 +270,12 @@ export default function MyOrders() {
                     <span className="font-bold">N$ {Number(o.grand_total).toFixed(2)}</span>
                   </div>
                 </button>
+
+                {needsFulfillment && (
+                  <div className="mt-4">
+                    <FulfillmentChoice order={o} onDone={(updated) => handleFulfillmentChosen(o.id, updated)} />
+                  </div>
+                )}
 
                 {expanded === o.id && (
                   <div className="mt-4 pt-4 border-t border-ink/10 space-y-3 text-sm">
@@ -300,10 +344,20 @@ export default function MyOrders() {
                         {o.tracking_number && (
                           <p className="text-ink/60">Tracking number: <span className="font-semibold">{o.tracking_number}</span></p>
                         )}
-                        <p className="text-ink/50 flex items-center gap-1.5">
-                          <Truck className="w-3.5 h-3.5" /> {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}
-                          {o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''}
-                        </p>
+                        {o.fulfillment_type ? (
+                          <p className="text-ink/50 flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5" /> {o.fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}
+                            {o.delivery_area_name_snapshot ? ` — ${o.delivery_area_name_snapshot}` : ''}
+                            {o.delivery_manual_address ? ` — ${o.delivery_manual_address}` : ''}
+                            {o.delivery_fee_quote_source === 'pending_manual' && (
+                              <span className="flex items-center gap-1 text-amber-600 font-semibold"><MapPin className="w-3 h-3" /> fee to be confirmed by our team</span>
+                            )}
+                          </p>
+                        ) : !needsFulfillment ? (
+                          <p className="text-ink/40 flex items-center gap-1.5 text-xs">
+                            <Truck className="w-3.5 h-3.5" /> Delivery/pickup will be arranged once this order is ready.
+                          </p>
+                        ) : null}
 
                         <div className="pt-2 border-t border-ink/10">
                           <p className="text-xs font-semibold text-ink/40 mb-1.5 flex items-center gap-1.5">

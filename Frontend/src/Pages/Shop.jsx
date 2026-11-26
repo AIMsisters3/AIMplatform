@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Search, Loader2, Inbox, Sparkles, Tag, ArrowRight, X } from 'lucide-react';
 import api from '../api/axios.js';
 import ProductCard from '../Components/ProductCard.jsx';
+import FloatingCartButton from '../Components/FloatingCartButton.jsx';
 import { usePaginatedList } from '../hooks/usePaginatedList.js';
 
 const SORT_OPTIONS = [
@@ -228,6 +229,7 @@ export default function Shop() {
           </>
         )}
       </div>
+      <FloatingCartButton />
     </div>
   );
 }

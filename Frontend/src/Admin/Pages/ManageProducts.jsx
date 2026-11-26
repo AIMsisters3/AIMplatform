@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus, Loader2, ChevronUp, ChevronDown, Trash2, ImagePlus, Package,
-  AlertCircle, ArrowLeft, Boxes, RotateCcw,
+  AlertCircle, AlertTriangle, ArrowLeft, Boxes, RotateCcw,
 } from 'lucide-react';
 import api from '../../api/axios.js';
 import TagInput from '../Components/upload/TagInput.jsx';
@@ -128,7 +128,7 @@ export default function ManageProducts() {
 
   const [form, setForm] = useState(emptyForm);
   const [images, setImages] = useState([]); // [{id?, url, alt_text}]
-  const [variants, setVariants] = useState([]); // [{id?, attributesText, sku, price_override, stock_quantity}]
+  const [variants, setVariants] = useState([]); // [{id?, sizeValue, colorValue, otherText, sku, price_override, stock_quantity}]
   const [uploadingImage, setUploadingImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -212,11 +212,15 @@ export default function ManageProducts() {
       const { data } = await api.get(`/products/${product.id}`);
       const item = data?.data?.item;
       setImages((item?.images || []).map((img) => ({ id: img.id, url: img.url, alt_text: img.alt_text || '' })));
-      setVariants((item?.variants || []).map((v) => ({
-        id: v.id,
-        attributesText: Object.entries(v.attributes || {}).map(([k, val]) => `${k}:${val}`).join(', '),
-        sku: v.sku || '', price_override: v.price_override ?? '', stock_quantity: v.stock_quantity ?? '',
-      })));
+      setVariants((item?.variants || []).map((v) => {
+        const { size, color, ...rest } = v.attributes || {};
+        return {
+          id: v.id,
+          sizeValue: size || '', colorValue: color || '',
+          otherText: Object.entries(rest).map(([k, val]) => `${k}:${val}`).join(', '),
+          sku: v.sku || '', price_override: v.price_override ?? '', stock_quantity: v.stock_quantity ?? '',
+        };
+      }));
     } catch {
       setImages([]);
       setVariants([]);
@@ -255,7 +259,7 @@ export default function ManageProducts() {
   }
 
   function addVariantRow() {
-    setVariants((prev) => [...prev, { attributesText: '', sku: '', price_override: '', stock_quantity: '' }]);
+    setVariants((prev) => [...prev, { sizeValue: '', colorValue: '', otherText: '', sku: '', price_override: '', stock_quantity: '' }]);
   }
   function updateVariantRow(index, field, value) {
     setVariants((prev) => prev.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
@@ -264,9 +268,12 @@ export default function ManageProducts() {
     setVariants((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function parseVariantAttributes(text) {
+  /** Builds the {size, color, ...other} map this variant will save as — Size/Color have their own guided fields; anything else goes through the free-text "other attributes" field as "key:value, key:value". */
+  function variantAttributesFor(v) {
     const attrs = {};
-    text.split(',').forEach((pair) => {
+    if ((v.sizeValue || '').trim()) attrs.size = v.sizeValue.trim();
+    if ((v.colorValue || '').trim()) attrs.color = v.colorValue.trim();
+    (v.otherText || '').split(',').forEach((pair) => {
       const [k, ...rest] = pair.split(':');
       const key = k?.trim();
       const val = rest.join(':').trim();
@@ -282,8 +289,8 @@ export default function ManageProducts() {
     if (!form.name.trim()) { setError('Please enter a product name.'); return; }
     if (!form.price || Number(form.price) <= 0) { setError('Please enter a valid price.'); return; }
     for (const v of variants) {
-      if (!v.attributesText.trim() || Object.keys(parseVariantAttributes(v.attributesText)).length === 0) {
-        setError('Each variant needs at least one attribute, e.g. "size:M, color:Red".');
+      if (Object.keys(variantAttributesFor(v)).length === 0) {
+        setError('Each variant needs a size, a color, or another attribute filled in.');
         return;
       }
     }
@@ -348,7 +355,7 @@ export default function ManageProducts() {
       }
       for (const v of variants) {
         const body = {
-          attributes: parseVariantAttributes(v.attributesText),
+          attributes: variantAttributesFor(v),
           sku: v.sku || null,
           price_override: v.price_override !== '' ? Number(v.price_override) : null,
           stock_quantity: Number(v.stock_quantity) || 0,
@@ -547,24 +554,58 @@ export default function ManageProducts() {
           <div className="glass-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-ink">Variants (optional)</h3>
-                <p className="text-[11px] text-ink/40">e.g. size/color/flavor combinations. Leave empty to sell this product as a single item.</p>
+                <h3 className="text-sm font-semibold text-ink">Sizes & Colors (Variants)</h3>
+                <p className="text-[11px] text-ink/40">Leave empty only if this product has no choices to make (one size, one color).</p>
               </div>
               <button type="button" onClick={addVariantRow} className="flex items-center gap-1.5 text-xs font-semibold text-secondary">
-                <Plus className="w-3.5 h-3.5" /> Add Variant
+                <Plus className="w-3.5 h-3.5" /> Add Size / Color
               </button>
             </div>
+
+            {variants.length === 0 && (
+              <p className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl2 px-3 py-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                If a customer needs to pick a size or color for this product, click "Add Size / Color" above for EACH option
+                (e.g. one row for Small, one for Medium, one for Large) — otherwise they can't choose, and you won't know which
+                one they ordered.
+              </p>
+            )}
+
             {variants.map((v, i) => (
-              <div key={v.id || i} className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-start p-3 rounded-xl2 border border-ink/10 bg-white">
-                <input value={v.attributesText} onChange={(e) => updateVariantRow(i, 'attributesText', e.target.value)}
-                  placeholder="size:M, color:Red" className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
-                <input value={v.sku} onChange={(e) => updateVariantRow(i, 'sku', e.target.value)}
-                  placeholder="SKU" className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
-                <input type="number" step="0.01" value={v.price_override} onChange={(e) => updateVariantRow(i, 'price_override', e.target.value)}
-                  placeholder="Price override" className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
-                <input type="number" min="0" value={v.stock_quantity} onChange={(e) => updateVariantRow(i, 'stock_quantity', e.target.value)}
-                  placeholder="Stock" className="px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
-                <button type="button" onClick={() => removeVariantRow(i)} className="text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>
+              <div key={v.id || i} className="p-3 rounded-xl2 border border-ink/10 bg-white space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto] gap-2 items-start">
+                  <label className="block">
+                    <span className="text-[10px] font-semibold text-ink/40">Size</span>
+                    <input value={v.sizeValue} onChange={(e) => updateVariantRow(i, 'sizeValue', e.target.value)}
+                      placeholder="e.g. M" className="mt-0.5 w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-semibold text-ink/40">Color</span>
+                    <input value={v.colorValue} onChange={(e) => updateVariantRow(i, 'colorValue', e.target.value)}
+                      placeholder="e.g. Red" className="mt-0.5 w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-semibold text-ink/40">SKU</span>
+                    <input value={v.sku} onChange={(e) => updateVariantRow(i, 'sku', e.target.value)}
+                      className="mt-0.5 w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-semibold text-ink/40">Price Override</span>
+                    <input type="number" step="0.01" value={v.price_override} onChange={(e) => updateVariantRow(i, 'price_override', e.target.value)}
+                      className="mt-0.5 w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-semibold text-ink/40">Stock *</span>
+                    <input type="number" min="0" value={v.stock_quantity} onChange={(e) => updateVariantRow(i, 'stock_quantity', e.target.value)}
+                      className="mt-0.5 w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                  </label>
+                  <button type="button" onClick={() => removeVariantRow(i)} className="text-red-500 p-2 self-end" aria-label="Remove this size/color"><Trash2 className="w-4 h-4" /></button>
+                </div>
+                <label className="block">
+                  <span className="text-[10px] font-semibold text-ink/40">Other attribute (optional, e.g. flavor:Vanilla)</span>
+                  <input value={v.otherText} onChange={(e) => updateVariantRow(i, 'otherText', e.target.value)}
+                    placeholder="key:value, key:value" className="mt-0.5 w-full px-3 py-2 rounded-xl2 border border-ink/10 text-sm focus:outline-none focus:ring-2 focus:ring-secondary" />
+                </label>
               </div>
             ))}
           </div>

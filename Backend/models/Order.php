@@ -5,6 +5,7 @@ require_once __DIR__ . '/Product.php';
 require_once __DIR__ . '/PayLater.php';
 require_once __DIR__ . '/DeliveryArea.php';
 require_once __DIR__ . '/../helpers/shop_notify.php';
+require_once __DIR__ . '/../helpers/delivery_quote.php';
 require_once __DIR__ . '/../lib/Payments/PaymentGatewayFactory.php';
 
 use AIMsisters\Payments\PaymentGatewayFactory;
@@ -43,10 +44,12 @@ class Order
      * @param array $items [['product_id' => int, 'variant_id' => ?int, 'quantity' => int], ...]
      * @param string $paymentMethod one of PaymentGatewayFactory::availableMethods(), or the literal 'pay_later'.
      * @param int|null $payLaterDays required (1-14) iff $paymentMethod === 'pay_later'.
-     * @param float|null $deliveryLatitude,$deliveryLongitude the customer's pinned/GPS delivery location
-     *   (migration 027) — a real coordinate pair they placed on the checkout map, never a hand-typed
-     *   address the delivery person has to interpret. Only meaningful when $fulfillmentType === 'delivery';
-     *   ignored for pickup.
+     * @param string|null $fulfillmentType deliberately NOT collected at checkout (spec: delivery/pickup is
+     *   chosen once the order is marked "arrived" — see chooseFulfillment()). Always null from
+     *   OrderController::store() today; kept nullable/parameterized rather than removed so a future admin-side
+     *   "place order on behalf of a customer" flow could still set it upfront if it ever needs to.
+     * @param float|null $deliveryLatitude,$deliveryLongitude unused at creation time for the same reason; kept
+     *   for the same forward-compat reason as $fulfillmentType above.
      * @param string $shippingAddress the composed display string (migration 030's contact_name/contact_phone
      *   formatted together) — kept so every existing admin/document screen that already reads
      *   shipping_address keeps working unchanged; $contactName/$contactPhone below are the structured source.
@@ -58,7 +61,7 @@ class Order
     public function createFromCart(
         int $userId,
         array $items,
-        string $fulfillmentType,
+        ?string $fulfillmentType,
         ?int $deliveryAreaId,
         string $shippingAddress,
         ?string $couponCode,
@@ -73,7 +76,7 @@ class Order
         if (empty($items)) {
             throw new OrderException('Your cart is empty.');
         }
-        if (!in_array($fulfillmentType, ['delivery', 'pickup'], true)) {
+        if ($fulfillmentType !== null && !in_array($fulfillmentType, ['delivery', 'pickup'], true)) {
             throw new OrderException('Please choose delivery or pickup.');
         }
         $isPayLater = $paymentMethod === 'pay_later';
@@ -110,6 +113,9 @@ class Order
             }
 
             // ---- 2. Delivery fee — server-resolved only, never client-trusted ----
+            // $fulfillmentType is normally null here: delivery/pickup is no
+            // longer decided at checkout (see chooseFulfillment() below),
+            // so no fee is known or charged yet.
             $deliveryFee = 0.0;
             $deliveryAreaName = null;
             if ($fulfillmentType === 'delivery') {
@@ -122,7 +128,7 @@ class Order
                 }
                 $deliveryFee = (float) $area['fee'];
                 $deliveryAreaName = $area['name'];
-            } else {
+            } elseif ($fulfillmentType === 'pickup') {
                 $area = $deliveryAreaId ? $this->deliveryAreaModel->find($deliveryAreaId) : null;
                 if ($area && $area['is_pickup']) {
                     $deliveryAreaName = $area['name'];
@@ -315,7 +321,7 @@ class Order
 
     private function createInStockOrder(
         int $userId, array $lines, float $totalSubtotal, float $totalDiscount, float $deliveryFee,
-        string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
+        ?string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
         ?array $coupon, string $paymentMethod, array $paymentDetails, bool $isPayLater, ?int $payLaterDays, ?string $splitGroupId,
         ?float $deliveryLatitude = null, ?float $deliveryLongitude = null,
         ?string $contactName = null, ?string $contactPhone = null
@@ -383,7 +389,7 @@ class Order
 
     private function createOnOrderOrder(
         int $userId, array $lines, float $totalSubtotal, float $totalDiscount, float $deliveryFee,
-        string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
+        ?string $fulfillmentType, ?int $deliveryAreaId, ?string $deliveryAreaName, string $shippingAddress,
         ?array $coupon, ?string $splitGroupId,
         ?float $deliveryLatitude = null, ?float $deliveryLongitude = null,
         ?string $contactName = null, ?string $contactPhone = null
@@ -601,6 +607,114 @@ class Order
             );
         }
         return $ok;
+    }
+
+    // -----------------------------------------------------------------
+    // Post-"arrived" fulfillment choice — delivery/pickup, and (for
+    // delivery) the fee, are deliberately NOT decided at checkout; the
+    // customer chooses once the order is 'arrived' (spec Part G / the
+    // explicit bug-report instruction to defer this). Never trusts a
+    // client-supplied fee — always recomputed here from the coordinates.
+    // -----------------------------------------------------------------
+
+    /** Read-only preview for the customer's "arrived" screen — recomputes but does not save anything. */
+    public function previewDeliveryQuote(int $orderId, int $userId, float $lat, float $lng): array
+    {
+        $order = $this->find($orderId);
+        if (!$order || (int) $order['user_id'] !== $userId) {
+            throw new OrderException('Order not found.');
+        }
+        return compute_delivery_quote($lat, $lng);
+    }
+
+    /**
+     * The customer's actual delivery/pickup decision, made once the order
+     * is ready. Only allowed while status is 'arrived' and no choice has
+     * been made yet — an admin changing the fulfillment path afterwards
+     * is a separate, admin-only action, not this endpoint.
+     *
+     * Delivery has two paths: a real lat/lng (map pin) is priced via
+     * compute_delivery_quote(); if the map didn't work for the customer,
+     * a free-text manual address is accepted instead and the fee is left
+     * for the admin to set by hand (never guessed) — delivery_fee_quote_source
+     * records which happened.
+     */
+    public function chooseFulfillment(
+        int $orderId,
+        int $userId,
+        string $fulfillmentType,
+        ?float $lat = null,
+        ?float $lng = null,
+        ?string $manualAddress = null
+    ): array {
+        if (!in_array($fulfillmentType, ['delivery', 'pickup'], true)) {
+            throw new OrderException('Please choose delivery or pickup.');
+        }
+
+        $order = $this->find($orderId);
+        if (!$order || (int) $order['user_id'] !== $userId) {
+            throw new OrderException('Order not found.');
+        }
+        if ($order['fulfillment_type'] !== null) {
+            throw new OrderException('Delivery/pickup has already been arranged for this order.');
+        }
+        if ($order['status'] !== 'arrived') {
+            throw new OrderException('This order is not ready for delivery/pickup arrangements yet — we\'ll notify you once it is.');
+        }
+
+        $fields = [
+            'fulfillment_type' => $fulfillmentType,
+            'fulfillment_chosen_at' => date('Y-m-d H:i:s'),
+            'delivery_latitude' => null, 'delivery_longitude' => null, 'delivery_manual_address' => null,
+            'delivery_area_id' => null, 'delivery_area_name_snapshot' => null,
+            'delivery_distance_km' => null, 'delivery_fee_quote_source' => null,
+        ];
+        $deliveryFee = 0.0;
+        $quoteMessage = null;
+
+        if ($fulfillmentType === 'delivery') {
+            if ($lat !== null && $lng !== null) {
+                $quote = compute_delivery_quote($lat, $lng);
+                $fields['delivery_latitude'] = $lat;
+                $fields['delivery_longitude'] = $lng;
+                if ($quote['available']) {
+                    $deliveryFee = (float) $quote['fee'];
+                    $fields['delivery_fee_quote_source'] = $quote['source'];
+                    if ($quote['source'] === 'area') {
+                        $fields['delivery_area_id'] = $quote['area_id'];
+                        $fields['delivery_area_name_snapshot'] = $quote['area_name'];
+                    } else {
+                        $fields['delivery_distance_km'] = $quote['distance_km'];
+                    }
+                } else {
+                    $fields['delivery_fee_quote_source'] = 'pending_manual';
+                    $quoteMessage = $quote['message'];
+                }
+            } elseif ($manualAddress !== null && trim($manualAddress) !== '') {
+                $fields['delivery_manual_address'] = trim($manualAddress);
+                $fields['delivery_fee_quote_source'] = 'pending_manual';
+                $quoteMessage = 'Our team will confirm your delivery fee directly since the map wasn\'t used.';
+            } else {
+                throw new OrderException('Please pin your delivery location on the map, or enter your address manually.');
+            }
+        }
+
+        $grandTotal = round((float) $order['subtotal'] - (float) $order['discount_total'] + $deliveryFee, 2);
+        $fields['shipping_total'] = $deliveryFee;
+        $fields['grand_total'] = $grandTotal;
+
+        $set = implode(', ', array_map(fn ($k) => "{$k} = :{$k}", array_keys($fields)));
+        $this->db->prepare("UPDATE orders SET {$set} WHERE id = :id")
+            ->execute($fields + ['id' => $orderId]);
+
+        notify_shop_admins_event(
+            'Delivery/pickup arranged',
+            "Order {$order['order_number']}: the customer chose " . ucfirst($fulfillmentType)
+                . ($fulfillmentType === 'delivery' ? ($quoteMessage ? ' — fee needs manual confirmation.' : ' (fee: N$' . number_format($deliveryFee, 2) . ').') : '.'),
+            'order', '/admin/orders'
+        );
+
+        return $this->find($orderId) + ['quote_message' => $quoteMessage];
     }
 
     // -----------------------------------------------------------------
